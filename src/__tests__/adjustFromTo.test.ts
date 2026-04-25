@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import type { Period } from '../types'
 
 // Re-export the module-level function for testing by importing the compiled
@@ -53,36 +54,36 @@ describe('adjustFromTo', () => {
     const ts = Date.UTC(2024, 0, 15, 10, 30, 45)
     const [from, to] = adjustFromTo(minutePeriod, ts, 2)
     const expectedTo = Date.UTC(2024, 0, 15, 10, 30, 0)
-    expect(to).toBe(expectedTo)
-    expect(from).toBe(expectedTo - 2 * 60_000)
+    assert.equal(to, expectedTo)
+    assert.equal(from, expectedTo - 2 * 60_000)
   })
 
   it('aligns day periods to day boundary', () => {
     const ts = Date.UTC(2024, 0, 15, 14, 22, 0)
     const [from, to] = adjustFromTo(dayPeriod, ts, 3)
     const expectedTo = Date.UTC(2024, 0, 15, 0, 0, 0)
-    expect(to).toBe(expectedTo)
-    expect(from).toBe(expectedTo - 3 * 86_400_000)
+    assert.equal(to, expectedTo)
+    assert.equal(from, expectedTo - 3 * 86_400_000)
   })
 
   it('aligns week periods to Monday', () => {
     // 2024-01-17 is a Wednesday → Monday is 2024-01-15
     const ts = Date.UTC(2024, 0, 17, 12, 0, 0)
     const [_from, to] = adjustFromTo(weekPeriod, ts, 1)
-    expect(to).toBe(Date.UTC(2024, 0, 15))
+    assert.equal(to, Date.UTC(2024, 0, 15))
   })
 
   it('aligns month periods to first of month', () => {
     const ts = Date.UTC(2024, 2, 15) // March 15
     const [from, to] = adjustFromTo(monthPeriod, ts, 2)
-    expect(to).toBe(Date.UTC(2024, 2, 1))
-    expect(from).toBe(Date.UTC(2024, 0, 1))
+    assert.equal(to, Date.UTC(2024, 2, 1))
+    assert.equal(from, Date.UTC(2024, 0, 1))
   })
 
   it('aligns year periods to Jan 1', () => {
     const ts = Date.UTC(2024, 5, 15)
     const [from, to] = adjustFromTo(yearPeriod, ts, 2)
-    expect(to).toBe(Date.UTC(2024, 0, 1))
-    expect(from).toBe(Date.UTC(2022, 0, 1))
+    assert.equal(to, Date.UTC(2024, 0, 1))
+    assert.equal(from, Date.UTC(2022, 0, 1))
   })
 })

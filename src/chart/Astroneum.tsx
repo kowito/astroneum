@@ -4,7 +4,7 @@ import { utils } from '@/engine'
 import type { Nullable, DeepPartial, Styles } from '@/types'
 
 import ChartProComponent from './ChartProComponent'
-import logoSvgRaw from '@/assets/logo.svg?raw'
+import logoSvgRaw from '@/assets/logo.svg'
 
 import { type SymbolInfo, type Period, type ChartPro, type ChartProOptions } from '@/types'
 

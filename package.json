@@ -3,14 +3,14 @@
   "version": "0.1.1",
   "description": "Astroneum - Professional financial charting library, ready out of the box.",
   "type": "module",
-  "main": "./dist/astroneum.js",
+  "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "style": "./dist/astroneum.css",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/astroneum.js",
-      "default": "./dist/astroneum.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./style.css": "./dist/astroneum.css",
     "./package.json": "./package.json"
@@ -52,28 +52,29 @@
   },
   "scripts": {
     "clean": "node -e \"const fs=require('node:fs');fs.rmSync('dist',{ recursive: true, force: true })\"",
-    "build": "pnpm clean && tsc && vite build",
+    "build:js": "tsup --config tsup.config.ts",
+    "build:css": "lessc src/styles/index.less src/styles/.tmp-astroneum.css && esbuild src/styles/.tmp-astroneum.css --bundle --minify --loader:.eot=dataurl --loader:.ttf=dataurl --loader:.woff=dataurl --loader:.svg=dataurl --outfile=dist/astroneum.css && node -e \"const fs=require('node:fs');fs.rmSync('src/styles/.tmp-astroneum.css',{ force: true })\"",
+    "build": "pnpm clean && pnpm build:js && pnpm build:css",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "tsx --test src/__tests__/*.test.ts",
+    "test:watch": "tsx --test --watch src/__tests__/*.test.ts",
     "lint": "eslint src",
     "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "prepublishOnly": "pnpm verify"
   },
   "devDependencies": {
+    "@types/node": "^24.9.1",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
-    "@vitejs/plugin-react": "^4.7.0",
+    "esbuild": "^0.25.11",
     "eslint": "^9.39.4",
-    "jsdom": "^29.0.2",
     "less": "^4.6.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "tsup": "^8.5.1",
+    "tsx": "^4.20.6",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.59.0",
-    "vite": "^6.4.2",
-    "vite-plugin-dts": "^4.5.4",
-    "vitest": "^0.28.5"
+    "typescript-eslint": "^8.59.0"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",
@@ -81,7 +82,6 @@
   },
   "pnpm": {
     "overrides": {
-      "vite": ">=6.4.2 <7",
       "esbuild": ">=0.25.0"
     },
     "onlyBuiltDependencies": [
