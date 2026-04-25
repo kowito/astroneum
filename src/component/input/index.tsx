@@ -13,7 +13,7 @@ export interface InputProps {
   placeholder?: string
   value: string | number
   disabled?: boolean
-  onChange?: (v: string | number) => void 
+  onChange?: (value: string | number) => void 
 }
 
 const Input: Component<InputProps> = p => {
@@ -35,21 +35,21 @@ const Input: Component<InputProps> = p => {
         value={props.value}
         onFocus={() => { setStatus('focus') }}
         onBlur={() => { setStatus('normal') }}
-        onChange={(e) => {
-          const v = (e.target).value
+        onChange={(changeEvent) => {
+          const inputValue = (changeEvent.target).value
           if ('precision' in props) {
-            let reg
+            let validationRegex
             const decimalDigit = Math.max(0, Math.floor(props.precision!))
             if (decimalDigit <= 0) {
-              reg = new RegExp(/^[1-9]\d*$/)
+              validationRegex = new RegExp(/^[1-9]\d*$/)
             } else {
-              reg = new RegExp('^\\d+\\.?\\d{0,' + decimalDigit + '}$')
+              validationRegex = new RegExp('^\\d+\\.?\\d{0,' + decimalDigit + '}$')
             }
-            if (v === '' || (reg.test(v) && +v >= props.min && +v <= props.max)) {
-              props.onChange?.(v === '' ? v : +v)
+            if (inputValue === '' || (validationRegex.test(inputValue) && +inputValue >= props.min && +inputValue <= props.max)) {
+              props.onChange?.(inputValue === '' ? inputValue : +inputValue)
             }
           } else {
-            props.onChange?.(v)
+            props.onChange?.(inputValue)
           }
         }}/>
       <Show when={props.prefix}>

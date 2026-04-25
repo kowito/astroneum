@@ -38,19 +38,19 @@ const Select: Component<SelectProps> = props => {
           <ul>
             {
               props.dataSource.map(data => {
-                const d = data as SelectDataSourceItem
+                const selectedItem = data as SelectDataSourceItem
                 // @ts-expect-error dynamic key access on SelectDataSourceItem
-                const v = d[props.valueKey ?? 'text'] ?? data
+                const displayValue = selectedItem[props.valueKey ?? 'text'] ?? data
                 return (
                   <li
-                    onClick={e => {
-                      e.stopPropagation()
-                      if (props.value !== v) {
+                    onClick={clickEvent => {
+                      clickEvent.stopPropagation()
+                      if (props.value !== displayValue) {
                         props.onSelected?.(data)
                       }
                       setOpen(false)
                     }}>
-                    {v}
+                    {displayValue}
                   </li>
                 )
               })

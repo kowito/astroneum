@@ -85,20 +85,20 @@ function adjustFromTo (period: Period, toTimestamp: number, count: number): [fro
   }
   if (period.timespan === 'week') {
     const dayMs = 86_400_000
-    const d = new Date(toTimestamp)
-    const dif = d.getUTCDay() === 0 ? 6 : d.getUTCDay() - 1
-    const to = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - dif)
+    const toDate = new Date(toTimestamp)
+    const weekDayOffset = toDate.getUTCDay() === 0 ? 6 : toDate.getUTCDay() - 1
+    const to = Date.UTC(toDate.getUTCFullYear(), toDate.getUTCMonth(), toDate.getUTCDate() - weekDayOffset)
     return [to - count * period.multiplier * 7 * dayMs, to]
   }
   if (period.timespan === 'month') {
-    const d = new Date(toTimestamp)
-    const to = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)
+    const toDate = new Date(toTimestamp)
+    const to = Date.UTC(toDate.getUTCFullYear(), toDate.getUTCMonth(), 1)
     const fromDate = new Date(to)
     fromDate.setUTCMonth(fromDate.getUTCMonth() - count * period.multiplier)
     return [Date.UTC(fromDate.getUTCFullYear(), fromDate.getUTCMonth(), 1), to]
   }
-  const d = new Date(toTimestamp)
-  const to = Date.UTC(d.getUTCFullYear(), 0, 1)
+  const toDate = new Date(toTimestamp)
+  const to = Date.UTC(toDate.getUTCFullYear(), 0, 1)
   const fromDate = new Date(to)
   fromDate.setUTCFullYear(fromDate.getUTCFullYear() - count * period.multiplier)
   return [Date.UTC(fromDate.getUTCFullYear(), 0, 1), to]
@@ -184,12 +184,12 @@ const ChartProComponent: Component<ChartProComponentProps> = (props: ChartProCom
     window.addEventListener('resize', documentResize)
 
     // Keyboard shortcuts for drawing tools
-    const handleKeyDown = (e: KeyboardEvent): void => {
+    const handleKeyDown = (keyboardEvent: KeyboardEvent): void => {
       const tag = (document.activeElement as HTMLElement)?.tagName?.toLowerCase()
       if (tag === 'input' || tag === 'textarea') return
-      if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (keyboardEvent.key === 'Delete' || keyboardEvent.key === 'Backspace') {
         widget?.removeOverlay()
-      } else if (e.key === 'Escape') {
+      } else if (keyboardEvent.key === 'Escape') {
         widget?.overrideOverlay({ isDrawEnd: true } as never)
         widget?.removeOverlay({ id: '' }) // deselect without removing
       }

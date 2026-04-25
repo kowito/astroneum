@@ -191,9 +191,9 @@ const DrawingBar: Component<DrawingBarProps> = props => {
         <span
           style="width:32px;height:32px"
           onClick={() => {
-            const v = !visible
-            setVisible(v)
-            props.onVisibleChange(v)
+            const nextVisible = !visible
+            setVisible(nextVisible)
+            props.onVisibleChange(nextVisible)
           }}>
           {
             visible ? <Icon name="visible" /> : <Icon name="invisible" />
@@ -210,11 +210,18 @@ const DrawingBar: Component<DrawingBarProps> = props => {
           style="width:32px;height:32px"
           aria-pressed={snapLevelsActive}
           aria-label={i18n('snap_levels', props.locale)}
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const v = !snapLevelsActive; setSnapLevelsActive(v); props.onSnapLevelsChange?.(v) } }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              const nextSnapLevelsActive = !snapLevelsActive
+              setSnapLevelsActive(nextSnapLevelsActive)
+              props.onSnapLevelsChange?.(nextSnapLevelsActive)
+            }
+          }}
           onClick={() => {
-            const v = !snapLevelsActive
-            setSnapLevelsActive(v)
-            props.onSnapLevelsChange?.(v)
+            const nextSnapLevelsActive = !snapLevelsActive
+            setSnapLevelsActive(nextSnapLevelsActive)
+            props.onSnapLevelsChange?.(nextSnapLevelsActive)
           }}>
           <Icon name={snapLevelsActive ? 'snap_levels' : 'snap_levels'} class={snapLevelsActive ? 'selected' : ''} />
         </span>

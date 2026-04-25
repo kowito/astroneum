@@ -17,21 +17,21 @@ const Modal: ParentComponent<ModalProps> = (props) => {
   const titleId = `astroneum-modal-title-${++_modalIdCounter}`
   let cardRef: HTMLDivElement | undefined
 
-  const onKeyDown = (e: KeyboardEvent): void => {
-    if (e.key === 'Escape') {
+  const onKeyDown = (keyboardEvent: KeyboardEvent): void => {
+    if (keyboardEvent.key === 'Escape') {
       props.onClose?.()
       return
     }
-    if (e.key === 'Tab' && cardRef) {
+    if (keyboardEvent.key === 'Tab' && cardRef) {
       const focusable = cardRef.querySelectorAll<HTMLElement>(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
       )
       const first = focusable[0]
       const last = focusable[focusable.length - 1]
-      if (e.shiftKey) {
-        if (document.activeElement === first) { e.preventDefault(); last?.focus() }
+      if (keyboardEvent.shiftKey) {
+        if (document.activeElement === first) { keyboardEvent.preventDefault(); last?.focus() }
       } else {
-        if (document.activeElement === last) { e.preventDefault(); first?.focus() }
+        if (document.activeElement === last) { keyboardEvent.preventDefault(); first?.focus() }
       }
     }
   }

@@ -62,40 +62,40 @@ const IndicatorSettingModal: Component<IndicatorSettingModalProps> = props => {
           </div>
         </Show>
         <For each={getConfig(props.params.indicatorName)}>
-          {(d, i) => (
+          {(configItem, configIndex) => (
             <div class="astroneum-indicator-setting-modal-row">
-              <span class="astroneum-indicator-setting-modal-label">{i18n(d.paramNameKey, props.locale)}</span>
+              <span class="astroneum-indicator-setting-modal-label">{i18n(configItem.paramNameKey, props.locale)}</span>
               <Input
                 style={{ width: hasLineStyles() ? '80px' : '200px' }}
-                value={calcParams[i()] ?? ''}
-                precision={d.precision}
-                min={d.min}
+                value={calcParams[configIndex()] ?? ''}
+                precision={configItem.precision}
+                min={configItem.min}
                 onChange={value => {
                   const params = utils.clone(calcParams)
-                  params[i()] = value
+                  params[configIndex()] = value
                   setCalcParams(params)
                 }}/>
-                <Show when={hasLineStyles() ? lineStyles[i()] : undefined} keyed>
+                <Show when={hasLineStyles() ? lineStyles[configIndex()] : undefined} keyed>
                   {lineStyle => (
                     <>
                       <input
                         type="color"
                         class="astroneum-indicator-setting-modal-color"
                         value={lineStyle.color}
-                        onInput={e => {
+                        onInput={inputEvent => {
                           const next = utils.clone(lineStyles)
-                          const nextLineStyle = next[i()]
+                          const nextLineStyle = next[configIndex()]
                           if (!nextLineStyle) {
                             return
                           }
-                          nextLineStyle.color = e.currentTarget.value
+                          nextLineStyle.color = inputEvent.currentTarget.value
                           setLineStyles(next)
                         }}/>
                       <Switch
                         open={lineStyle.show}
                         onChange={() => {
                           const next = utils.clone(lineStyles)
-                          const nextLineStyle = next[i()]
+                          const nextLineStyle = next[configIndex()]
                           if (!nextLineStyle) {
                             return
                           }
