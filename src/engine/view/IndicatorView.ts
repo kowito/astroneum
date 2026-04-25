@@ -7,6 +7,7 @@ import { isNumber, isValid } from '../common/utils/typeChecks'
 import type Coordinate from '../common/Coordinate'
 
 import { eachFigures, type IndicatorFigure, type IndicatorFigureAttrs, type IndicatorFigureStyle } from '../component/Indicator'
+import { getOrCreateLineRenderer, type LineSegmentData } from '../common/IndicatorLineWebGLRenderer'
 
 import CandleBarView, { type CandleBarOptions } from './CandleBarView'
 
@@ -57,6 +58,13 @@ export default class IndicatorView extends CandleBarView {
     const chartStore = chart.getChartStore()
     const indicators = chartStore.getIndicatorsByPaneId(pane.getId())
     const defaultStyles = chartStore.getStyles().indicator
+
+    // Accumulate GPU-eligible (solid, non-smooth) line segments from ALL indicators
+    // so they can be flushed in a single instanced draw call after the Canvas2D pass.
+    // NOTE: indicators with zLevel < 0 use 'destination-over' blending which cannot
+    // be replicated on a separate WebGL canvas — those fall back to Canvas2D.
+    const gpuLineSegs: LineSegmentData[] = []
+
     ctx.save()
     indicators.forEach(indicator => {
       if (indicator.visible) {
@@ -216,11 +224,33 @@ export default class IndicatorView extends CandleBarView {
                 }
               }
               mergeLines.forEach(({ coordinates, styles }) => {
-                this.createFigure({
-                  name: 'line',
-                  attrs: { coordinates },
-                  styles
-                })?.draw(ctx)
+                const lineStyle = styles as SmoothLineStyle
+                // GPU path: solid, non-smooth lines from non-behind indicators
+                if (
+                  indicator.zLevel >= 0 &&
+                  lineStyle.style !== 'dashed' &&
+                  lineStyle.smooth !== true &&
+                  typeof lineStyle.color === 'string'
+                ) {
+                  const hw = ((lineStyle.size as number) ?? 1) / 2
+                  for (let i = 0; i < coordinates.length - 1; i++) {
+                    gpuLineSegs.push({
+                      x0: coordinates[i].x,
+                      y0: coordinates[i].y,
+                      x1: coordinates[i + 1].x,
+                      y1: coordinates[i + 1].y,
+                      halfWidth: hw,
+                      color: lineStyle.color as string
+                    })
+                  }
+                } else {
+                  // Canvas2D fallback: dashed / smooth / destination-over indicators
+                  this.createFigure({
+                    name: 'line',
+                    attrs: { coordinates },
+                    styles
+                  })?.draw(ctx)
+                }
               })
             }
           })
@@ -228,5 +258,30 @@ export default class IndicatorView extends CandleBarView {
       }
     })
     ctx.restore()
+
+    // -------------------------------------------------------------------------
+    // GPU line flush — single instanced draw call for all accumulated segments
+    // -------------------------------------------------------------------------
+    if (gpuLineSegs.length > 0) {
+      const lineRenderer = getOrCreateLineRenderer(widget, widget.getContainer())
+      if (lineRenderer !== null) {
+        const { width, height } = bounding
+        lineRenderer.resize(width, height)
+        lineRenderer.setData(gpuLineSegs)
+        lineRenderer.draw(width, height)
+      } else {
+        // WebGL2 unavailable — render segments as Canvas2D strokes (grouped by style)
+        ctx.save()
+        for (const seg of gpuLineSegs) {
+          ctx.beginPath()
+          ctx.strokeStyle = seg.color
+          ctx.lineWidth   = seg.halfWidth * 2
+          ctx.moveTo(seg.x0, seg.y0)
+          ctx.lineTo(seg.x1, seg.y1)
+          ctx.stroke()
+        }
+        ctx.restore()
+      }
+    }
   }
 }

@@ -293,6 +293,18 @@ export class CandleWebGLRenderer {
   //  (bull/bear × wick/body/border). Cache avoids repeated parseColor() calls.
   private readonly _colorCache = new Map<string, readonly [number, number, number, number]>()
 
+  // ── Dirty-flag: O(1) fingerprint fields ────────────────────────────────────
+  //  Five cheap scalar comparisons replace the O(N) VBO re-upload when the
+  //  visible bar set hasn't changed between frames (e.g. mid-render crosshair
+  //  hover, tooltip redraws, UI state updates that don't touch price data).
+  //  Covers: pan (X shifts), zoom (both X shift), new tick (close changes),
+  //  style/theme change (bodyColor changes), data load (len changes).
+  private _fpLen   = -1
+  private _fpX0    = 0
+  private _fpXLast = 0
+  private _fpClose = 0
+  private _fpColor = ''
+
   //  Dev-mode GPU frame-time profiling via EXT_disjoint_timer_query_webgl2.
   //  Warns to console when GPU frame exceeds the 4 ms budget (60 fps = 16 ms total).
   private _timerExt: GPUTimerEXT | null = null
@@ -477,31 +489,57 @@ export class CandleWebGLRenderer {
    * Full upload of all visible bars. Called on symbol/period change or initial load.
    * Packs all bar data into the pre-allocated staging buffer then streams to GPU
    * in a single bufferSubData call.
+   *
+   * Dirty-flag: an O(1) fingerprint check skips the upload when the visible bar
+   * set is identical to the last uploaded frame (e.g. crosshair hover redraws).
    */
   setData (bars: BarRenderData[]): void {
-    this._barCount = bars.length
-    if (this._barCount === 0) return
+    const len = bars.length
+    this._barCount = len
+    if (len === 0) {
+      this._fpLen = 0
+      return
+    }
 
-    this._ensureCapacity(this._barCount)
+    // O(1) fingerprint — skip the O(N) staging + bufferSubData when unchanged
+    const last = bars[len - 1]
+    if (
+      len            === this._fpLen   &&
+      bars[0].centerX === this._fpX0    &&
+      last.centerX    === this._fpXLast &&
+      last.close      === this._fpClose &&
+      last.bodyColor  === this._fpColor
+    ) return
+
+    this._fpLen   = len
+    this._fpX0    = bars[0].centerX
+    this._fpXLast = last.centerX
+    this._fpClose = last.close
+    this._fpColor = last.bodyColor
+
+    this._ensureCapacity(len)
 
     const f32 = this._stagingF32
     const u8  = this._stagingU8
-    for (let i = 0; i < bars.length; i++) {
+    for (let i = 0; i < len; i++) {
       // BYTES_PER_BAR = 32 → f32Base = i * 8  (32 / sizeof(float32) = 8)
       this._writeBarIntoViews(bars[i], f32, u8, i << 3, i * BYTES_PER_BAR)
     }
 
     const gl = this._gl
     gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._stagingU8, 0, this._barCount * BYTES_PER_BAR)
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._stagingU8, 0, len * BYTES_PER_BAR)
   }
 
   /**
    * O(1) partial update for the last bar (live tick).
    * Uses the pre-allocated _singleBarBuf — zero GC on the tick hot path.
+   * Keeps the dirty-flag fingerprint in sync so the next setData() call
+   * correctly skips the full re-upload.
    */
   updateLastBar (bar: BarRenderData): void {
     if (this._barCount === 0) return
+    this._fpClose = bar.close    // fingerprint: last-bar close matches new value
     this._writeBarIntoViews(bar, this._singleBarF32, this._singleBarU8, 0, 0)
     const gl = this._gl
     gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
