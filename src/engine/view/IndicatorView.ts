@@ -8,6 +8,7 @@ import type Coordinate from '../common/Coordinate'
 
 import { eachFigures, type IndicatorFigure, type IndicatorFigureAttrs, type IndicatorFigureStyle } from '../component/Indicator'
 import { getOrCreateLineRenderer, type LineSegmentData } from '../common/IndicatorLineWebGLRenderer'
+import { getOrCreateRectRenderer, isGpuRectEligible, type RectInstanceData } from '../common/IndicatorRectWebGLRenderer'
 
 import CandleBarView, { type CandleBarOptions } from './CandleBarView'
 
@@ -64,6 +65,8 @@ export default class IndicatorView extends CandleBarView {
     // NOTE: indicators with zLevel < 0 use 'destination-over' blending which cannot
     // be replicated on a separate WebGL canvas — those fall back to Canvas2D.
     const gpuLineSegs: LineSegmentData[] = []
+    // Accumulate GPU-eligible (solid fill, no border/radius) rect instances.
+    const gpuRects: RectInstanceData[] = []
 
     ctx.save()
     indicators.forEach(indicator => {
@@ -182,11 +185,26 @@ export default class IndicatorView extends CandleBarView {
                 }
                 const type = figure.type!
                 if (isValid<IndicatorFigureAttrs>(attrs) && type !== 'line') {
-                  this.createFigure({
-                    name: type === 'bar' ? 'rect' : type,
-                    attrs,
-                    styles: figureStyles
-                  })?.draw(ctx)
+                  if (
+                    indicator.zLevel >= 0 &&
+                    (type === 'rect' || type === 'bar') &&
+                    isGpuRectEligible(figureStyles)
+                  ) {
+                    // GPU path: batch solid fill rects for a single instanced draw call
+                    gpuRects.push({
+                      x:      (attrs as { x: number }).x,
+                      y:      (attrs as { y: number }).y,
+                      width:  (attrs as { width: number }).width,
+                      height: (attrs as { height: number }).height,
+                      color:  figureStyles.color as string
+                    })
+                  } else {
+                    this.createFigure({
+                      name: type === 'bar' ? 'rect' : type,
+                      attrs,
+                      styles: figureStyles
+                    })?.draw(ctx)
+                  }
                 }
               }
             })
@@ -258,6 +276,27 @@ export default class IndicatorView extends CandleBarView {
       }
     })
     ctx.restore()
+
+    // -------------------------------------------------------------------------
+    // GPU rect flush — single instanced draw call for all accumulated fill-rects
+    // -------------------------------------------------------------------------
+    if (gpuRects.length > 0) {
+      const rectRenderer = getOrCreateRectRenderer(widget, widget.getContainer())
+      if (rectRenderer !== null) {
+        const { width, height } = bounding
+        rectRenderer.resize(width, height)
+        rectRenderer.setData(gpuRects)
+        rectRenderer.draw(width, height)
+      } else {
+        // WebGL2 unavailable — render as Canvas2D fillRect calls
+        ctx.save()
+        for (const rect of gpuRects) {
+          ctx.fillStyle = rect.color
+          ctx.fillRect(rect.x, rect.y, rect.width, rect.height)
+        }
+        ctx.restore()
+      }
+    }
 
     // -------------------------------------------------------------------------
     // GPU line flush — single instanced draw call for all accumulated segments
