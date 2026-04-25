@@ -45,8 +45,8 @@ export default class CandleAreaView extends ChildrenView {
     let ripplePointCoordinate: Nullable<Coordinate> = null
     this.eachChildren((data) => {
       const x = data.x
-      const { current: kLineData } = data.data
-      const value = kLineData?.[styles.value]
+      const { current: candleData } = data.data
+      const value = candleData?.[styles.value]
       if (isNumber(value)) {
         const y = yAxis.convertToPixel(value)
         if (areaStartX === Number.MIN_SAFE_INTEGER) {

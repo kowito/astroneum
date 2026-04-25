@@ -1144,7 +1144,7 @@ export default class StoreImp implements Store {
     this._crosshair = {
       ...nextCrosshair,
       realX,
-      kLineData: candleDataAtCrosshair,
+      candleData: candleDataAtCrosshair,
       realDataIndex,
       dataIndex,
       timestamp: this.dataIndexToTimestamp(realDataIndex) ?? undefined

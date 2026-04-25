@@ -324,7 +324,7 @@ export default class OverlayView<C extends Axis = YAxis> extends View<C> {
     }
   }
 
-  private _coordinateToPoint (o: Overlay, coordinate: Coordinate): Partial<Point> {
+  private _coordinateToPoint (overlay: Overlay, coordinate: Coordinate): Partial<Point> {
     const point: Partial<Point> = {}
     const pane = this.getWidget().getPane()
     const chart = pane.getChart()
@@ -340,42 +340,42 @@ export default class OverlayView<C extends Axis = YAxis> extends View<C> {
     if (this.coordinateToPointValueFlag()) {
       const yAxis = pane.getAxisComponent()
       let value = yAxis.convertFromPixel(coordinate.y)
-      if (o.mode !== 'normal' && paneId === PaneIdConstants.CANDLE && isNumber(point.dataIndex)) {
-        const kLineData = chartStore.getDataByDataIndex(point.dataIndex)
-        if (kLineData !== null) {
-          const modeSensitivity = o.modeSensitivity
-          if (value > kLineData.high) {
-            if (o.mode === 'weak_magnet') {
-              const highY = yAxis.convertToPixel(kLineData.high)
+      if (overlay.mode !== 'normal' && paneId === PaneIdConstants.CANDLE && isNumber(point.dataIndex)) {
+        const candleData = chartStore.getDataByDataIndex(point.dataIndex)
+        if (candleData !== null) {
+          const modeSensitivity = overlay.modeSensitivity
+          if (value > candleData.high) {
+            if (overlay.mode === 'weak_magnet') {
+              const highY = yAxis.convertToPixel(candleData.high)
               const buffValue = yAxis.convertFromPixel(highY - modeSensitivity)
               if (value < buffValue) {
-                value = kLineData.high
+                value = candleData.high
               }
             } else {
-              value = kLineData.high
+              value = candleData.high
             }
-          } else if (value < kLineData.low) {
-            if (o.mode === 'weak_magnet') {
-              const lowY = yAxis.convertToPixel(kLineData.low)
+          } else if (value < candleData.low) {
+            if (overlay.mode === 'weak_magnet') {
+              const lowY = yAxis.convertToPixel(candleData.low)
               const buffValue = yAxis.convertFromPixel(lowY - modeSensitivity)
               if (value > buffValue) {
-                value = kLineData.low
+                value = candleData.low
               }
             } else {
-              value = kLineData.low
+              value = candleData.low
             }
           } else {
-            const max = Math.max(kLineData.open, kLineData.close)
-            const min = Math.min(kLineData.open, kLineData.close)
+            const max = Math.max(candleData.open, candleData.close)
+            const min = Math.min(candleData.open, candleData.close)
             if (value > max) {
-              if (value - max < kLineData.high - value) {
+              if (value - max < candleData.high - value) {
                 value = max
               } else {
-                value = kLineData.high
+                value = candleData.high
               }
             } else if (value < min) {
-              if (value - kLineData.low < min - value) {
-                value = kLineData.low
+              if (value - candleData.low < min - value) {
+                value = candleData.low
               } else {
                 value = min
               }
