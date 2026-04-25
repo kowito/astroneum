@@ -24,8 +24,8 @@ export function getParallelLines (coordinates: Coordinate[], bounding: Bounding,
         lines.push({ coordinates: [{ x: coordinates[2].x, y: startY }, { x: coordinates[2].x, y: endY }] })
         const distance = coordinates[0].x - coordinates[2].x
         for (let i = 0; i < count; i++) {
-          const d = distance * (i + 1)
-          lines.push({ coordinates: [{ x: coordinates[0].x + d, y: startY }, { x: coordinates[0].x + d, y: endY }] })
+          const offsetX = distance * (i + 1)
+          lines.push({ coordinates: [{ x: coordinates[0].x + offsetX, y: startY }, { x: coordinates[0].x + offsetX, y: endY }] })
         }
       }
     } else {

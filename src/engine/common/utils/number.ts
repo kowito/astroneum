@@ -43,24 +43,24 @@ export function binarySearchNearest<T> (dataList: T[], valueKey: keyof T, target
 export function nice (value: number): number {
   const exponent = Math.floor(log10(value))
   const exp10 = index10(exponent)
-  const f = value / exp10 // 1 <= f < 10
-  let nf = 0
-  if (f < 1.5) {
-    nf = 1
-  } else if (f < 2.5) {
-    nf = 2
-  } else if (f < 3.5) {
-    nf = 3
-  } else if (f < 4.5) {
-    nf = 4
-  } else if (f < 5.5) {
-    nf = 5
-  } else if (f < 6.5) {
-    nf = 6
+  const normalizedValue = value / exp10 // 1 <= normalizedValue < 10
+  let roundedFactor = 0
+  if (normalizedValue < 1.5) {
+    roundedFactor = 1
+  } else if (normalizedValue < 2.5) {
+    roundedFactor = 2
+  } else if (normalizedValue < 3.5) {
+    roundedFactor = 3
+  } else if (normalizedValue < 4.5) {
+    roundedFactor = 4
+  } else if (normalizedValue < 5.5) {
+    roundedFactor = 5
+  } else if (normalizedValue < 6.5) {
+    roundedFactor = 6
   } else {
-    nf = 8
+    roundedFactor = 8
   }
-  value = nf * exp10
+  value = roundedFactor * exp10
   return +value.toFixed(Math.abs(exponent))
 }
 

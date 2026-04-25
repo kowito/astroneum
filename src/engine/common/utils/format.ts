@@ -86,24 +86,24 @@ export function formatTimestampByTemplate (dateTimeFormat: Intl.DateTimeFormat, 
 }
 
 export function formatPrecision (value: string | number, precision?: number): string {
-  const v = +value
-  if (isNumber(v)) {
-    return v.toFixed(precision ?? 2)
+  const numericValue = +value
+  if (isNumber(numericValue)) {
+    return numericValue.toFixed(precision ?? 2)
   }
   return `${value}`
 }
 
 export function formatBigNumber (value: string | number): string {
-  const v = +value
-  if (isNumber(v)) {
-    if (v > 1000000000) {
-      return `${+((v / 1000000000).toFixed(3))}B`
+  const numericValue = +value
+  if (isNumber(numericValue)) {
+    if (numericValue > 1000000000) {
+      return `${+((numericValue / 1000000000).toFixed(3))}B`
     }
-    if (v > 1000000) {
-      return `${+((v / 1000000).toFixed(3))}M`
+    if (numericValue > 1000000) {
+      return `${+((numericValue / 1000000).toFixed(3))}M`
     }
-    if (v > 1000) {
-      return `${+((v / 1000).toFixed(3))}K`
+    if (numericValue > 1000) {
+      return `${+((numericValue / 1000).toFixed(3))}K`
     }
   }
   return `${value}`
@@ -127,11 +127,11 @@ export function formatFoldDecimal (value: string | number, threshold: number): s
   if (reg.test(vl)) {
     const result = vl.split('.')
     const lastIndex = result.length - 1
-    const v = result[lastIndex]
-    const match = /0*/.exec(v)
-    if (isValid(match)) {
-      const count = match[0].length
-      result[lastIndex] = v.replace(/0*/, `0{${count}}`)
+    const decimalPart = result[lastIndex]
+    const leadingZerosMatch = /0*/.exec(decimalPart)
+    if (isValid(leadingZerosMatch)) {
+      const leadingZeroCount = leadingZerosMatch[0].length
+      result[lastIndex] = decimalPart.replace(/0*/, `0{${leadingZeroCount}}`)
       return result.join('.')
     }
   }

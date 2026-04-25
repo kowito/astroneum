@@ -372,7 +372,7 @@ export default class CandleTooltipView extends IndicatorTooltipView {
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- ignore
     const prevClose = prev?.close ?? current.close
     const changeValue = current.close - prevClose
-    const mapping = {
+    const templateMapping = {
       ...current,
       time: formatter.formatDate(current.timestamp, PeriodTypeCrosshairTooltipFormat[period?.timespan ?? 'day'], 'tooltip'),
       open: decimalFold.format(thousandsSeparator.format(formatPrecision(current.open, pricePrecision))),
@@ -393,24 +393,24 @@ export default class CandleTooltipView extends IndicatorTooltipView {
         : template
     )
     return legends.map(({ title, value }) => {
-      let t: TooltipLegendChild = { text: '', color: textColor }
+      let titleLegend: TooltipLegendChild = { text: '', color: textColor }
       if (isObject(title)) {
-        t = { ...title }
+        titleLegend = { ...title }
       } else {
-        t.text = title
+        titleLegend.text = title
       }
-      t.text = i18n(t.text, locale)
-      let v = { text: defaultValue, color: textColor }
+      titleLegend.text = i18n(titleLegend.text, locale)
+      let valueLegend: TooltipLegendChild = { text: defaultValue, color: textColor }
       if (isObject(value)) {
-        v = { ...value }
+        valueLegend = { ...value }
       } else {
-        v.text = value
+        valueLegend.text = value
       }
-      if (isValid(/{change}/.exec(v.text))) {
-        v.color = changeValue === 0 ? styles.priceMark.last.noChangeColor : (changeValue > 0 ? styles.priceMark.last.upColor : styles.priceMark.last.downColor)
+      if (isValid(/{change}/.exec(valueLegend.text))) {
+        valueLegend.color = changeValue === 0 ? styles.priceMark.last.noChangeColor : (changeValue > 0 ? styles.priceMark.last.upColor : styles.priceMark.last.downColor)
       }
-      v.text = formatTemplateString(v.text, mapping)
-      return { title: t, value: v }
+      valueLegend.text = formatTemplateString(valueLegend.text, templateMapping)
+      return { title: titleLegend, value: valueLegend }
     })
   }
 }

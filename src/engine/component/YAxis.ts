@@ -236,15 +236,15 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
 
       const first = round(Math.ceil(displayFrom / interval) * interval, precision)
       const last = round(Math.floor(displayTo / interval) * interval, precision)
-      let n = 0
-      let f = first
+      let tickIndex = 0
+      let tickValue = first
 
       if (interval !== 0) {
-        while (f <= last) {
-          const v = f.toFixed(precision)
-          ticks[n] = { text: v, coord: 0, value: v }
-          ++n
-          f += interval
+        while (tickValue <= last) {
+          const tickText = tickValue.toFixed(precision)
+          ticks[tickIndex] = { text: tickText, coord: 0, value: tickText }
+          ++tickIndex
+          tickValue += interval
         }
       }
     }
@@ -271,7 +271,7 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
     const textHeight = styles.xAxis.tickText.size
     let validY = NaN
     ticks.forEach(({ value }) => {
-      let v = this.displayValueToText(+value, precision)
+      let tickText = this.displayValueToText(+value, precision)
       const y = this.convertToPixel(
         this.realValueToValue(
           this.displayValueToRealValue(+value, { range }),
@@ -279,15 +279,15 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
         )
       )
       if (shouldFormatBigNumber) {
-        v = formatter.formatBigNumber(value)
+        tickText = formatter.formatBigNumber(value)
       }
-      v = decimalFold.format(thousandsSeparator.format(v))
+      tickText = decimalFold.format(thousandsSeparator.format(tickText))
       const validYNumber = isNumber(validY)
       if (
         y > textHeight &&
         y < height - textHeight &&
         ((validYNumber && (Math.abs(validY - y) > textHeight * 2)) || !validYNumber)) {
-        optimalTicks.push({ text: v, coord: y, value })
+        optimalTicks.push({ text: tickText, coord: y, value })
         validY = y
       }
     })

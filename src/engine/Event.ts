@@ -102,10 +102,10 @@ export default class Event implements EventHandler {
     return true
   }
 
-  pinchEvent (e: MouseTouchEvent, scale: number): boolean {
-    const { pane, widget } = this._findWidgetByEvent(e)
+  pinchEvent (sourceEvent: MouseTouchEvent, scale: number): boolean {
+    const { pane, widget } = this._findWidgetByEvent(sourceEvent)
     if (pane?.getId() !== PaneIdConstants.X_AXIS && widget?.getName() === WidgetNameConstants.MAIN) {
-      const event = this._makeWidgetEvent(e, widget)
+      const event = this._makeWidgetEvent(sourceEvent, widget)
       const zoomScale = (scale - this._pinchScale) * 5
       this._pinchScale = scale
       this._chart.getChartStore().zoom(zoomScale, { x: event.x, y: event.y }, 'main')
@@ -121,9 +121,9 @@ export default class Event implements EventHandler {
     return true
   }
 
-  mouseWheelVertEvent (e: MouseTouchEvent, scale: number): boolean {
-    const { widget } = this._findWidgetByEvent(e)
-    const event = this._makeWidgetEvent(e, widget)
+  mouseWheelVertEvent (sourceEvent: MouseTouchEvent, scale: number): boolean {
+    const { widget } = this._findWidgetByEvent(sourceEvent)
+    const event = this._makeWidgetEvent(sourceEvent, widget)
     const name = widget?.getName()
     if (name === WidgetNameConstants.MAIN) {
       this._chart.getChartStore().zoom(scale, { x: event.x, y: event.y }, 'main')
@@ -132,11 +132,11 @@ export default class Event implements EventHandler {
     return false
   }
 
-  mouseDownEvent (e: MouseTouchEvent): boolean {
-    const { pane, widget } = this._findWidgetByEvent(e)
+  mouseDownEvent (sourceEvent: MouseTouchEvent): boolean {
+    const { pane, widget } = this._findWidgetByEvent(sourceEvent)
     this._mouseDownWidget = widget
     if (widget !== null) {
-      const event = this._makeWidgetEvent(e, widget)
+      const event = this._makeWidgetEvent(sourceEvent, widget)
       const name = widget.getName()
       switch (name) {
         case WidgetNameConstants.SEPARATOR: {
@@ -163,9 +163,9 @@ export default class Event implements EventHandler {
     return false
   }
 
-  mouseMoveEvent (e: MouseTouchEvent): boolean {
-    const { pane, widget } = this._findWidgetByEvent(e)
-    const event = this._makeWidgetEvent(e, widget)
+  mouseMoveEvent (sourceEvent: MouseTouchEvent): boolean {
+    const { pane, widget } = this._findWidgetByEvent(sourceEvent)
+    const event = this._makeWidgetEvent(sourceEvent, widget)
     if (
       this._mouseMoveTriggerWidgetInfo.pane?.getId() !== pane?.getId() ||
       this._mouseMoveTriggerWidgetInfo.widget?.getName() !== widget?.getName()
@@ -203,17 +203,17 @@ export default class Event implements EventHandler {
     return false
   }
 
-  pressedMouseMoveEvent (e: MouseTouchEvent): boolean {
+  pressedMouseMoveEvent (sourceEvent: MouseTouchEvent): boolean {
     if (this._mouseDownWidget !== null && this._mouseDownWidget.getName() === WidgetNameConstants.SEPARATOR) {
-      return this._mouseDownWidget.dispatchEvent('pressedMouseMoveEvent', e)
+      return this._mouseDownWidget.dispatchEvent('pressedMouseMoveEvent', sourceEvent)
     }
-    const { pane, widget } = this._findWidgetByEvent(e)
+    const { pane, widget } = this._findWidgetByEvent(sourceEvent)
     if (
       widget !== null &&
       this._mouseDownWidget?.getPane().getId() === pane?.getId() &&
       this._mouseDownWidget?.getName() === widget.getName()
     ) {
-      const event = this._makeWidgetEvent(e, widget)
+      const event = this._makeWidgetEvent(sourceEvent, widget)
       const name = widget.getName()
       switch (name) {
         case WidgetNameConstants.MAIN: {
@@ -240,11 +240,11 @@ export default class Event implements EventHandler {
     return false
   }
 
-  mouseUpEvent (e: MouseTouchEvent): boolean {
-    const { widget } = this._findWidgetByEvent(e)
+  mouseUpEvent (sourceEvent: MouseTouchEvent): boolean {
+    const { widget } = this._findWidgetByEvent(sourceEvent)
     let consumed = false
     if (widget !== null) {
-      const event = this._makeWidgetEvent(e, widget)
+      const event = this._makeWidgetEvent(sourceEvent, widget)
       const name = widget.getName()
       switch (name) {
         case WidgetNameConstants.MAIN:
@@ -269,20 +269,20 @@ export default class Event implements EventHandler {
     return consumed
   }
 
-  mouseClickEvent (e: MouseTouchEvent): boolean {
-    const { widget } = this._findWidgetByEvent(e)
+  mouseClickEvent (sourceEvent: MouseTouchEvent): boolean {
+    const { widget } = this._findWidgetByEvent(sourceEvent)
     if (widget !== null) {
-      const event = this._makeWidgetEvent(e, widget)
+      const event = this._makeWidgetEvent(sourceEvent, widget)
       return widget.dispatchEvent('mouseClickEvent', event)
     }
     return false
   }
 
-  mouseRightClickEvent (e: MouseTouchEvent): boolean {
-    const { widget } = this._findWidgetByEvent(e)
+  mouseRightClickEvent (sourceEvent: MouseTouchEvent): boolean {
+    const { widget } = this._findWidgetByEvent(sourceEvent)
     let consumed = false
     if (widget !== null) {
-      const event = this._makeWidgetEvent(e, widget)
+      const event = this._makeWidgetEvent(sourceEvent, widget)
       const name = widget.getName()
       switch (name) {
         case WidgetNameConstants.MAIN:
@@ -299,13 +299,13 @@ export default class Event implements EventHandler {
     return false
   }
 
-  mouseDoubleClickEvent (e: MouseTouchEvent): boolean {
-    const { pane, widget } = this._findWidgetByEvent(e)
+  mouseDoubleClickEvent (sourceEvent: MouseTouchEvent): boolean {
+    const { pane, widget } = this._findWidgetByEvent(sourceEvent)
     if (widget !== null) {
       const name = widget.getName()
       switch (name) {
         case WidgetNameConstants.MAIN: {
-          const event = this._makeWidgetEvent(e, widget)
+          const event = this._makeWidgetEvent(sourceEvent, widget)
           return widget.dispatchEvent('mouseDoubleClickEvent', event)
         }
         case WidgetNameConstants.Y_AXIS: {
@@ -331,10 +331,10 @@ export default class Event implements EventHandler {
     return true
   }
 
-  touchStartEvent (e: MouseTouchEvent): boolean {
-    const { pane, widget } = this._findWidgetByEvent(e)
+  touchStartEvent (sourceEvent: MouseTouchEvent): boolean {
+    const { pane, widget } = this._findWidgetByEvent(sourceEvent)
     if (widget !== null) {
-      const event = this._makeWidgetEvent(e, widget)
+      const event = this._makeWidgetEvent(sourceEvent, widget)
       event.preventDefault?.()
       const name = widget.getName()
       switch (name) {
@@ -386,10 +386,10 @@ export default class Event implements EventHandler {
     return false
   }
 
-  touchMoveEvent (e: MouseTouchEvent): boolean {
-    const { pane, widget } = this._findWidgetByEvent(e)
+  touchMoveEvent (sourceEvent: MouseTouchEvent): boolean {
+    const { pane, widget } = this._findWidgetByEvent(sourceEvent)
     if (widget !== null) {
-      const event = this._makeWidgetEvent(e, widget)
+      const event = this._makeWidgetEvent(sourceEvent, widget)
       const name = widget.getName()
       const chartStore = this._chart.getChartStore()
       switch (name) {
@@ -420,10 +420,10 @@ export default class Event implements EventHandler {
     return false
   }
 
-  touchEndEvent (e: MouseTouchEvent): boolean {
-    const { widget } = this._findWidgetByEvent(e)
+  touchEndEvent (sourceEvent: MouseTouchEvent): boolean {
+    const { widget } = this._findWidgetByEvent(sourceEvent)
     if (widget !== null) {
-      const event = this._makeWidgetEvent(e, widget)
+      const event = this._makeWidgetEvent(sourceEvent, widget)
       const name = widget.getName()
       switch (name) {
         case WidgetNameConstants.MAIN: {
@@ -431,15 +431,15 @@ export default class Event implements EventHandler {
           if (this._startScrollCoordinate !== null) {
             const time = new Date().getTime() - this._flingStartTime
             const distance = event.x - this._startScrollCoordinate.x
-            let v = distance / (time > 0 ? time : 1) * 20
-            if (time < 200 && Math.abs(v) > 0) {
+            let flingVelocity = distance / (time > 0 ? time : 1) * 20
+            if (time < 200 && Math.abs(flingVelocity) > 0) {
               const store = this._chart.getChartStore()
               const flingScroll: (() => void) = () => {
                 this._flingScrollRequestId = requestAnimationFrame(() => {
                   store.startScroll()
-                  store.scroll(v)
-                  v = v * (1 - 0.025)
-                  if (Math.abs(v) < 1) {
+                  store.scroll(flingVelocity)
+                  flingVelocity = flingVelocity * (1 - 0.025)
+                  if (Math.abs(flingVelocity) < 1) {
                     if (this._flingScrollRequestId !== null) {
                       cancelAnimationFrame(this._flingScrollRequestId)
                       this._flingScrollRequestId = null
@@ -472,14 +472,14 @@ export default class Event implements EventHandler {
     return false
   }
 
-  tapEvent (e: MouseTouchEvent): boolean {
-    const { pane, widget } = this._findWidgetByEvent(e)
+  tapEvent (sourceEvent: MouseTouchEvent): boolean {
+    const { pane, widget } = this._findWidgetByEvent(sourceEvent)
     let consumed = false
     if (widget !== null) {
-      const event = this._makeWidgetEvent(e, widget)
+      const event = this._makeWidgetEvent(sourceEvent, widget)
       const result = widget.dispatchEvent('mouseClickEvent', event)
       if (widget.getName() === WidgetNameConstants.MAIN) {
-        const event = this._makeWidgetEvent(e, widget)
+        const event = this._makeWidgetEvent(sourceEvent, widget)
         const chartStore = this._chart.getChartStore()
         if (result) {
           this._touchCancelCrosshair = true
@@ -502,14 +502,14 @@ export default class Event implements EventHandler {
     return consumed
   }
 
-  doubleTapEvent (e: MouseTouchEvent): boolean {
-    return this.mouseDoubleClickEvent(e)
+  doubleTapEvent (sourceEvent: MouseTouchEvent): boolean {
+    return this.mouseDoubleClickEvent(sourceEvent)
   }
 
-  longTapEvent (e: MouseTouchEvent): boolean {
-    const { pane, widget } = this._findWidgetByEvent(e)
+  longTapEvent (sourceEvent: MouseTouchEvent): boolean {
+    const { pane, widget } = this._findWidgetByEvent(sourceEvent)
     if (widget !== null && widget.getName() === WidgetNameConstants.MAIN) {
-      const event = this._makeWidgetEvent(e, widget)
+      const event = this._makeWidgetEvent(sourceEvent, widget)
       this._touchCoordinate = { x: event.x, y: event.y }
       this._chart.getChartStore().setCrosshair({ x: event.x, y: event.y, paneId: pane?.getId() })
       return true

@@ -732,10 +732,10 @@ export default class EventHandlerImp {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     this._target.addEventListener('touchstart', this._touchStartHandler.bind(this), { passive: true })
 
-    this._target.addEventListener('mousedown', (e: MouseEvent) => {
-      if (e.button === MouseEventButton.Middle) {
+    this._target.addEventListener('mousedown', (mouseEvent: MouseEvent) => {
+      if (mouseEvent.button === MouseEventButton.Middle) {
         // prevent incorrect scrolling event
-        e.preventDefault()
+        mouseEvent.preventDefault()
         return false
       }
       return undefined
@@ -863,18 +863,18 @@ export default class EventHandlerImp {
     this._longTapActive = true
   }
 
-  private _firesTouchEvents (e: MouseEvent): boolean {
+  private _firesTouchEvents (mouseEvent: MouseEvent): boolean {
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-expect-error
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    if (isValid(e.sourceCapabilities?.firesTouchEvents)) {
+    if (isValid(mouseEvent.sourceCapabilities?.firesTouchEvents)) {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-expect-error
       // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
-      return e.sourceCapabilities.firesTouchEvents
+      return mouseEvent.sourceCapabilities.firesTouchEvents
     }
 
-    return this._eventTimeStamp(e) < this._lastTouchEventTimeStamp + Delay.PreventFiresTouchEvents
+    return this._eventTimeStamp(mouseEvent) < this._lastTouchEventTimeStamp + Delay.PreventFiresTouchEvents
   }
 
   private _processEvent (event: MouseTouchEvent, callback?: MouseTouchEventCallback): void {
@@ -922,10 +922,10 @@ export default class EventHandlerImp {
     }
   }
 
-  private _eventTimeStamp (e: TouchEvent | MouseEvent): number {
-    // for some reason e.timestamp is always 0 on iPad with magic mouse, so we use performance.now() as a fallback
+  private _eventTimeStamp (sourceEvent: TouchEvent | MouseEvent): number {
+    // for some reason event.timestamp is always 0 on iPad with magic mouse, so we use performance.now() as a fallback
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    return e.timeStamp ?? performance.now()
+    return sourceEvent.timeStamp ?? performance.now()
   }
 
   private _touchWithId (touches: TouchList, id: Nullable<number>): Nullable<Touch> {

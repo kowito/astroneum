@@ -36,13 +36,13 @@ export function clone<T> (target: T): T {
   }
   for (const key in target) {
     if (Object.prototype.hasOwnProperty.call(target, key) as boolean) {
-      const v = target[key]
-      if (isObject(v)) {
+      const itemValue = target[key]
+      if (isObject(itemValue)) {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access -- ignore
-        copy[key] = clone(v)
+        copy[key] = clone(itemValue)
       } else {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access -- ignore
-        copy[key] = v
+        copy[key] = itemValue
       }
     }
   }
