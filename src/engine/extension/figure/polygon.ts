@@ -1,0 +1,86 @@
+import type Coordinate from '../../common/Coordinate'
+import type { PolygonStyle } from '../../common/Styles'
+import { isString } from '../../common/utils/typeChecks'
+import { isTransparent } from '../../common/utils/color'
+
+import type { FigureTemplate } from '../../component/Figure'
+
+export function checkCoordinateOnPolygon (coordinate: Coordinate, attrs: PolygonAttrs | PolygonAttrs[]): boolean {
+  let polygons: PolygonAttrs[] = []
+  polygons = polygons.concat(attrs)
+  for (const polygon of polygons) {
+    let on = false
+    const { coordinates } = polygon
+    for (let i = 0, j = coordinates.length - 1; i < coordinates.length; j = i++) {
+      if (
+        (coordinates[i].y > coordinate.y) !== (coordinates[j].y > coordinate.y) &&
+        (coordinate.x < (coordinates[j].x - coordinates[i].x) * (coordinate.y - coordinates[i].y) / (coordinates[j].y - coordinates[i].y) + coordinates[i].x)
+      ) {
+        on = !on
+      }
+    }
+    if (on) {
+      return true
+    }
+  }
+  return false
+}
+
+export function drawPolygon (ctx: CanvasRenderingContext2D, attrs: PolygonAttrs | PolygonAttrs[], styles: Partial<PolygonStyle>): void {
+  let polygons: PolygonAttrs[] = []
+  polygons = polygons.concat(attrs)
+  const {
+    style = 'fill',
+    color = 'currentColor',
+    borderSize = 1,
+    borderColor = 'currentColor',
+    borderStyle = 'solid',
+    borderDashedValue = [2, 2]
+  } = styles
+  if (
+    (style === 'fill' || styles.style === 'stroke_fill') &&
+    (!isString(color) || !isTransparent(color))) {
+    ctx.fillStyle = color
+    polygons.forEach(({ coordinates }) => {
+      ctx.beginPath()
+      ctx.moveTo(coordinates[0].x, coordinates[0].y)
+      for (let i = 1; i < coordinates.length; i++) {
+        ctx.lineTo(coordinates[i].x, coordinates[i].y)
+      }
+      ctx.closePath()
+      ctx.fill()
+    })
+  }
+  if ((style === 'stroke' || styles.style === 'stroke_fill') && borderSize > 0 && !isTransparent(borderColor)) {
+    ctx.strokeStyle = borderColor
+    ctx.lineWidth = borderSize
+    if (borderStyle === 'dashed') {
+      ctx.setLineDash(borderDashedValue)
+    } else {
+      ctx.setLineDash([])
+    }
+    polygons.forEach(({ coordinates }) => {
+      ctx.beginPath()
+      ctx.moveTo(coordinates[0].x, coordinates[0].y)
+      for (let i = 1; i < coordinates.length; i++) {
+        ctx.lineTo(coordinates[i].x, coordinates[i].y)
+      }
+      ctx.closePath()
+      ctx.stroke()
+    })
+  }
+}
+
+export interface PolygonAttrs {
+  coordinates: Coordinate[]
+}
+
+const polygon: FigureTemplate<PolygonAttrs | PolygonAttrs[], Partial<PolygonStyle>> = {
+  name: 'polygon',
+  checkEventOn: checkCoordinateOnPolygon,
+  draw: (ctx: CanvasRenderingContext2D, attrs: PolygonAttrs | PolygonAttrs[], styles: Partial<PolygonStyle>) => {
+    drawPolygon(ctx, attrs, styles)
+  }
+}
+
+export default polygon

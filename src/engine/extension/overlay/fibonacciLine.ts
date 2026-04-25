@@ -1,0 +1,63 @@
+import { isNumber } from '../../common/utils/typeChecks'
+import { SymbolDefaultPrecisionConstants } from '../../common/SymbolInfo'
+
+import type { OverlayTemplate } from '../../component/Overlay'
+
+import type { LineAttrs } from '../figure/line'
+import type { TextAttrs } from '../figure/text'
+
+const fibonacciLine: OverlayTemplate = {
+  name: 'fibonacciLine',
+  totalStep: 3,
+  needDefaultPointFigure: true,
+  needDefaultXAxisFigure: true,
+  needDefaultYAxisFigure: true,
+  createPointFigures: ({ chart, coordinates, bounding, overlay, yAxis }) => {
+    const points = overlay.points
+
+    if (coordinates.length > 0) {
+      let precision = 0
+      if (yAxis?.isInCandle() ?? true) {
+        precision = chart.getSymbol()?.pricePrecision ?? SymbolDefaultPrecisionConstants.PRICE
+      } else {
+        const indicators = chart.getIndicators({ paneId: overlay.paneId })
+        indicators.forEach(indicator => {
+          precision = Math.max(precision, indicator.precision)
+        })
+      }
+      const lines: LineAttrs[] = []
+      const texts: TextAttrs[] = []
+      const startX = 0
+      const endX = bounding.width
+      if (coordinates.length > 1 && isNumber(points[0].value) && isNumber(points[1].value)) {
+        const percents = [1, 0.786, 0.618, 0.5, 0.382, 0.236, 0]
+        const yDif = coordinates[0].y - coordinates[1].y
+        const valueDif = points[0].value - points[1].value
+        percents.forEach(percent => {
+          const y = coordinates[1].y + yDif * percent
+          const value = chart.getDecimalFold().format(chart.getThousandsSeparator().format(((points[1].value ?? 0) + valueDif * percent).toFixed(precision)))
+          lines.push({ coordinates: [{ x: startX, y }, { x: endX, y }] })
+          texts.push({
+            x: startX,
+            y,
+            text: `${value} (${(percent * 100).toFixed(1)}%)`,
+            baseline: 'bottom'
+          })
+        })
+      }
+      return [
+        {
+          type: 'line',
+          attrs: lines
+        }, {
+          type: 'text',
+          isCheckEvent: false,
+          attrs: texts
+        }
+      ]
+    }
+    return []
+  }
+}
+
+export default fibonacciLine

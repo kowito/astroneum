@@ -1,0 +1,194 @@
+.astroneum-alert-modal {
+  padding: 12px 0 4px;
+
+  .astroneum-alert-modal-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--astroneum-border-color);
+    padding-bottom: 8px;
+
+    .tab-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--astroneum-text-second-color);
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: color 0.15s, background-color 0.15s;
+
+      &.active {
+        color: var(--astroneum-primary-color);
+        font-weight: 600;
+      }
+
+      &:hover {
+        background-color: var(--astroneum-hover-background-color);
+        color: var(--astroneum-text-color);
+      }
+    }
+  }
+
+  .astroneum-alert-modal-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+
+    .alert-field-label {
+      font-size: 12px;
+      color: var(--astroneum-text-second-color);
+      margin-bottom: 2px;
+    }
+
+    .alert-condition-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 4px;
+
+      .alert-cond-btn {
+        background: var(--astroneum-hover-background-color);
+        border: 1px solid var(--astroneum-border-color);
+        border-radius: 4px;
+        padding: 4px 10px;
+        font-size: 12px;
+        cursor: pointer;
+        color: var(--astroneum-text-color);
+        transition: background-color 0.15s, border-color 0.15s;
+
+        &.active {
+          background-color: var(--astroneum-primary-color);
+          border-color: var(--astroneum-primary-color);
+          color: #fff;
+        }
+
+        &:hover:not(.active) {
+          border-color: var(--astroneum-primary-color);
+        }
+      }
+    }
+
+    .alert-price-input,
+    .alert-note-input {
+      width: 100%;
+    }
+
+    .alert-submit-btn {
+      align-self: flex-end;
+      margin-top: 4px;
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+  }
+
+  .alert-section-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--astroneum-text-second-color);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .astroneum-alert-modal-list {
+    max-height: 220px;
+    overflow-y: auto;
+
+    .alert-list-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      font-size: 13px;
+      border-radius: 4px;
+      cursor: default;
+
+      &:hover {
+        background-color: var(--astroneum-hover-background-color);
+      }
+
+      &.alert-list-row--history {
+        opacity: 0.8;
+      }
+
+      .alert-cond-badge {
+        font-size: 11px;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-weight: 600;
+        white-space: nowrap;
+        flex-shrink: 0;
+
+        &.alert-cond-above        { background: rgba(38, 166, 154, 0.15); color: #26a69a; }
+        &.alert-cond-below        { background: rgba(239, 83, 80, 0.15);  color: #ef5350; }
+        &.alert-cond-crosses_above { background: rgba(41, 98, 255, 0.15); color: #2962ff; }
+        &.alert-cond-crosses_below { background: rgba(255, 152, 0, 0.15); color: #ff9800; }
+      }
+
+      .alert-status-badge {
+        font-size: 11px;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-weight: 600;
+        white-space: nowrap;
+        flex-shrink: 0;
+        background: var(--astroneum-hover-background-color);
+        color: var(--astroneum-text-second-color);
+      }
+
+      .alert-price {
+        font-family: 'Trebuchet MS', monospace;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--astroneum-text-color);
+        flex-shrink: 0;
+      }
+
+      .alert-note {
+        color: var(--astroneum-text-second-color);
+        font-size: 12px;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .alert-time {
+        font-size: 11px;
+        color: var(--astroneum-text-second-color);
+        flex-shrink: 0;
+        margin-left: auto;
+      }
+
+      .alert-delete-btn,
+      .alert-reactivate-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--astroneum-text-second-color);
+        font-size: 16px;
+        line-height: 1;
+        padding: 0 4px;
+        flex-shrink: 0;
+        border-radius: 3px;
+
+        &:hover {
+          color: var(--astroneum-text-color);
+          background-color: var(--astroneum-hover-background-color);
+        }
+      }
+    }
+  }
+
+  .alert-empty {
+    text-align: center;
+    color: var(--astroneum-text-second-color);
+    font-size: 13px;
+    padding: 24px 0;
+  }
+}

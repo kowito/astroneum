@@ -1,0 +1,10 @@
+@import (reference) '../../styles/base.less';
+
+.@{prefix-cls}-input {
+  cursor: pointer;
+  // Focus glow using astroneum primary (Bulma handles border-color change)
+  &[data-status="focus"] .input {
+    border-color: var(--astroneum-primary-color);
+    box-shadow: 0 0 0 2px fade(#2962ff, 20%);
+  }
+}

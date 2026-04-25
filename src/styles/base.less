@@ -1,0 +1,31 @@
+@prefix-cls: astroneum;
+
+@period-bar-height: 36px;
+@drawing-bar-width: 46px;
+@widget-width: calc(100% - @drawing-bar-width);
+@widget-height: calc(100% - @period-bar-height);
+
+// TradingView-style primary accent
+@c-primary: #2962ff;
+
+// Light theme — off-white
+@c-hover-background-light: #eaedf6;
+@c-popover-background-light: #f4f5f8;
+@c-background-light: #f0f2f5;
+@c-text-light: #131722;
+@c-text-second-light: #787b86;
+@c-border-light: #d8dce8;
+
+// Dark theme — TradingView dark
+@c-hover-background-dark: #2a2e39;
+@c-background-dark: #131722;
+@c-popover-background-dark: #1e222d;
+@c-text-dark: #d1d4dc;
+@c-text-second-dark: #787b86;
+@c-border-dark: #2a2e39;
+
+.scrollbar() {
+  &::-webkit-scrollbar { width: 5px; height: 5px; }
+  &::-webkit-scrollbar-thumb { border-radius: 3px; background-color: var(--astroneum-border-color); }
+  &::-webkit-scrollbar-track { background: transparent; }
+}

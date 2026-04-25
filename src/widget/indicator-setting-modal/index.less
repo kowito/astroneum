@@ -1,0 +1,43 @@
+@import (reference) '../../styles/base.less';
+
+.@{prefix-cls}-indicator-setting-modal-content {
+  margin-top: 16px;
+  font-size: 13px;
+}
+
+.@{prefix-cls}-indicator-setting-modal-header {
+  display: grid;
+  grid-template-columns: 1fr 48px 52px;
+  column-gap: 10px;
+  align-items: center;
+  padding: 0 4px 8px;
+  font-size: 11px;
+  opacity: 0.6;
+  span:first-child { padding-left: 2px; }
+  span:nth-child(2), span:nth-child(3) { text-align: center; }
+}
+
+.@{prefix-cls}-indicator-setting-modal-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.@{prefix-cls}-indicator-setting-modal-label {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.@{prefix-cls}-indicator-setting-modal-color {
+  width: 28px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid var(--astroneum-border-color, #e0e0e0);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  &::-webkit-color-swatch-wrapper { padding: 0; }
+  &::-webkit-color-swatch { border: none; border-radius: 2px; }
+}

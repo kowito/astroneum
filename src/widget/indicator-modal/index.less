@@ -1,0 +1,29 @@
+@import (reference) '../../styles/base.less';
+
+.@{prefix-cls}-indicator-modal-list {
+  margin-left: -16px;
+  margin-right: -16px;
+  height: 400px;
+  position: relative;
+  .title {
+    position: sticky;
+    top: 0;
+    background-color: var(--astroneum-popover-background-color);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--astroneum-text-second-color);
+    padding: 0 16px;
+    font-weight: 400;
+    &:hover {
+      background-color: var(--astroneum-popover-background-color);
+    }
+  }
+  .row:hover {
+    .checkbox {
+      fill: var(--astroneum-primary-color);
+      color: var(--astroneum-primary-color);
+    }
+  }
+}

@@ -1,0 +1,94 @@
+@import (reference) '../../styles/base.less';
+
+.@{prefix-cls}-select {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  cursor: pointer;
+  height: 30px;
+  width: 100px;
+  outline: none;
+  color: var(--astroneum-text-color);
+  font-size: 13px;
+  .selector-container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+    padding: 0 8px;
+    justify-content: space-between;
+    border: solid 1px var(--astroneum-border-color);
+    border-radius: 4px;
+    box-sizing: border-box;
+    background-color: var(--astroneum-background-color);
+    transition: border-color .15s;
+    &:hover {
+      border-color: var(--astroneum-text-second-color);
+    }
+    .arrow {
+      display: inline;
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid var(--astroneum-text-second-color);
+      transition: transform .15s;
+    }
+  }
+  .drop-down-container {
+    background-color: var(--astroneum-popover-background-color);
+    box-shadow: 0 4px 16px 0 rgba(0, 0, 0, .4);
+    border: solid 1px var(--astroneum-border-color);
+    position: absolute;
+    left: 0;
+    width: 100%;
+    top: calc(100% + 2px);
+    transition: transform .15s, opacity .15s;
+    transform: scaleY(0);
+    transform-origin: top;
+    opacity: 0;
+    z-index: 100;
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    .scrollbar();
+    ul {
+      list-style: none;
+      margin: 0;
+      padding: 4px 0;
+      overflow: hidden;
+      li {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        height: 32px;
+        padding: 0 10px;
+        font-size: 13px;
+        transition: background-color .12s;
+        &:first-child { border-top-left-radius: 4px; border-top-right-radius: 4px; }
+        &:last-child { border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; }
+        &:hover {
+          background-color: var(--astroneum-hover-background-color);
+        }
+      }
+    }
+  }
+}
+
+.@{prefix-cls}-select-show {
+  .selector-container {
+    border-color: var(--astroneum-primary-color)!important;
+    .value {
+      color: var(--astroneum-primary-color);
+    }
+    .arrow {
+      transform: rotate(180deg);
+    }
+  }
+  .drop-down-container {
+    transform: scaleY(1)!important;
+    opacity: 1!important;
+  }
+}

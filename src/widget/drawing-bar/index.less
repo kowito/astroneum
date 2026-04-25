@@ -1,0 +1,113 @@
+@import (reference) '../../styles/base.less';
+
+@gap: 4px;
+
+.@{prefix-cls}-drawing-bar {
+  width: @drawing-bar-width;
+  height: 100%;
+  box-sizing: border-box;
+  border-right: solid 1px var(--astroneum-border-color);
+  background-color: var(--astroneum-background-color);
+  padding-top: 6px;
+
+  .item {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    width: 100%;
+    margin-top: @gap;
+    cursor: pointer;
+    color: var(--astroneum-text-second-color);
+    fill: var(--astroneum-text-second-color);
+    stroke: var(--astroneum-text-second-color);
+
+    .icon-overlay {
+      width: 28px;
+      height: 28px;
+      border-radius: 3px;
+      transition: background-color 0.15s, fill 0.15s, stroke 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      &:hover {
+        background-color: var(--astroneum-hover-background-color);
+        fill: var(--astroneum-text-color);
+        stroke: var(--astroneum-text-color);
+      }
+      &.selected {
+        background-color: fade(#2962ff, 15%) !important;
+        fill: var(--astroneum-primary-color);
+        stroke: var(--astroneum-primary-color);
+      }
+    }
+
+    .icon-arrow {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      position: absolute;
+      top: 0;
+      right: 2px;
+      height: 28px;
+      width: 8px;
+      opacity: 0;
+      transition: opacity .15s;
+      z-index: 10;
+      svg {
+        width: 4px;
+        height: 4px;
+        transition: transform .15s;
+        &.rotate {
+          transform: rotate(180deg);
+        }
+      }
+      &:hover {
+        opacity: 1 !important;
+      }
+    }
+
+    .list {
+      position: absolute;
+      top: 0;
+      white-space: nowrap;
+      left: calc(100% + 2px);
+      background-color: var(--astroneum-popover-background-color);
+      z-index: 99;
+      box-shadow: 0 4px 16px 0 rgba(0, 0, 0, .4);
+      border-radius: 4px;
+      border: solid 1px var(--astroneum-border-color);
+      min-height: auto;
+      max-height: 320px;
+      overflow-y: auto;
+      li {
+        padding-left: 12px;
+        .icon-overlay {
+          &:hover {
+            background-color: transparent;
+          }
+        }
+      }
+    }
+
+    &:hover {
+      .icon-arrow {
+        opacity: 1;
+      }
+      .icon-overlay {
+        fill: var(--astroneum-text-color);
+        stroke: var(--astroneum-text-color);
+      }
+    }
+  }
+
+  .split-line {
+    display: block;
+    width: 26px;
+    height: 1px;
+    background-color: var(--astroneum-border-color);
+    margin: 6px auto;
+  }
+}

@@ -1,0 +1,169 @@
+.astroneum-watchlist {
+  display: flex;
+  flex-direction: column;
+  background: var(--astroneum-background-color);
+  border: 1px solid var(--astroneum-border-color);
+  border-radius: 4px;
+  min-width: 200px;
+  font-size: 13px;
+  user-select: none;
+
+  .watchlist-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--astroneum-border-color);
+
+    .watchlist-title {
+      font-weight: 600;
+      color: var(--astroneum-text-color);
+    }
+
+    .watchlist-add-list-btn {
+      background: none;
+      border: none;
+      color: var(--astroneum-text-second-color);
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      padding: 0 2px;
+
+      &:hover { color: var(--astroneum-primary-color); }
+    }
+  }
+
+  .watchlist-group {
+    border-bottom: 1px solid var(--astroneum-border-color);
+
+    &:last-child { border-bottom: none; }
+  }
+
+  .watchlist-group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px;
+    cursor: pointer;
+
+    &:hover { background: var(--astroneum-hover-background-color); }
+
+    .watchlist-arrow {
+      font-size: 10px;
+      color: var(--astroneum-text-second-color);
+      transition: transform 0.15s ease;
+      display: inline-block;
+
+      &.expanded { transform: rotate(90deg); }
+    }
+
+    .watchlist-group-name {
+      flex: 1;
+      color: var(--astroneum-text-color);
+      font-weight: 500;
+    }
+
+    .watchlist-rename-input {
+      flex: 1;
+      background: var(--astroneum-background-color);
+      border: 1px solid var(--astroneum-primary-color);
+      color: var(--astroneum-text-color);
+      border-radius: 3px;
+      padding: 2px 6px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .watchlist-delete-list-btn {
+      background: none;
+      border: none;
+      color: var(--astroneum-text-second-color);
+      cursor: pointer;
+      font-size: 12px;
+      padding: 0 2px;
+      opacity: 0;
+
+      &:hover { color: #ef5350; }
+    }
+
+    &:hover .watchlist-delete-list-btn { opacity: 1; }
+  }
+
+  .watchlist-symbols {
+    padding: 4px 0;
+
+    .watchlist-symbol-row {
+      display: flex;
+      align-items: center;
+      padding: 5px 10px 5px 26px;
+      cursor: pointer;
+      gap: 8px;
+
+      &:hover { background: var(--astroneum-hover-background-color); }
+
+      .watchlist-symbol-ticker {
+        font-weight: 600;
+        color: var(--astroneum-text-color);
+        min-width: 60px;
+      }
+
+      .watchlist-symbol-name {
+        flex: 1;
+        color: var(--astroneum-text-second-color);
+        font-size: 11px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .watchlist-remove-symbol-btn {
+        background: none;
+        border: none;
+        color: var(--astroneum-text-second-color);
+        cursor: pointer;
+        font-size: 11px;
+        padding: 0;
+        opacity: 0;
+
+        &:hover { color: #ef5350; }
+      }
+
+      &:hover .watchlist-remove-symbol-btn { opacity: 1; }
+    }
+
+    .watchlist-add-symbol {
+      display: flex;
+      gap: 4px;
+      padding: 6px 10px 6px 26px;
+
+      .watchlist-add-symbol-input {
+        flex: 1;
+        background: var(--astroneum-background-color);
+        border: 1px solid var(--astroneum-border-color);
+        color: var(--astroneum-text-color);
+        border-radius: 3px;
+        padding: 4px 8px;
+        font-size: 12px;
+        outline: none;
+
+        &:focus { border-color: var(--astroneum-primary-color); }
+      }
+
+      .watchlist-add-symbol-btn {
+        background: none;
+        border: 1px solid var(--astroneum-border-color);
+        color: var(--astroneum-text-second-color);
+        cursor: pointer;
+        border-radius: 3px;
+        padding: 4px 8px;
+        font-size: 12px;
+        white-space: nowrap;
+
+        &:hover {
+          border-color: var(--astroneum-primary-color);
+          color: var(--astroneum-primary-color);
+        }
+      }
+    }
+  }
+}

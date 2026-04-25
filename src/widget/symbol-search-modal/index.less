@@ -1,0 +1,42 @@
+@import (reference) '../../styles/base.less';
+
+.@{prefix-cls}-symbol-search-modal-input {
+  margin: 16px 0 8px 0;
+  height: 36px;
+  svg {
+    width: 16px;
+    height: 16px;
+    fill: var(--astroneum-text-second-color);
+  }
+  .value {
+    font-size: 13px;
+  }
+}
+
+.@{prefix-cls}-symbol-search-modal-list {
+  height: 360px;
+  margin-left: -16px;
+  margin-right: -16px;
+  li {
+    height: 34px;
+    justify-content: space-between;
+    font-size: 13px;
+    div {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      img {
+        width: 14px;
+        height: 14px;
+        margin-right: 6px;
+        border-radius: 50%;
+      }
+      span {
+        width: 280px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+    }
+  }
+}

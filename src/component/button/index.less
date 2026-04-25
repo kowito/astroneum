@@ -1,0 +1,17 @@
+@import (reference) '../../styles/base.less';
+
+.@{prefix-cls}-button {
+  &.button {
+    font-family: inherit;
+    font-weight: 600;
+    height: 30px;
+    min-width: 80px;
+    margin-left: 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    // Confirm button hover
+    &.is-primary:hover {
+      opacity: 0.85;
+    }
+  }
+}

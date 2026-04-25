@@ -1,0 +1,214 @@
+@import (reference) './base.less';
+@import '../component/index.less';
+@import '../widget/index.less';
+@import '../assets/iconfonts/style.css';
+
+.@{prefix-cls} {
+  // — Astroneum design tokens (light theme) —
+  --astroneum-primary-color: @c-primary;
+  --astroneum-hover-background-color: @c-hover-background-light;
+  --astroneum-background-color: @c-background-light;
+  --astroneum-popover-background-color: @c-popover-background-light;
+  --astroneum-text-color: @c-text-light;
+  --astroneum-text-second-color: @c-text-second-light;
+  --astroneum-border-color: @c-border-light;
+  --astroneum-selected-color: fade(@c-primary, 15%);
+
+  // — Bulma primary: #2962ff ≈ hsl(224deg, 100%, 58%) —
+  --bulma-primary-h: 224deg;
+  --bulma-primary-s: 100%;
+  --bulma-primary-l: 58%;
+  --bulma-link-h: 224deg;
+  --bulma-link-s: 100%;
+  --bulma-link-l: 58%;
+  --bulma-family-primary: 'Trebuchet MS', -apple-system, BlinkMacSystemFont, Roboto, Ubuntu, sans-serif;
+  --bulma-radius: 4px;
+  --bulma-radius-small: 3px;
+  --bulma-radius-large: 6px;
+
+  // — Bulma component overrides using astroneum vars (cascade through DOM) —
+  // Button: neutral style
+  .button:not([class*="is-"]) {
+    color: var(--astroneum-text-color);
+    border-color: var(--astroneum-border-color);
+    background-color: transparent;
+    box-shadow: none;
+    &:hover {
+      border-color: var(--astroneum-text-second-color);
+      background-color: transparent;
+      color: var(--astroneum-text-color);
+    }
+    &:focus {
+      border-color: var(--astroneum-primary-color);
+      box-shadow: none;
+    }
+  }
+  // Input field
+  .input {
+    color: var(--astroneum-text-color);
+    background-color: var(--astroneum-background-color);
+    border-color: var(--astroneum-border-color);
+    font-family: inherit;
+    font-size: 13px;
+    height: 30px;
+    box-shadow: none;
+    &::placeholder {
+      color: var(--astroneum-text-second-color);
+    }
+    &:focus, &.is-focused {
+      border-color: var(--astroneum-primary-color);
+      box-shadow: 0 0 0 2px fade(#2962ff, 20%);
+    }
+  }
+  // Icon inside control
+  .icon {
+    color: var(--astroneum-text-second-color);
+    height: 30px;
+    width: 2rem;
+  }
+  // Modal card
+  .modal-card-head {
+    background-color: var(--astroneum-popover-background-color);
+    border-bottom-color: var(--astroneum-border-color);
+    padding: 0 20px;
+    height: 44px;
+    min-height: unset;
+    flex-shrink: 0;
+  }
+  .modal-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--astroneum-text-color);
+    flex-grow: 1;
+  }
+  .modal-card-body {
+    background-color: var(--astroneum-popover-background-color);
+    padding: 0 20px;
+  }
+  .modal-card-foot {
+    background-color: var(--astroneum-popover-background-color);
+    border-top-color: var(--astroneum-border-color);
+    padding: 16px 20px;
+    justify-content: flex-end;
+  }
+  .delete {
+    background-color: transparent;
+    &::before, &::after {
+      background-color: var(--astroneum-text-second-color);
+    }
+    &:hover {
+      background-color: transparent;
+      &::before, &::after {
+        background-color: var(--astroneum-text-color);
+      }
+    }
+  }
+
+  // — Dark theme —
+  &[data-theme="dark"] {
+    --astroneum-hover-background-color: @c-hover-background-dark;
+    --astroneum-background-color: @c-background-dark;
+    --astroneum-popover-background-color: @c-popover-background-dark;
+    --astroneum-text-color: @c-text-dark;
+    --astroneum-text-second-color: @c-text-second-dark;
+    --astroneum-border-color: @c-border-dark;
+  }
+
+  // — High-contrast theme (accessibility) —
+  &[data-theme="high-contrast"] {
+    --astroneum-primary-color: #ffff00;
+    --astroneum-hover-background-color: #1a1a00;
+    --astroneum-background-color: #000000;
+    --astroneum-popover-background-color: #000000;
+    --astroneum-text-color: #ffffff;
+    --astroneum-text-second-color: #ffff00;
+    --astroneum-border-color: #ffffff;
+    --astroneum-selected-color: rgba(255, 255, 0, 0.25);
+
+    // Ensure focus rings are visible
+    *:focus-visible {
+      outline: 2px solid #ffff00 !important;
+      outline-offset: 2px;
+    }
+  }
+
+  // — Accessible focus styles (all themes) —
+  *:focus-visible {
+    outline: 2px solid var(--astroneum-primary-color);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  // — Chart layout —
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  color: var(--astroneum-text-color);
+  background-color: var(--astroneum-background-color);
+  font-family: 'Trebuchet MS', -apple-system, BlinkMacSystemFont, Roboto, Ubuntu, sans-serif;
+  font-size: 13px;
+  height: 80vh;
+  &-watermark {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    z-index: 1;
+    transform: translateX(-50%) translateY(-50%);
+    .logo {
+      width: 120px;
+      height: 120px;
+      fill: var(--astroneum-border-color);
+    }
+  }
+  &-price-unit {
+    display: none;
+    position: absolute;
+    z-index: 30;
+    top: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 5px;
+    color: var(--astroneum-text-second-color);
+    border: solid 1px var(--astroneum-border-color);
+    background-color: var(--astroneum-popover-background-color);
+  }
+  &-load-icon {
+    position: absolute;
+    left: 0;
+    height: 0;
+    z-index: -1;
+    opacity: 0;
+  }
+  &-content {
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    height: @widget-height;
+  }
+  &-widget {
+    width: @widget-width;
+    height: 100%;
+    margin-left: 0;
+    &[data-drawing-bar-visible="false"] {
+      width: 100%;
+    }
+  }
+
+  // Clock overlay — bottom-right of the X-axis area
+  &-clock {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    font-size: 11px;
+    font-family: 'Trebuchet MS', monospace, sans-serif;
+    color: var(--astroneum-text-second-color);
+    pointer-events: none;
+    z-index: 5;
+    letter-spacing: 0.04em;
+    user-select: none;
+  }
+}
