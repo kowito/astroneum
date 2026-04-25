@@ -68,6 +68,9 @@ uniform float u_barHalfWidth; // half bar gapBar width, in CSS pixels
 uniform int   u_renderMode;
 // Half of ohlcSize in CSS pixels — only used when u_renderMode == 1
 uniform float u_ohlcHalfSize;
+// Pan-offset optimisation (Priority 5): CSS pixel delta added to every bar's
+// a_centerX in the vertex shader so that pure-pan frames skip bufferSubData.
+uniform float u_panOffset;
 
 out vec4 v_color;
 
@@ -103,7 +106,7 @@ void main() {
   float closeY = priceToPhysY(a_close);
 
   float pr   = u_pixelRatio;
-  float cx   = a_centerX * pr;          // CSS px → physical px
+  float cx   = (a_centerX + u_panOffset) * pr;  // pan-offset + CSS px → physical px
   float bhw  = u_barHalfWidth * pr;
 
   float screenX, screenY;
@@ -272,6 +275,7 @@ export class CandleWebGLRenderer {
   private readonly _uBarHalfWidth: WebGLUniformLocation
   private readonly _uRenderMode: WebGLUniformLocation
   private readonly _uOhlcHalfSize: WebGLUniformLocation
+  private readonly _uPanOffset: WebGLUniformLocation
 
   private _capacity = 0
   private _barCount = 0
@@ -299,11 +303,25 @@ export class CandleWebGLRenderer {
   //  hover, tooltip redraws, UI state updates that don't touch price data).
   //  Covers: pan (X shifts), zoom (both X shift), new tick (close changes),
   //  style/theme change (bodyColor changes), data load (len changes).
-  private _fpLen   = -1
-  private _fpX0    = 0
-  private _fpXLast = 0
-  private _fpClose = 0
-  private _fpColor = ''
+  private _fpLen        = -1
+  private _fpX0         = 0
+  private _fpXLast      = 0
+  private _fpClose      = 0
+  private _fpColor      = ''
+  // ── Pan-offset optimisation (Priority 5) ─────────────────────────────────
+  //  When the same bars are visible but shifted (pure pan), we skip the O(N)
+  //  bufferSubData entirely and update only the u_panOffset uniform (O(1)).
+  //  The VBO stores bars at their ORIGINAL load-time x-positions; the shader
+  //  adds _panOffsetAcc to each a_centerX at draw time.
+  //  Full reload resets _panOffsetAcc to 0 and writes bar.centerX as-is.
+  //  updateLastBar subtracts _panOffsetAcc so the VBO stays consistent.
+  //
+  //  Pan guard fingerprint: same bars ↔ same barCount + first/last OHLC +
+  //  bar spacing (detects zoom which shifts bars non-uniformly).
+  private _fpFirstOpen  = NaN   // first bar's open  — identifies which bar is first
+  private _fpFirstClose = NaN   // first bar's close
+  private _fpBarStep    = 0     // pixels between adjacent bars (spacing == pan, not zoom)
+  private _panOffsetAcc = 0     // accumulated pan offset fed to u_panOffset uniform
 
   //  Dev-mode GPU frame-time profiling via EXT_disjoint_timer_query_webgl2.
   //  Warns to console when GPU frame exceeds the 4 ms budget (60 fps = 16 ms total).
@@ -348,6 +366,7 @@ export class CandleWebGLRenderer {
     this._uRenderMode   = gl.getUniformLocation(this._program, 'u_renderMode')!
     this._uOhlcHalfSize = gl.getUniformLocation(this._program, 'u_ohlcHalfSize')!
     this._uBarHalfWidth = gl.getUniformLocation(this._program, 'u_barHalfWidth')!
+    this._uPanOffset    = gl.getUniformLocation(this._program, 'u_panOffset')!
 
     this._vao = gl.createVertexArray()!
     gl.bindVertexArray(this._vao)
@@ -404,7 +423,10 @@ export class CandleWebGLRenderer {
     f32Base: number,
     byteBase: number
   ): void {
-    f32[f32Base + 0] = bar.centerX
+    // Store x adjusted for the accumulated pan offset so that the VBO always
+    // holds coordinates in the frame of reference of the last full upload.
+    // Shader adds u_panOffset back — net effect is the visual position.
+    f32[f32Base + 0] = bar.centerX - this._panOffsetAcc
     f32[f32Base + 1] = bar.open
     f32[f32Base + 2] = bar.high
     f32[f32Base + 3] = bar.low
@@ -502,20 +524,50 @@ export class CandleWebGLRenderer {
     }
 
     // O(1) fingerprint — skip the O(N) staging + bufferSubData when unchanged
-    const last = bars[len - 1]
+    const first = bars[0]
+    const last  = bars[len - 1]
     if (
-      len            === this._fpLen   &&
-      bars[0].centerX === this._fpX0    &&
-      last.centerX    === this._fpXLast &&
-      last.close      === this._fpClose &&
+      len             === this._fpLen    &&
+      first.centerX   === this._fpX0     &&
+      last.centerX    === this._fpXLast  &&
+      last.close      === this._fpClose  &&
       last.bodyColor  === this._fpColor
     ) return
 
-    this._fpLen   = len
-    this._fpX0    = bars[0].centerX
-    this._fpXLast = last.centerX
-    this._fpClose = last.close
-    this._fpColor = last.bodyColor
+    // ── Pan-offset fast path (Priority 5) ───────────────────────────────
+    // Detect a pure pan: same bars (same count, same first/last OHLC identity,
+    // same bar spacing so zoom didn't fire) but all x-positions shifted uniformly.
+    // If detected → accumulate the pixel delta into _panOffsetAcc and return
+    // without touching the VBO at all.  The vertex shader adds _panOffsetAcc
+    // to every a_centerX, so the visual result is identical.
+    const barStep = len >= 2 ? bars[1].centerX - first.centerX : this._fpBarStep
+    if (
+      len             === this._fpLen        &&
+      last.close      === this._fpClose      &&
+      last.bodyColor  === this._fpColor      &&
+      first.open      === this._fpFirstOpen  &&
+      first.close     === this._fpFirstClose &&
+      barStep         === this._fpBarStep
+    ) {
+      // Pure pan — update accumulated offset + x-fingerprint, skip VBO write
+      this._panOffsetAcc += first.centerX - this._fpX0
+      this._fpX0          = first.centerX
+      this._fpXLast       = last.centerX
+      return
+    }
+
+    // ── Full re-upload ────────────────────────────────────────────────────────────
+    // Reset pan accumulator: the VBO will be written with the current visual
+    // positions, so the shader must add 0 (no net pan offset).
+    this._panOffsetAcc  = 0
+    this._fpLen         = len
+    this._fpX0          = first.centerX
+    this._fpXLast       = last.centerX
+    this._fpClose       = last.close
+    this._fpColor       = last.bodyColor
+    this._fpFirstOpen   = first.open
+    this._fpFirstClose  = first.close
+    this._fpBarStep     = barStep
 
     this._ensureCapacity(len)
 
@@ -607,6 +659,7 @@ export class CandleWebGLRenderer {
     gl.uniform1f(this._uBarHalfWidth, barHalfWidth)
     gl.uniform1i(this._uRenderMode,   renderMode)
     gl.uniform1f(this._uOhlcHalfSize, ohlcHalfSize)
+    gl.uniform1f(this._uPanOffset,    this._panOffsetAcc)
 
     gl.bindVertexArray(this._vao)
     // Single instanced draw call: VERTS_PER_BAR vertices × barCount instances
