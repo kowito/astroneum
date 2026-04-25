@@ -28,11 +28,11 @@ const volumeRatio: IndicatorTemplate<Vr, number> = {
     let pvs = 0
     let vrSum = 0
     const result: Vr[] = []
-    dataList.forEach((kLineData, i) => {
+    dataList.forEach((candleData, i) => {
       const vr: Vr = {}
-      const close = kLineData.close
-      const preClose = (dataList[i - 1] ?? kLineData).close
-      const volume = kLineData.volume ?? 0
+      const close = candleData.close
+      const preClose = (dataList[i - 1] ?? candleData).close
+      const volume = candleData.volume ?? 0
       if (close > preClose) {
         uvs += volume
       } else if (close < preClose) {

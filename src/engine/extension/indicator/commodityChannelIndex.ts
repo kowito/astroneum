@@ -24,9 +24,9 @@ const commodityChannelIndex: IndicatorTemplate<Cci, number> = {
     const p = params[0] - 1
     let tpSum = 0
     const tpList: number[] = []
-    return dataList.map((kLineData, i) => {
+    return dataList.map((candleData, i) => {
       const cci: Cci = {}
-      const tp = (kLineData.high + kLineData.low + kLineData.close) / 3
+      const tp = (candleData.high + candleData.low + candleData.close) / 3
       tpSum += tp
       tpList.push(tp)
       if (i >= p) {

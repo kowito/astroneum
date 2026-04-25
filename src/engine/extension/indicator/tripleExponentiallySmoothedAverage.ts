@@ -36,9 +36,9 @@ const tripleExponentiallySmoothedAverage: IndicatorTemplate<Trix, number> = {
     let ema2Sum = 0
     let trixSum = 0
     const result: Trix[] = []
-    dataList.forEach((kLineData, i) => {
+    dataList.forEach((candleData, i) => {
       const trix: Trix = {}
-      const close = kLineData.close
+      const close = candleData.close
       closeSum += close
       if (i >= params[0] - 1) {
         if (i > params[0] - 1) {

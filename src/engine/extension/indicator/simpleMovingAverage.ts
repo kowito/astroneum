@@ -21,9 +21,9 @@ const simpleMovingAverage: IndicatorTemplate<Sma, number> = {
     const params = indicator.calcParams
     let closeSum = 0
     let smaValue = 0
-    return dataList.map((kLineData, i) => {
+    return dataList.map((candleData, i) => {
       const sma: Sma = {}
-      const close = kLineData.close
+      const close = candleData.close
       closeSum += close
       if (i >= params[0] - 1) {
         if (i > params[0] - 1) {

@@ -32,27 +32,27 @@ const awesomeOscillator: IndicatorTemplate<Ao, number> = {
   calc: (dataList, indicator) => {
     const params = indicator.calcParams
     const maxPeriod = Math.max(params[0], params[1])
-    let shortSum = 0
-    let longSum = 0
-    let short = 0
-    let long = 0
-    return dataList.map((kLineData, i) => {
+    let shortPeriodMidpointSum = 0
+    let longPeriodMidpointSum = 0
+    let shortPeriodAverage = 0
+    let longPeriodAverage = 0
+    return dataList.map((candleData, dataIndex) => {
       const ao: Ao = {}
-      const middle = (kLineData.low + kLineData.high) / 2
-      shortSum += middle
-      longSum += middle
-      if (i >= params[0] - 1) {
-        short = shortSum / params[0]
-        const agoCandleData = dataList[i - (params[0] - 1)]
-        shortSum -= ((agoCandleData.low + agoCandleData.high) / 2)
+      const midpointPrice = (candleData.low + candleData.high) / 2
+      shortPeriodMidpointSum += midpointPrice
+      longPeriodMidpointSum += midpointPrice
+      if (dataIndex >= params[0] - 1) {
+        shortPeriodAverage = shortPeriodMidpointSum / params[0]
+        const exitingShortPeriodData = dataList[dataIndex - (params[0] - 1)]
+        shortPeriodMidpointSum -= ((exitingShortPeriodData.low + exitingShortPeriodData.high) / 2)
       }
-      if (i >= params[1] - 1) {
-        long = longSum / params[1]
-        const agoCandleData = dataList[i - (params[1] - 1)]
-        longSum -= ((agoCandleData.low + agoCandleData.high) / 2)
+      if (dataIndex >= params[1] - 1) {
+        longPeriodAverage = longPeriodMidpointSum / params[1]
+        const exitingLongPeriodData = dataList[dataIndex - (params[1] - 1)]
+        longPeriodMidpointSum -= ((exitingLongPeriodData.low + exitingLongPeriodData.high) / 2)
       }
-      if (i >= maxPeriod - 1) {
-        ao.ao = short - long
+      if (dataIndex >= maxPeriod - 1) {
+        ao.ao = shortPeriodAverage - longPeriodAverage
       }
       return ao
     })

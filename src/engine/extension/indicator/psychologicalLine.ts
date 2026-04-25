@@ -23,10 +23,10 @@ const psychologicalLine: IndicatorTemplate<Psy, number> = {
     let psySum = 0
     const upList: number[] = []
     const result: Psy[] = []
-    dataList.forEach((kLineData, i) => {
+    dataList.forEach((candleData, i) => {
       const psy: Psy = {}
-      const prevClose = (dataList[i - 1] ?? kLineData).close
-      const upFlag = kLineData.close - prevClose > 0 ? 1 : 0
+      const prevClose = (dataList[i - 1] ?? candleData).close
+      const upFlag = candleData.close - prevClose > 0 ? 1 : 0
       upList.push(upFlag)
       upCount += upFlag
       if (i >= params[0] - 1) {

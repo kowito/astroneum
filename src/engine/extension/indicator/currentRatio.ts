@@ -50,55 +50,55 @@ const currentRatio: IndicatorTemplate<Cr, number> = {
     let ma4Sum = 0
     const ma4List: number[] = []
     const result: Cr[] = []
-    dataList.forEach((kLineData, i) => {
-      const cr: Cr = {}
-      const prevData = dataList[i - 1] ?? kLineData
+    dataList.forEach((candleData, dataIndex) => {
+      const currentRatioValue: Cr = {}
+      const prevData = dataList[dataIndex - 1] ?? candleData
       const prevMid = (prevData.high + prevData.close + prevData.low + prevData.open) / 4
 
-      const highSubPreMid = Math.max(0, kLineData.high - prevMid)
+      const highSubPreMid = Math.max(0, candleData.high - prevMid)
 
-      const preMidSubLow = Math.max(0, prevMid - kLineData.low)
+      const preMidSubLow = Math.max(0, prevMid - candleData.low)
 
-      if (i >= params[0] - 1) {
+      if (dataIndex >= params[0] - 1) {
         if (preMidSubLow !== 0) {
-          cr.cr = highSubPreMid / preMidSubLow * 100
+          currentRatioValue.cr = highSubPreMid / preMidSubLow * 100
         } else {
-          cr.cr = 0
+          currentRatioValue.cr = 0
         }
-        ma1Sum += cr.cr
-        ma2Sum += cr.cr
-        ma3Sum += cr.cr
-        ma4Sum += cr.cr
-        if (i >= params[0] + params[1] - 2) {
+        ma1Sum += currentRatioValue.cr
+        ma2Sum += currentRatioValue.cr
+        ma3Sum += currentRatioValue.cr
+        ma4Sum += currentRatioValue.cr
+        if (dataIndex >= params[0] + params[1] - 2) {
           ma1List.push(ma1Sum / params[1])
-          if (i >= params[0] + params[1] + ma1ForwardPeriod - 3) {
-            cr.ma1 = ma1List[ma1List.length - 1 - ma1ForwardPeriod]
+          if (dataIndex >= params[0] + params[1] + ma1ForwardPeriod - 3) {
+            currentRatioValue.ma1 = ma1List[ma1List.length - 1 - ma1ForwardPeriod]
           }
-          ma1Sum -= (result[i - (params[1] - 1)].cr ?? 0)
+          ma1Sum -= (result[dataIndex - (params[1] - 1)].cr ?? 0)
         }
-        if (i >= params[0] + params[2] - 2) {
+        if (dataIndex >= params[0] + params[2] - 2) {
           ma2List.push(ma2Sum / params[2])
-          if (i >= params[0] + params[2] + ma2ForwardPeriod - 3) {
-            cr.ma2 = ma2List[ma2List.length - 1 - ma2ForwardPeriod]
+          if (dataIndex >= params[0] + params[2] + ma2ForwardPeriod - 3) {
+            currentRatioValue.ma2 = ma2List[ma2List.length - 1 - ma2ForwardPeriod]
           }
-          ma2Sum -= (result[i - (params[2] - 1)].cr ?? 0)
+          ma2Sum -= (result[dataIndex - (params[2] - 1)].cr ?? 0)
         }
-        if (i >= params[0] + params[3] - 2) {
+        if (dataIndex >= params[0] + params[3] - 2) {
           ma3List.push(ma3Sum / params[3])
-          if (i >= params[0] + params[3] + ma3ForwardPeriod - 3) {
-            cr.ma3 = ma3List[ma3List.length - 1 - ma3ForwardPeriod]
+          if (dataIndex >= params[0] + params[3] + ma3ForwardPeriod - 3) {
+            currentRatioValue.ma3 = ma3List[ma3List.length - 1 - ma3ForwardPeriod]
           }
-          ma3Sum -= (result[i - (params[3] - 1)].cr ?? 0)
+          ma3Sum -= (result[dataIndex - (params[3] - 1)].cr ?? 0)
         }
-        if (i >= params[0] + params[4] - 2) {
+        if (dataIndex >= params[0] + params[4] - 2) {
           ma4List.push(ma4Sum / params[4])
-          if (i >= params[0] + params[4] + ma4ForwardPeriod - 3) {
-            cr.ma4 = ma4List[ma4List.length - 1 - ma4ForwardPeriod]
+          if (dataIndex >= params[0] + params[4] + ma4ForwardPeriod - 3) {
+            currentRatioValue.ma4 = ma4List[ma4List.length - 1 - ma4ForwardPeriod]
           }
-          ma4Sum -= (result[i - (params[4] - 1)].cr ?? 0)
+          ma4Sum -= (result[dataIndex - (params[4] - 1)].cr ?? 0)
         }
       }
-      result.push(cr)
+      result.push(currentRatioValue)
     })
     return result
   }

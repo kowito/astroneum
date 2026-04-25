@@ -44,11 +44,11 @@ const stopAndReverse: IndicatorTemplate<Sar, number> = {
     // 判断是上涨还是下跌  false：下跌
     let isIncreasing = false
     let sar = 0
-    return dataList.map((kLineData, i) => {
+    return dataList.map((candleData, i) => {
       // 上一个周期的sar
       const preSar = sar
-      const high = kLineData.high
-      const low = kLineData.low
+      const high = candleData.high
+      const low = candleData.low
       if (isIncreasing) {
         // 上涨
         if (ep === -100 || ep < high) {
@@ -58,7 +58,7 @@ const stopAndReverse: IndicatorTemplate<Sar, number> = {
         }
         sar = preSar + af * (ep - preSar)
         const lowMin = Math.min(dataList[Math.max(1, i) - 1].low, low)
-        if (sar > kLineData.low) {
+        if (sar > candleData.low) {
           sar = ep
           // 重新初始化值
           af = startAf
@@ -75,7 +75,7 @@ const stopAndReverse: IndicatorTemplate<Sar, number> = {
         }
         sar = preSar + af * (ep - preSar)
         const highMax = Math.max(dataList[Math.max(1, i) - 1].high, high)
-        if (sar < kLineData.high) {
+        if (sar < candleData.high) {
           sar = ep
           // 重新初始化值
           af = 0

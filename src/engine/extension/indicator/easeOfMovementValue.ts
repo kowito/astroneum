@@ -29,13 +29,13 @@ const easeOfMovementValue: IndicatorTemplate<Emv, number> = {
     const params = indicator.calcParams
     let emvValueSum = 0
     const emvValueList: number[] = []
-    return dataList.map((kLineData, i) => {
+    return dataList.map((candleData, i) => {
       const emv: Emv = {}
       if (i > 0) {
         const prevCandleData = dataList[i - 1]
-        const high = kLineData.high
-        const low = kLineData.low
-        const volume = kLineData.volume ?? 0
+        const high = candleData.high
+        const low = candleData.low
+        const volume = candleData.volume ?? 0
         const distanceMoved = (high + low) / 2 - (prevCandleData.high + prevCandleData.low) / 2
 
         if (volume === 0 || high - low === 0) {

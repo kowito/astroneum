@@ -18,10 +18,10 @@ const averagePrice: IndicatorTemplate<Avp> = {
   calc: (dataList) => {
     let totalTurnover = 0
     let totalVolume = 0
-    return dataList.map((kLineData) => {
+    return dataList.map((candleData) => {
       const avp: Avp = {}
-      const turnover = kLineData.turnover ?? 0
-      const volume = kLineData.volume ?? 0
+      const turnover = candleData.turnover ?? 0
+      const volume = candleData.volume ?? 0
       totalTurnover += turnover
       totalVolume += volume
       if (totalVolume !== 0) {

@@ -29,29 +29,29 @@ const relativeStrengthIndex: IndicatorTemplate<Rsi, number> = {
     const { calcParams: params, figures } = indicator
     const sumCloseAs: number[] = []
     const sumCloseBs: number[] = []
-    return dataList.map((kLineData, i) => {
+    return dataList.map((candleData, dataIndex) => {
       const rsi = {}
-      const prevClose = (dataList[i - 1] ?? kLineData).close
-      const tmp = kLineData.close - prevClose
-      params.forEach((p, index) => {
-        if (tmp > 0) {
-          sumCloseAs[index] = (sumCloseAs[index] ?? 0) + tmp
+      const prevClose = (dataList[dataIndex - 1] ?? candleData).close
+      const closeDelta = candleData.close - prevClose
+      params.forEach((period, index) => {
+        if (closeDelta > 0) {
+          sumCloseAs[index] = (sumCloseAs[index] ?? 0) + closeDelta
         } else {
-          sumCloseBs[index] = (sumCloseBs[index] ?? 0) + Math.abs(tmp)
+          sumCloseBs[index] = (sumCloseBs[index] ?? 0) + Math.abs(closeDelta)
         }
-        if (i >= p - 1) {
+        if (dataIndex >= period - 1) {
           if (sumCloseBs[index] !== 0) {
             rsi[figures[index].key] = 100 - (100.0 / (1 + sumCloseAs[index] / sumCloseBs[index]))
           } else {
             rsi[figures[index].key] = 0
           }
-          const agoData = dataList[i - (p - 1)]
-          const agoPreData = dataList[i - p] ?? agoData
-          const agoTmp = agoData.close - agoPreData.close
-          if (agoTmp > 0) {
-            sumCloseAs[index] -= agoTmp
+          const periodStartData = dataList[dataIndex - (period - 1)]
+          const periodStartPrevData = dataList[dataIndex - period] ?? periodStartData
+          const periodStartCloseDelta = periodStartData.close - periodStartPrevData.close
+          if (periodStartCloseDelta > 0) {
+            sumCloseAs[index] -= periodStartCloseDelta
           } else {
-            sumCloseBs[index] -= Math.abs(agoTmp)
+            sumCloseBs[index] -= Math.abs(periodStartCloseDelta)
           }
         }
       })

@@ -22,12 +22,12 @@ const onBalanceVolume: IndicatorTemplate<Obv, number> = {
     let obvSum = 0
     let oldObv = 0
     const result: Obv[] = []
-    dataList.forEach((kLineData, i) => {
-      const prevCandleData = dataList[i - 1] ?? kLineData
-      if (kLineData.close < prevCandleData.close) {
-        oldObv -= (kLineData.volume ?? 0)
-      } else if (kLineData.close > prevCandleData.close) {
-        oldObv += (kLineData.volume ?? 0)
+    dataList.forEach((candleData, i) => {
+      const prevCandleData = dataList[i - 1] ?? candleData
+      if (candleData.close < prevCandleData.close) {
+        oldObv -= (candleData.volume ?? 0)
+      } else if (candleData.close > prevCandleData.close) {
+        oldObv += (candleData.volume ?? 0)
       }
       const obv: Obv = { obv: oldObv }
       obvSum += oldObv

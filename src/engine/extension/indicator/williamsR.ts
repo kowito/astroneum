@@ -27,9 +27,9 @@ const williamsR: IndicatorTemplate<Wr, number> = {
   regenerateFigures: (params) => params.map((_, i) => ({ key: `wr${i + 1}`, title: `WR${i + 1}: `, type: 'line' })),
   calc: (dataList, indicator) => {
     const { calcParams: params, figures } = indicator
-    return dataList.map((kLineData, i) => {
+    return dataList.map((candleData, i) => {
       const wr: Wr = {}
-      const close = kLineData.close
+      const close = candleData.close
       params.forEach((param, index) => {
         const p = param - 1
         if (i >= p) {

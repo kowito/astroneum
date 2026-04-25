@@ -21,10 +21,10 @@ const rateOfChange: IndicatorTemplate<Roc, number> = {
     const params = indicator.calcParams
     const result: Roc[] = []
     let rocSum = 0
-    dataList.forEach((kLineData, i) => {
+    dataList.forEach((candleData, i) => {
       const roc: Roc = {}
       if (i >= params[0] - 1) {
-        const close = kLineData.close
+        const close = candleData.close
         const agoClose = (dataList[i - params[0]] ?? dataList[i - (params[0] - 1)]).close
         if (agoClose !== 0) {
           roc.roc = (close - agoClose) / agoClose * 100

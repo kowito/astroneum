@@ -54,9 +54,9 @@ const movingAverageConvergenceDivergence: IndicatorTemplate<Macd, number> = {
     let difSum = 0
     let dea = 0
     const maxPeriod = Math.max(params[0], params[1])
-    return dataList.map((kLineData, i) => {
+    return dataList.map((candleData, i) => {
       const macd: Macd = {}
-      const close = kLineData.close
+      const close = candleData.close
       closeSum += close
       if (i >= params[0] - 1) {
         if (i > params[0] - 1) {
