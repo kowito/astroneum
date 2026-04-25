@@ -185,11 +185,11 @@ export class IndicatorRectWebGLRenderer {
   // ---------------------------------------------------------------------------
   // Dirty-flag fingerprint (O(1) — avoids full staging+upload on unchanged frames)
   // ---------------------------------------------------------------------------
-  private _fpLen   = -1
-  private _fpX0    = 0
-  private _fpY0    = 0
-  private _fpXLast = 0
-  private _fpYLast = 0
+  private _fingerprintRectCount = -1
+  private _fingerprintFirstX = 0
+  private _fingerprintFirstY = 0
+  private _fingerprintLastX = 0
+  private _fingerprintLastY = 0
 
   constructor (container: HTMLElement) {
     const canvas = document.createElement('canvas')
@@ -264,14 +264,14 @@ export class IndicatorRectWebGLRenderer {
   // ---------------------------------------------------------------------------
 
   resize (width: number, height: number): void {
-    const pr   = getPixelRatio(this._canvas)
-    const newW = Math.round(width  * pr)
-    const newH = Math.round(height * pr)
-    if (this._canvas.width === newW && this._canvas.height === newH) return
+    const pixelRatio = getPixelRatio(this._canvas)
+    const newCanvasWidth = Math.round(width  * pixelRatio)
+    const newCanvasHeight = Math.round(height * pixelRatio)
+    if (this._canvas.width === newCanvasWidth && this._canvas.height === newCanvasHeight) return
     this._canvas.style.width  = `${width}px`
     this._canvas.style.height = `${height}px`
-    this._canvas.width  = newW
-    this._canvas.height = newH
+    this._canvas.width  = newCanvasWidth
+    this._canvas.height = newCanvasHeight
   }
 
   // ---------------------------------------------------------------------------
@@ -291,12 +291,12 @@ export class IndicatorRectWebGLRenderer {
   }
 
   private _parseColorCached (color: string): readonly [number, number, number, number] {
-    let c = this._colorCache.get(color)
-    if (c === undefined) {
-      c = parseCSSColor(color)
-      this._colorCache.set(color, c)
+    let cachedColor = this._colorCache.get(color)
+    if (cachedColor === undefined) {
+      cachedColor = parseCSSColor(color)
+      this._colorCache.set(color, cachedColor)
     }
-    return c
+    return cachedColor
   }
 
   /**
@@ -305,35 +305,35 @@ export class IndicatorRectWebGLRenderer {
    * previous frame (e.g. crosshair hover redraws, tooltip show/hide).
    */
   setData (rects: RectInstanceData[]): void {
-    const len = rects.length
-    this._rectCount = len
-    if (len === 0) {
-      this._fpLen = 0
+    const rectCount = rects.length
+    this._rectCount = rectCount
+    if (rectCount === 0) {
+      this._fingerprintRectCount = 0
       return
     }
 
     // O(1) fingerprint — first/last rect corners detect pan + zoom + new-tick
-    const first = rects[0]
-    const last  = rects[len - 1]
+    const firstRect = rects[0]
+    const lastRect  = rects[rectCount - 1]
     if (
-      len       === this._fpLen   &&
-      first.x   === this._fpX0    &&
-      first.y   === this._fpY0    &&
-      last.x    === this._fpXLast &&
-      last.y    === this._fpYLast
+      rectCount      === this._fingerprintRectCount &&
+      firstRect.x    === this._fingerprintFirstX    &&
+      firstRect.y    === this._fingerprintFirstY    &&
+      lastRect.x     === this._fingerprintLastX     &&
+      lastRect.y     === this._fingerprintLastY
     ) return
 
-    this._fpLen   = len
-    this._fpX0    = first.x
-    this._fpY0    = first.y
-    this._fpXLast = last.x
-    this._fpYLast = last.y
+    this._fingerprintRectCount = rectCount
+    this._fingerprintFirstX = firstRect.x
+    this._fingerprintFirstY = firstRect.y
+    this._fingerprintLastX = lastRect.x
+    this._fingerprintLastY = lastRect.y
 
-    this._ensureCapacity(len)
+    this._ensureCapacity(rectCount)
 
     const f32 = this._stagingF32
     const u8  = this._stagingU8
-    for (let i = 0; i < len; i++) {
+    for (let i = 0; i < rectCount; i++) {
       const rect     = rects[i]
       const f32Base  = i * 4          // 4 float32 fields per rect
       const byteBase = i * BYTES_PER_RECT
@@ -350,7 +350,7 @@ export class IndicatorRectWebGLRenderer {
 
     const gl = this._gl
     gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._stagingU8, 0, len * BYTES_PER_RECT)
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._stagingU8, 0, rectCount * BYTES_PER_RECT)
   }
 
   /**

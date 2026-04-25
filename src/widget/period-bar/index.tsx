@@ -27,15 +27,15 @@ const fullscreenEvents = ['fullscreenchange', 'mozfullscreenchange', 'webkitfull
 function enterFullScreen (el: HTMLElement) {
   // @ts-expect-error vendor-prefixed fullscreen API
   // eslint-disable-next-line @typescript-eslint/unbound-method
-  const fn = el.requestFullscreen ?? el.webkitRequestFullscreen ?? el.mozRequestFullScreen ?? el.msRequestFullscreen
-  void (fn as (() => Promise<void>) | undefined)?.call(el)
+  const requestFullscreenFn = el.requestFullscreen ?? el.webkitRequestFullscreen ?? el.mozRequestFullScreen ?? el.msRequestFullscreen
+  void (requestFullscreenFn as (() => Promise<void>) | undefined)?.call(el)
 }
 
 function exitFullScreen () {
   // @ts-expect-error vendor-prefixed fullscreen API
   // eslint-disable-next-line @typescript-eslint/unbound-method
-  const fn = document.exitFullscreen ?? document.msExitFullscreen ?? document.mozCancelFullScreen ?? document.webkitExitFullscreen
-  void (fn as (() => Promise<void>) | undefined)?.call(document)
+  const exitFullscreenFn = document.exitFullscreen ?? document.msExitFullscreen ?? document.mozCancelFullScreen ?? document.webkitExitFullscreen
+  void (exitFullscreenFn as (() => Promise<void>) | undefined)?.call(document)
 }
 
 function periodsEqual (a: Period, b: Period): boolean {

@@ -189,11 +189,11 @@ export class IndicatorLineWebGLRenderer {
   // ---------------------------------------------------------------------------
   // Dirty-flag fingerprint (same O(1) strategy as CandleWebGLRenderer)
   // ---------------------------------------------------------------------------
-  private _fpLen   = -1
-  private _fpX0    = 0
-  private _fpY0    = 0
-  private _fpXLast = 0
-  private _fpYLast = 0
+  private _fingerprintSegmentCount = -1
+  private _fingerprintFirstX = 0
+  private _fingerprintFirstY = 0
+  private _fingerprintLastX = 0
+  private _fingerprintLastY = 0
 
   constructor (container: HTMLElement) {
     const canvas = document.createElement('canvas')
@@ -269,14 +269,14 @@ export class IndicatorLineWebGLRenderer {
   // ---------------------------------------------------------------------------
 
   resize (width: number, height: number): void {
-    const pr   = getPixelRatio(this._canvas)
-    const newW = Math.round(width  * pr)
-    const newH = Math.round(height * pr)
-    if (this._canvas.width === newW && this._canvas.height === newH) return
+    const pixelRatio = getPixelRatio(this._canvas)
+    const newCanvasWidth = Math.round(width  * pixelRatio)
+    const newCanvasHeight = Math.round(height * pixelRatio)
+    if (this._canvas.width === newCanvasWidth && this._canvas.height === newCanvasHeight) return
     this._canvas.style.width  = `${width}px`
     this._canvas.style.height = `${height}px`
-    this._canvas.width  = newW
-    this._canvas.height = newH
+    this._canvas.width  = newCanvasWidth
+    this._canvas.height = newCanvasHeight
   }
 
   // ---------------------------------------------------------------------------
@@ -296,12 +296,12 @@ export class IndicatorLineWebGLRenderer {
   }
 
   private _parseColorCached (color: string): readonly [number, number, number, number] {
-    let c = this._colorCache.get(color)
-    if (c === undefined) {
-      c = parseCSSColor(color)
-      this._colorCache.set(color, c)
+    let cachedColor = this._colorCache.get(color)
+    if (cachedColor === undefined) {
+      cachedColor = parseCSSColor(color)
+      this._colorCache.set(color, cachedColor)
     }
-    return c
+    return cachedColor
   }
 
   /**
@@ -311,35 +311,35 @@ export class IndicatorLineWebGLRenderer {
    * and viewport haven't changed).
    */
   setData (segs: LineSegmentData[]): void {
-    const len = segs.length
-    this._segCount = len
-    if (len === 0) {
-      this._fpLen = 0
+    const segmentCount = segs.length
+    this._segCount = segmentCount
+    if (segmentCount === 0) {
+      this._fingerprintSegmentCount = 0
       return
     }
 
     // O(1) fingerprint — first/last endpoint covers pan + new-tick cases
-    const first = segs[0]
-    const last  = segs[len - 1]
+    const firstSegment = segs[0]
+    const lastSegment  = segs[segmentCount - 1]
     if (
-      len        === this._fpLen   &&
-      first.x0   === this._fpX0    &&
-      first.y0   === this._fpY0    &&
-      last.x1    === this._fpXLast &&
-      last.y1    === this._fpYLast
+      segmentCount     === this._fingerprintSegmentCount &&
+      firstSegment.x0  === this._fingerprintFirstX       &&
+      firstSegment.y0  === this._fingerprintFirstY       &&
+      lastSegment.x1   === this._fingerprintLastX        &&
+      lastSegment.y1   === this._fingerprintLastY
     ) return
 
-    this._fpLen   = len
-    this._fpX0    = first.x0
-    this._fpY0    = first.y0
-    this._fpXLast = last.x1
-    this._fpYLast = last.y1
+    this._fingerprintSegmentCount = segmentCount
+    this._fingerprintFirstX = firstSegment.x0
+    this._fingerprintFirstY = firstSegment.y0
+    this._fingerprintLastX = lastSegment.x1
+    this._fingerprintLastY = lastSegment.y1
 
-    this._ensureCapacity(len)
+    this._ensureCapacity(segmentCount)
 
     const f32 = this._stagingF32
     const u8  = this._stagingU8
-    for (let i = 0; i < len; i++) {
+    for (let i = 0; i < segmentCount; i++) {
       const seg     = segs[i]
       const f32Base = i * 5          // 5 float32 fields per segment
       const byteBase = i * BYTES_PER_SEG
@@ -357,7 +357,7 @@ export class IndicatorLineWebGLRenderer {
 
     const gl = this._gl
     gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._stagingU8, 0, len * BYTES_PER_SEG)
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._stagingU8, 0, segmentCount * BYTES_PER_SEG)
   }
 
   /**

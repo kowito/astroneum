@@ -706,24 +706,24 @@ export default class StoreImp implements Store {
       { x: 0, price: Number.MAX_SAFE_INTEGER }
     ]
     for (let i = realFrom; i < realTo; i++) {
-      const kLineData = this._dataList[i]
+      const candleDataAtIndex = this._dataList[i]
       const x = this.dataIndexToCoordinate(i)
       this._visibleRangeDataList.push({
         dataIndex: i,
         x,
         data: {
-          prev: this._dataList[i - 1] ?? kLineData,
-          current: kLineData,
-          next: this._dataList[i + 1] ?? kLineData
+          prev: this._dataList[i - 1] ?? candleDataAtIndex,
+          current: candleDataAtIndex,
+          next: this._dataList[i + 1] ?? candleDataAtIndex
         }
       })
-      if (isValid(kLineData)) {
-        if (this._visibleRangeHighLowPrice[0].price < kLineData.high) {
-          this._visibleRangeHighLowPrice[0].price = kLineData.high
+      if (isValid(candleDataAtIndex)) {
+        if (this._visibleRangeHighLowPrice[0].price < candleDataAtIndex.high) {
+          this._visibleRangeHighLowPrice[0].price = candleDataAtIndex.high
           this._visibleRangeHighLowPrice[0].x = x
         }
-        if (this._visibleRangeHighLowPrice[1].price > kLineData.low) {
-          this._visibleRangeHighLowPrice[1].price = kLineData.low
+        if (this._visibleRangeHighLowPrice[1].price > candleDataAtIndex.low) {
+          this._visibleRangeHighLowPrice[1].price = candleDataAtIndex.low
           this._visibleRangeHighLowPrice[1].x = x
         }
       }
@@ -1122,11 +1122,11 @@ export default class StoreImp implements Store {
     options?: { notInvalidate?: boolean, notExecuteAction?: boolean, forceInvalidate?: boolean }
   ): void {
     const { notInvalidate, notExecuteAction, forceInvalidate } = options ?? {}
-    const cr = crosshair ?? {}
+    const nextCrosshair = crosshair ?? {}
     let realDataIndex = 0
     let dataIndex = 0
-    if (isNumber(cr.x)) {
-      realDataIndex = this.coordinateToDataIndex(cr.x)
+    if (isNumber(nextCrosshair.x)) {
+      realDataIndex = this.coordinateToDataIndex(nextCrosshair.x)
       if (realDataIndex < 0) {
         dataIndex = 0
       } else if (realDataIndex > this._dataList.length - 1) {
@@ -1138,17 +1138,24 @@ export default class StoreImp implements Store {
       realDataIndex = this._dataList.length - 1
       dataIndex = realDataIndex
     }
-    const kLineData: Nullable<CandleData> = this._dataList[dataIndex]
+    const candleDataAtCrosshair: Nullable<CandleData> = this._dataList[dataIndex]
     const realX = this.dataIndexToCoordinate(realDataIndex)
     const prevCrosshair = { x: this._crosshair.x, y: this._crosshair.y, paneId: this._crosshair.paneId }
-    this._crosshair = { ...cr, realX, kLineData, realDataIndex, dataIndex, timestamp: this.dataIndexToTimestamp(realDataIndex) ?? undefined }
+    this._crosshair = {
+      ...nextCrosshair,
+      realX,
+      kLineData: candleDataAtCrosshair,
+      realDataIndex,
+      dataIndex,
+      timestamp: this.dataIndexToTimestamp(realDataIndex) ?? undefined
+    }
     if (
-      prevCrosshair.x !== cr.x ||
-      prevCrosshair.y !== cr.y ||
-      prevCrosshair.paneId !== cr.paneId ||
+      prevCrosshair.x !== nextCrosshair.x ||
+      prevCrosshair.y !== nextCrosshair.y ||
+      prevCrosshair.paneId !== nextCrosshair.paneId ||
       (forceInvalidate ?? false)
     ) {
-      if (isValid(kLineData) && !(notExecuteAction ?? false) && this.hasAction('onCrosshairChange') && isString(this._crosshair.paneId)) {
+      if (isValid(candleDataAtCrosshair) && !(notExecuteAction ?? false) && this.hasAction('onCrosshairChange') && isString(this._crosshair.paneId)) {
         this.executeAction('onCrosshairChange', crosshair)
       }
       if (!(notInvalidate ?? false)) {
@@ -1189,10 +1196,10 @@ export default class StoreImp implements Store {
 
   private _sortIndicators (paneId?: string): void {
     if (isString(paneId)) {
-      this._indicators.get(paneId)?.sort((i1, i2) => i1.zLevel - i2.zLevel)
+      this._indicators.get(paneId)?.sort((leftIndicator, rightIndicator) => leftIndicator.zLevel - rightIndicator.zLevel)
     } else {
       this._indicators.forEach(paneIndicators => {
-        paneIndicators.sort((i1, i2) => i1.zLevel - i2.zLevel)
+        paneIndicators.sort((leftIndicator, rightIndicator) => leftIndicator.zLevel - rightIndicator.zLevel)
       })
     }
   }
@@ -1381,17 +1388,17 @@ export default class StoreImp implements Store {
 
   private _sortOverlays (paneId?: string): void {
     if (isString(paneId)) {
-      this._overlays.get(paneId)?.sort((o1, o2) => o1.zLevel - o2.zLevel)
+      this._overlays.get(paneId)?.sort((leftOverlay, rightOverlay) => leftOverlay.zLevel - rightOverlay.zLevel)
     } else {
       this._overlays.forEach(paneOverlays => {
-        paneOverlays.sort((o1, o2) => o1.zLevel - o2.zLevel)
+        paneOverlays.sort((leftOverlay, rightOverlay) => leftOverlay.zLevel - rightOverlay.zLevel)
       })
     }
   }
 
-  addOverlays (os: OverlayCreate[], appointPaneFlags: boolean[]): Array<Nullable<string>> {
+  addOverlays (overlayCreates: OverlayCreate[], appointPaneFlags: boolean[]): Array<Nullable<string>> {
     const updatePaneIds: string[] = []
-    const ids = os.map((create, index) => {
+    const createdOverlayIds = overlayCreates.map((create, index) => {
       if (isValid(create.id)) {
         let findOverlay: Nullable<OverlayImp> = null
         for (const item of this._overlays) {
@@ -1408,11 +1415,11 @@ export default class StoreImp implements Store {
       }
       const OverlayClazz = getOverlayInnerClass(create.name)
       if (isValid(OverlayClazz)) {
-        const id = create.id ?? createId(OVERLAY_ID_PREFIX)
+        const overlayId = create.id ?? createId(OVERLAY_ID_PREFIX)
         const overlay = new OverlayClazz()
         const paneId = create.paneId ?? PaneIdConstants.CANDLE
-        create.id = id
-        create.groupId ??= id
+        create.id = overlayId
+        create.groupId ??= overlayId
         const zLevel = this.getOverlaysByPaneId(paneId).length
         create.zLevel ??= zLevel
         overlay.override(create)
@@ -1430,7 +1437,7 @@ export default class StoreImp implements Store {
         if (overlay.isStart()) {
           overlay.onDrawStart?.(({ overlay, chart: this._chart }))
         }
-        return id
+        return overlayId
       }
       return null
     })
@@ -1441,7 +1448,7 @@ export default class StoreImp implements Store {
       })
       this._chart.updatePane(UpdateLevel.Overlay, PaneIdConstants.X_AXIS)
     }
-    return ids
+    return createdOverlayIds
   }
 
   getProgressOverlayInfo (): Nullable<ProgressOverlayInfo> {

@@ -115,8 +115,8 @@ export function formatThousands (value: string | number, sign: string): string {
     return vl
   }
   if (vl.includes('.')) {
-    const arr = vl.split('.')
-    return `${arr[0].replace(/(\d)(?=(\d{3})+$)/g, $1 => `${$1}${sign}`)}.${arr[1]}`
+    const integerAndDecimalParts = vl.split('.')
+    return `${integerAndDecimalParts[0].replace(/(\d)(?=(\d{3})+$)/g, $1 => `${$1}${sign}`)}.${integerAndDecimalParts[1]}`
   }
   return vl.replace(/(\d)(?=(\d{3})+$)/g, $1 => `${$1}${sign}`)
 }

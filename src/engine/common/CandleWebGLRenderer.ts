@@ -211,19 +211,19 @@ function createProgram (gl: WebGL2RenderingContext): WebGLProgram {
 }
 
 function hexToRgba (hex: string): [number, number, number, number] {
-  const h = hex.replace('#', '')
-  if (h.length === 6 || h.length === 8) {
-    const r = parseInt(h.slice(0, 2), 16) / 255
-    const g = parseInt(h.slice(2, 4), 16) / 255
-    const b = parseInt(h.slice(4, 6), 16) / 255
-    const a = h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1
+  const hexValue = hex.replace('#', '')
+  if (hexValue.length === 6 || hexValue.length === 8) {
+    const r = parseInt(hexValue.slice(0, 2), 16) / 255
+    const g = parseInt(hexValue.slice(2, 4), 16) / 255
+    const b = parseInt(hexValue.slice(4, 6), 16) / 255
+    const a = hexValue.length === 8 ? parseInt(hexValue.slice(6, 8), 16) / 255 : 1
     return [r, g, b, a]
   }
   // RGB shorthand
-  if (h.length === 3) {
-    const r = parseInt(h[0] + h[0], 16) / 255
-    const g = parseInt(h[1] + h[1], 16) / 255
-    const b = parseInt(h[2] + h[2], 16) / 255
+  if (hexValue.length === 3) {
+    const r = parseInt(hexValue[0] + hexValue[0], 16) / 255
+    const g = parseInt(hexValue[1] + hexValue[1], 16) / 255
+    const b = parseInt(hexValue[2] + hexValue[2], 16) / 255
     return [r, g, b, 1]
   }
   return [0, 0, 0, 1]
@@ -303,25 +303,25 @@ export class CandleWebGLRenderer {
   //  hover, tooltip redraws, UI state updates that don't touch price data).
   //  Covers: pan (X shifts), zoom (both X shift), new tick (close changes),
   //  style/theme change (bodyColor changes), data load (len changes).
-  private _fpLen        = -1
-  private _fpX0         = 0
-  private _fpXLast      = 0
-  private _fpClose      = 0
-  private _fpColor      = ''
+  private _fingerprintBarCount = -1
+  private _fingerprintFirstX = 0
+  private _fingerprintLastX = 0
+  private _fingerprintLastClose = 0
+  private _fingerprintLastBodyColor = ''
   // ── Pan-offset optimisation (Priority 5) ─────────────────────────────────
   //  When the same bars are visible but shifted (pure pan), we skip the O(N)
   //  bufferSubData entirely and update only the u_panOffset uniform (O(1)).
   //  The VBO stores bars at their ORIGINAL load-time x-positions; the shader
-  //  adds _panOffsetAcc to each a_centerX at draw time.
-  //  Full reload resets _panOffsetAcc to 0 and writes bar.centerX as-is.
-  //  updateLastBar subtracts _panOffsetAcc so the VBO stays consistent.
+  //  adds _panOffsetCss to each a_centerX at draw time.
+  //  Full reload resets _panOffsetCss to 0 and writes bar.centerX as-is.
+  //  updateLastBar subtracts _panOffsetCss so the VBO stays consistent.
   //
   //  Pan guard fingerprint: same bars ↔ same barCount + first/last OHLC +
   //  bar spacing (detects zoom which shifts bars non-uniformly).
-  private _fpFirstOpen  = NaN   // first bar's open  — identifies which bar is first
-  private _fpFirstClose = NaN   // first bar's close
-  private _fpBarStep    = 0     // pixels between adjacent bars (spacing == pan, not zoom)
-  private _panOffsetAcc = 0     // accumulated pan offset fed to u_panOffset uniform
+  private _fingerprintFirstOpen = NaN   // first bar's open  — identifies which bar is first
+  private _fingerprintFirstClose = NaN  // first bar's close
+  private _fingerprintBarStep = 0       // pixels between adjacent bars (spacing == pan, not zoom)
+  private _panOffsetCss = 0             // accumulated pan offset fed to u_panOffset uniform
 
   //  Dev-mode GPU frame-time profiling via EXT_disjoint_timer_query_webgl2.
   //  Warns to console when GPU frame exceeds the 4 ms budget (60 fps = 16 ms total).
@@ -392,12 +392,12 @@ export class CandleWebGLRenderer {
   // ---------------------------------------------------------------------------
 
   private _parseColorCached (color: string): readonly [number, number, number, number] {
-    let c = this._colorCache.get(color)
-    if (c === undefined) {
-      c = parseColor(color)
-      this._colorCache.set(color, c)
+    let cachedColor = this._colorCache.get(color)
+    if (cachedColor === undefined) {
+      cachedColor = parseColor(color)
+      this._colorCache.set(color, cachedColor)
     }
-    return c
+    return cachedColor
   }
 
   private _packColor (
@@ -426,7 +426,7 @@ export class CandleWebGLRenderer {
     // Store x adjusted for the accumulated pan offset so that the VBO always
     // holds coordinates in the frame of reference of the last full upload.
     // Shader adds u_panOffset back — net effect is the visual position.
-    f32[f32Base + 0] = bar.centerX - this._panOffsetAcc
+    f32[f32Base + 0] = bar.centerX - this._panOffsetCss
     f32[f32Base + 1] = bar.open
     f32[f32Base + 2] = bar.high
     f32[f32Base + 3] = bar.low
@@ -476,18 +476,18 @@ export class CandleWebGLRenderer {
   // ---------------------------------------------------------------------------
 
   resize (width: number, height: number): void {
-    const pr = getPixelRatio(this._canvas)
-    const newW = Math.round(width  * pr)
-    const newH = Math.round(height * pr)
+    const pixelRatio = getPixelRatio(this._canvas)
+    const newCanvasWidth = Math.round(width  * pixelRatio)
+    const newCanvasHeight = Math.round(height * pixelRatio)
     // Assigning canvas.width/height always resets the WebGL context (even for
     // same value in older browsers).  Skip the reset when dimensions are stable
     // to prevent the GPU texture reallocation that causes a visible blink on
     // every live-tick redraw.
-    if (this._canvas.width === newW && this._canvas.height === newH) return
+    if (this._canvas.width === newCanvasWidth && this._canvas.height === newCanvasHeight) return
     this._canvas.style.width  = `${width}px`
     this._canvas.style.height = `${height}px`
-    this._canvas.width  = newW
-    this._canvas.height = newH
+    this._canvas.width  = newCanvasWidth
+    this._canvas.height = newCanvasHeight
   }
 
   // ---------------------------------------------------------------------------
@@ -516,71 +516,73 @@ export class CandleWebGLRenderer {
    * set is identical to the last uploaded frame (e.g. crosshair hover redraws).
    */
   setData (bars: BarRenderData[]): void {
-    const len = bars.length
-    this._barCount = len
-    if (len === 0) {
-      this._fpLen = 0
+    const visibleBarCount = bars.length
+    this._barCount = visibleBarCount
+    if (visibleBarCount === 0) {
+      this._fingerprintBarCount = 0
       return
     }
 
     // O(1) fingerprint — skip the O(N) staging + bufferSubData when unchanged
-    const first = bars[0]
-    const last  = bars[len - 1]
+    const firstBar = bars[0]
+    const lastBar  = bars[visibleBarCount - 1]
     if (
-      len             === this._fpLen    &&
-      first.centerX   === this._fpX0     &&
-      last.centerX    === this._fpXLast  &&
-      last.close      === this._fpClose  &&
-      last.bodyColor  === this._fpColor
+      visibleBarCount               === this._fingerprintBarCount    &&
+      firstBar.centerX              === this._fingerprintFirstX      &&
+      lastBar.centerX               === this._fingerprintLastX       &&
+      lastBar.close                 === this._fingerprintLastClose   &&
+      lastBar.bodyColor             === this._fingerprintLastBodyColor
     ) return
 
     // ── Pan-offset fast path (Priority 5) ───────────────────────────────
     // Detect a pure pan: same bars (same count, same first/last OHLC identity,
     // same bar spacing so zoom didn't fire) but all x-positions shifted uniformly.
-    // If detected → accumulate the pixel delta into _panOffsetAcc and return
-    // without touching the VBO at all.  The vertex shader adds _panOffsetAcc
+    // If detected → accumulate the pixel delta into _panOffsetCss and return
+    // without touching the VBO at all.  The vertex shader adds _panOffsetCss
     // to every a_centerX, so the visual result is identical.
-    const barStep = len >= 2 ? bars[1].centerX - first.centerX : this._fpBarStep
+    const currentBarStep = visibleBarCount >= 2
+      ? bars[1].centerX - firstBar.centerX
+      : this._fingerprintBarStep
     if (
-      len             === this._fpLen        &&
-      last.close      === this._fpClose      &&
-      last.bodyColor  === this._fpColor      &&
-      first.open      === this._fpFirstOpen  &&
-      first.close     === this._fpFirstClose &&
-      barStep         === this._fpBarStep
+      visibleBarCount               === this._fingerprintBarCount     &&
+      lastBar.close                 === this._fingerprintLastClose    &&
+      lastBar.bodyColor             === this._fingerprintLastBodyColor &&
+      firstBar.open                 === this._fingerprintFirstOpen    &&
+      firstBar.close                === this._fingerprintFirstClose   &&
+      currentBarStep                === this._fingerprintBarStep
     ) {
       // Pure pan — update accumulated offset + x-fingerprint, skip VBO write
-      this._panOffsetAcc += first.centerX - this._fpX0
-      this._fpX0          = first.centerX
-      this._fpXLast       = last.centerX
+      this._panOffsetCss += firstBar.centerX - this._fingerprintFirstX
+      this._fingerprintFirstX = firstBar.centerX
+      this._fingerprintLastX = lastBar.centerX
       return
     }
 
     // ── Full re-upload ────────────────────────────────────────────────────────────
     // Reset pan accumulator: the VBO will be written with the current visual
     // positions, so the shader must add 0 (no net pan offset).
-    this._panOffsetAcc  = 0
-    this._fpLen         = len
-    this._fpX0          = first.centerX
-    this._fpXLast       = last.centerX
-    this._fpClose       = last.close
-    this._fpColor       = last.bodyColor
-    this._fpFirstOpen   = first.open
-    this._fpFirstClose  = first.close
-    this._fpBarStep     = barStep
+    this._panOffsetCss = 0
+    this._fingerprintBarCount = visibleBarCount
+    this._fingerprintFirstX = firstBar.centerX
+    this._fingerprintLastX = lastBar.centerX
+    this._fingerprintLastClose = lastBar.close
+    this._fingerprintLastBodyColor = lastBar.bodyColor
+    this._fingerprintFirstOpen = firstBar.open
+    this._fingerprintFirstClose = firstBar.close
+    this._fingerprintBarStep = currentBarStep
 
-    this._ensureCapacity(len)
+    this._ensureCapacity(visibleBarCount)
 
     const f32 = this._stagingF32
     const u8  = this._stagingU8
-    for (let i = 0; i < len; i++) {
+    for (let i = 0; i < visibleBarCount; i++) {
       // BYTES_PER_BAR = 32 → f32Base = i * 8  (32 / sizeof(float32) = 8)
       this._writeBarIntoViews(bars[i], f32, u8, i << 3, i * BYTES_PER_BAR)
     }
 
     const gl = this._gl
     gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._stagingU8, 0, len * BYTES_PER_BAR)
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._stagingU8, 0, visibleBarCount * BYTES_PER_BAR)
   }
 
   /**
@@ -591,7 +593,7 @@ export class CandleWebGLRenderer {
    */
   updateLastBar (bar: BarRenderData): void {
     if (this._barCount === 0) return
-    this._fpClose = bar.close    // fingerprint: last-bar close matches new value
+    this._fingerprintLastClose = bar.close    // fingerprint: last-bar close matches new value
     this._writeBarIntoViews(bar, this._singleBarF32, this._singleBarU8, 0, 0)
     const gl = this._gl
     gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
@@ -618,9 +620,9 @@ export class CandleWebGLRenderer {
     if (this._barCount === 0) return
 
     const gl = this._gl
-    const pr = getPixelRatio(this._canvas)
-    const w  = this._canvas.width   // physical pixels
-    const h  = this._canvas.height
+    const pixelRatio = getPixelRatio(this._canvas)
+    const canvasWidthPx = this._canvas.width   // physical pixels
+    const canvasHeightPx = this._canvas.height
 
     // Dev-mode GPU timer: read previous frame's result (non-blocking),
     // then begin timing the current frame.
@@ -645,7 +647,7 @@ export class CandleWebGLRenderer {
       this._timerQueryActive = true
     }
 
-    gl.viewport(0, 0, w, h)
+    gl.viewport(0, 0, canvasWidthPx, canvasHeightPx)
     gl.clearColor(0, 0, 0, 0)
     gl.clear(gl.COLOR_BUFFER_BIT)
 
@@ -654,12 +656,12 @@ export class CandleWebGLRenderer {
     // O(1) uniform updates for pan/zoom — all coordinate transforms happen on GPU
     gl.uniform1f(this._uPriceFrom,    priceFrom)
     gl.uniform1f(this._uPriceRange,   priceRange)
-    gl.uniform2f(this._uResolution,   w, h)
-    gl.uniform1f(this._uPixelRatio,   pr)
+    gl.uniform2f(this._uResolution,   canvasWidthPx, canvasHeightPx)
+    gl.uniform1f(this._uPixelRatio,   pixelRatio)
     gl.uniform1f(this._uBarHalfWidth, barHalfWidth)
     gl.uniform1i(this._uRenderMode,   renderMode)
     gl.uniform1f(this._uOhlcHalfSize, ohlcHalfSize)
-    gl.uniform1f(this._uPanOffset,    this._panOffsetAcc)
+    gl.uniform1f(this._uPanOffset,    this._panOffsetCss)
 
     gl.bindVertexArray(this._vao)
     // Single instanced draw call: VERTS_PER_BAR vertices × barCount instances
