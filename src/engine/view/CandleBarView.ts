@@ -32,12 +32,11 @@ export default class CandleBarView extends ChildrenView {
   private _drawWithWebGL (
     candleBarOptions: CandleBarOptions
   ): boolean {
-    if (candleBarOptions.type !== 'candle_solid') return false
+    const { type, styles } = candleBarOptions
 
-    const widget    = this.getWidget()
-    const pane      = widget.getPane()
+    const widget     = this.getWidget()
+    const pane       = widget.getPane()
     const chartStore = pane.getChart().getChartStore()
-    const { styles } = candleBarOptions
 
     const renderer = getOrCreateRenderer(widget, widget.getContainer())
     if (renderer === null) return false
@@ -45,6 +44,9 @@ export default class CandleBarView extends ChildrenView {
     // Sync canvas size with the widget bounding box
     const { width, height } = widget.getBounding()
     renderer.resize(width, height)
+
+    // Transparent body colour → hollow candle (stroke types)
+    const TRANSPARENT = 'rgba(0,0,0,0)'
 
     // Collect per-bar instance data
     const visibleData = chartStore.getVisibleRangeDataList()
@@ -73,6 +75,16 @@ export default class CandleBarView extends ChildrenView {
         borderColor = styles.noChangeBorderColor
       }
 
+      // Hollow body for stroke types:
+      //   candle_stroke      → always hollow
+      //   candle_up_stroke   → hollow only when close > open  (up bar)
+      //   candle_down_stroke → hollow only when open  > close (down bar)
+      const isHollow =
+        type === 'candle_stroke' ||
+        (type === 'candle_up_stroke'   && close > open) ||
+        (type === 'candle_down_stroke' && open  > close)
+      if (isHollow) bodyColor = TRANSPARENT
+
       barRenderData.push({ centerX: x, open, high, low, close, wickColor, bodyColor, borderColor })
     }
 
@@ -80,8 +92,19 @@ export default class CandleBarView extends ChildrenView {
     const yAxis = pane.getAxisComponent()
     const range = yAxis.getRange()
 
+    // OHLC render mode: compute tick half-size (matches Canvas2D formula)
+    let renderMode  = 0
+    let ohlcHalfSize = 0
+    if (type === 'ohlc') {
+      renderMode = 1
+      const { gapBar } = barSpace
+      let ohlcSize = Math.min(Math.max(Math.round(gapBar * 0.2), 1), 8)
+      if (ohlcSize > 2 && ohlcSize % 2 === 1) ohlcSize--
+      ohlcHalfSize = Math.floor(ohlcSize / 2)
+    }
+
     renderer.setData(barRenderData)
-    renderer.draw(range.realFrom, range.realRange, barSpace.halfGapBar)
+    renderer.draw(range.realFrom, range.realRange, barSpace.halfGapBar, renderMode, ohlcHalfSize)
     return true
   }
 

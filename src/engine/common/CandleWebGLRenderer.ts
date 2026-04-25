@@ -64,6 +64,10 @@ uniform float u_priceRange;   // realRange of the visible Y range
 uniform vec2  u_resolution;   // canvas physical pixel dimensions
 uniform float u_pixelRatio;   // CSS px → physical px
 uniform float u_barHalfWidth; // half bar gapBar width, in CSS pixels
+// Render mode: 0 = candle (solid/stroke), 1 = ohlc
+uniform int   u_renderMode;
+// Half of ohlcSize in CSS pixels — only used when u_renderMode == 1
+uniform float u_ohlcHalfSize;
 
 out vec4 v_color;
 
@@ -98,34 +102,63 @@ void main() {
   float openY  = priceToPhysY(a_open);
   float closeY = priceToPhysY(a_close);
 
-  float bodyTop    = min(openY, closeY);
-  float bodyBottom = max(openY, closeY);
-  bodyBottom       = max(bodyBottom, bodyTop + 1.0); // min 1px body
-
   float pr   = u_pixelRatio;
   float cx   = a_centerX * pr;          // CSS px → physical px
   float bhw  = u_barHalfWidth * pr;
 
   float screenX, screenY;
 
-  if (isWick) {
-    screenX = cx - 0.5 + unit.x;
-    screenY = highY + (lowY - highY) * unit.y;
-    v_color = a_wickColor;
-  } else if (isBodyOuter) {
-    screenX = cx - bhw + unit.x * bhw * 2.0;
-    screenY = bodyTop + (bodyBottom - bodyTop) * unit.y;
-    v_color = a_borderColor;
+  if (u_renderMode == 1) {
+    // ── OHLC mode ──────────────────────────────────────────────────────────
+    // wick:       center-aligned vertical bar, width = ohlcSize
+    // body-outer: open  stub (left  side: cx-bhw → cx-ohw)
+    // body-inner: close stub (right side: cx+ohw → cx+bhw)
+    float ohw   = u_ohlcHalfSize * pr;  // half ohlcSize in physical px
+    float tickH = ohw * 2.0;            // tick height = ohlcSize
+
+    if (isWick) {
+      screenX = cx - ohw + unit.x * ohw * 2.0;
+      screenY = highY + (lowY - highY) * unit.y;
+      v_color = a_bodyColor;
+    } else if (isBodyOuter) {
+      float left  = cx - bhw;
+      float right = cx - ohw;
+      screenX = left  + unit.x * max(right - left, 0.0);
+      screenY = openY + unit.y * tickH;
+      v_color = a_bodyColor;
+    } else {
+      float left  = cx + ohw;
+      float right = cx + bhw;
+      screenX = left   + unit.x * max(right - left, 0.0);
+      screenY = closeY + unit.y * tickH;
+      v_color = a_bodyColor;
+    }
   } else {
-    // body inner — 1 physical pixel inset on each side
-    float inset = 1.0;
-    float innerHW = max(bhw - inset, 0.5);
-    screenX = cx - innerHW + unit.x * innerHW * 2.0;
-    float innerTop    = bodyTop + inset;
-    float innerBottom = max(bodyBottom - inset, innerTop);
-    screenY = innerTop + (innerBottom - innerTop) * unit.y;
-    v_color = a_bodyColor;
-  }
+    // ── Candle mode (solid / stroke) ───────────────────────────────────────
+    float bodyTop    = min(openY, closeY);
+    float bodyBottom = max(openY, closeY);
+    bodyBottom       = max(bodyBottom, bodyTop + 1.0); // min 1px body
+
+    if (isWick) {
+      screenX = cx - 0.5 + unit.x;
+      screenY = highY + (lowY - highY) * unit.y;
+      v_color = a_wickColor;
+    } else if (isBodyOuter) {
+      screenX = cx - bhw + unit.x * bhw * 2.0;
+      screenY = bodyTop + (bodyBottom - bodyTop) * unit.y;
+      v_color = a_borderColor;
+    } else {
+      // body inner — 1 physical pixel inset on each side.
+      // For stroke types, bodyColor alpha = 0 → body-inner is transparent,
+      // leaving only the body-outer border visible (hollow candle).
+      float inset = 1.0;
+      float innerHW = max(bhw - inset, 0.5);
+      screenX = cx - innerHW + unit.x * innerHW * 2.0;
+      float innerTop    = bodyTop + inset;
+      float innerBottom = max(bodyBottom - inset, innerTop);
+      screenY = innerTop + (innerBottom - innerTop) * unit.y;
+      v_color = a_bodyColor;
+    }
 
   // Physical pixel → NDC
   gl_Position = vec4(
@@ -237,6 +270,8 @@ export class CandleWebGLRenderer {
   private readonly _uResolution: WebGLUniformLocation
   private readonly _uPixelRatio: WebGLUniformLocation
   private readonly _uBarHalfWidth: WebGLUniformLocation
+  private readonly _uRenderMode: WebGLUniformLocation
+  private readonly _uOhlcHalfSize: WebGLUniformLocation
 
   private _capacity = 0
   private _barCount = 0
@@ -298,6 +333,8 @@ export class CandleWebGLRenderer {
     this._uPriceRange   = gl.getUniformLocation(this._program, 'u_priceRange')!
     this._uResolution   = gl.getUniformLocation(this._program, 'u_resolution')!
     this._uPixelRatio   = gl.getUniformLocation(this._program, 'u_pixelRatio')!
+    this._uRenderMode   = gl.getUniformLocation(this._program, 'u_renderMode')!
+    this._uOhlcHalfSize = gl.getUniformLocation(this._program, 'u_ohlcHalfSize')!
     this._uBarHalfWidth = gl.getUniformLocation(this._program, 'u_barHalfWidth')!
 
     this._vao = gl.createVertexArray()!
@@ -484,8 +521,10 @@ export class CandleWebGLRenderer {
    * @param priceFrom    realFrom of the visible Y-axis range
    * @param priceRange   realRange of the visible Y-axis range
    * @param barHalfWidth half of the visible bar width in CSS pixels
+   * @param renderMode   0 = candle (solid/stroke), 1 = ohlc
+   * @param ohlcHalfSize half of ohlcSize in CSS pixels (only used when renderMode=1)
    */
-  draw (priceFrom: number, priceRange: number, barHalfWidth: number): void {
+  draw (priceFrom: number, priceRange: number, barHalfWidth: number, renderMode = 0, ohlcHalfSize = 0): void {
     if (this._barCount === 0) return
 
     const gl = this._gl
@@ -528,6 +567,8 @@ export class CandleWebGLRenderer {
     gl.uniform2f(this._uResolution,   w, h)
     gl.uniform1f(this._uPixelRatio,   pr)
     gl.uniform1f(this._uBarHalfWidth, barHalfWidth)
+    gl.uniform1i(this._uRenderMode,   renderMode)
+    gl.uniform1f(this._uOhlcHalfSize, ohlcHalfSize)
 
     gl.bindVertexArray(this._vao)
     // Single instanced draw call: VERTS_PER_BAR vertices × barCount instances
