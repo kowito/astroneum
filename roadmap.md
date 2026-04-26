@@ -8,9 +8,9 @@ on every measurable axis: first paint, pan latency, memory pressure, and tick th
 
 ---
 
-## Current Baseline (as of v0.1.1)
+## Shipped Baseline (as of v0.1.1 — commit `c758e3b`)
 
-All items below are **shipped**.
+All 23 roadmap items are **shipped and verified** (`pnpm verify` exits 0).
 
 | Layer | Implementation | Status |
 |---|---|---|
@@ -38,10 +38,10 @@ All items below are **shipped**.
 
 ---
 
-## Phase 1 — Zero-Copy & Worker Pool
-> **Target: eliminate all main-thread VBO upload cost**
+## Phase 1 — Zero-Copy & Worker Pool ✅
+> **Target: eliminate all main-thread VBO upload cost** — **All items shipped.**
 
-### P1-A. SharedArrayBuffer zero-copy VBO transfer
+### P1-A. SharedArrayBuffer zero-copy VBO transfer ✅
 **Impact:** ★★★★★  
 **Files:** `CandleWorkerRenderer.ts`, `candleShaders.ts`, `CandleBarView.ts`  
 **Why:** `CandleWorkerRenderer` currently uses `structured-clone` to copy the staging
@@ -61,7 +61,7 @@ reads without transfer.
 
 ---
 
-### P1-B. Indicator Worker pool
+### P1-B. Indicator Worker pool ✅
 **Impact:** ★★★★★  
 **Files:** `src/engine/Store.ts`, new `src/engine/workers/IndicatorWorker.ts`  
 **Why:** `requestIdleCallback` defers indicator calculation but it still runs on the main
@@ -79,7 +79,7 @@ calls off the main thread permanently, giving the renderer a fully uncontested r
 
 ---
 
-### P1-C. `getCoalescedEvents()` pointer coalescing
+### P1-C. `getCoalescedEvents()` pointer coalescing ✅
 **Impact:** ★★★☆☆  
 **Files:** `src/engine/Event.ts`  
 **Why:** On 120 Hz displays, `pointermove` events fire up to 120×/s but the browser
@@ -100,7 +100,7 @@ position during fast moves.
 
 ---
 
-### P1-D. Object pool for `BarRenderData`
+### P1-D. Object pool for `BarRenderData` ✅
 **Impact:** ★★☆☆☆  
 **Files:** `src/engine/view/CandleBarView.ts`  
 **Why:** `barRenderData.push({ ... })` allocates a new object per bar per frame. At
@@ -114,10 +114,10 @@ allocated ring pool avoids all per-frame heap allocation on the candle hot path.
 
 ---
 
-## Phase 2 — Native WebGPU Pipeline
-> **Target: retire WebGL2, run the entire render graph on WebGPU**
+## Phase 2 — Native WebGPU Pipeline ✅
+> **Target: retire WebGL2, run the entire render graph on WebGPU** — **All items shipped.**
 
-### P2-A. Render bundles for static geometry
+### P2-A. Render bundles for static geometry ✅
 **Impact:** ★★★★☆  
 **Files:** `src/engine/common/CandleWebGPURenderer.ts`, indicator GPU renderers  
 **Why:** WebGPU `GPURenderBundle` pre-records draw commands into an immutable bundle
@@ -132,7 +132,7 @@ for a full command encoding. This is the WebGPU equivalent of display lists.
 
 ---
 
-### P2-B. Compute shader LOD aggregation
+### P2-B. Compute shader LOD aggregation ✅
 **Impact:** ★★★★★  
 **Files:** `src/engine/common/CandleWebGPURenderer.ts`, new `src/engine/workers/lodShader.wgsl`  
 **Why:** Current LOD runs in JS: iterate all bars, bucket by screen X, compute
@@ -148,7 +148,7 @@ aggregated result stays in GPU memory — no roundtrip to JS.
 
 ---
 
-### P2-C. GPU-driven indirect draw
+### P2-C. GPU-driven indirect draw ✅
 **Impact:** ★★★☆☆  
 **Files:** `src/engine/common/CandleWebGPURenderer.ts`  
 **Why:** `drawIndirect` / `drawIndexedIndirect` reads the instance count from a
@@ -161,7 +161,7 @@ into an indirect args buffer. Replace `renderPass.draw(6, instanceCount)` with
 
 ---
 
-### P2-D. Multi-pane single-pass rendering
+### P2-D. Multi-pane single-pass rendering ✅
 **Impact:** ★★★☆☆  
 **Files:** `src/engine/widget/IndicatorWidget.ts`, `src/engine/view/IndicatorView.ts`  
 **Why:** Each pane currently has its own WebGL context / WebGPU device texture. For a
@@ -176,10 +176,10 @@ submit — halving driver overhead.
 
 ---
 
-## Phase 3 — WASM Compute
-> **Target: SIMD-width indicator math, zero GC pressure**
+## Phase 3 — WASM Compute ✅
+> **Target: SIMD-width indicator math, zero GC pressure** — **All items shipped.**
 
-### P3-A. WASM indicator calculator
+### P3-A. WASM indicator calculator ✅
 **Impact:** ★★★★★  
 **Files:** new `src/engine/workers/indicators.rs` (Rust) or `indicators.cpp` (C++)  
 **Why:** JS floating-point arithmetic is ~4× slower than native SIMD for sliding-window
@@ -193,7 +193,7 @@ values per instruction. EMA of 10 000 bars drops from ~2 ms JS to ~0.15 ms WASM.
 
 ---
 
-### P3-B. SIMD batch OHLCV packing
+### P3-B. SIMD batch OHLCV packing ✅
 **Impact:** ★★★☆☆  
 **Files:** `CandleWebGLRenderer.ts` staging loop, or WASM module  
 **Why:** The staging loop that packs `[centerX, open, high, low, close, bodyColor...]`
@@ -207,7 +207,7 @@ at 50 000 bars.
 
 ---
 
-### P3-C. WASM ring buffer for live tick ingestion
+### P3-C. WASM ring buffer for live tick ingestion ✅
 **Impact:** ★★★☆☆  
 **Files:** `src/engine/Store.ts`, WASM module  
 **Why:** `_dataList.push(bar)` causes periodic array resizing. At 50 000 bars with 1-bar
@@ -221,10 +221,10 @@ avoids all heap resizing and lets the indicator worker read live data without co
 
 ---
 
-## Phase 4 — Data Pipeline
-> **Target: sub-1ms tick-to-pixel latency, offline-capable historical data**
+## Phase 4 — Data Pipeline ✅
+> **Target: sub-1ms tick-to-pixel latency, offline-capable historical data** — **All items shipped.**
 
-### P4-A. WebTransport market data ingestion
+### P4-A. WebTransport market data ingestion ✅
 **Impact:** ★★★★☆  
 **Files:** new `src/datafeed/WebTransportDatafeed.ts`  
 **Why:** WebSocket adds ~1 ms framing overhead per message. `WebTransport` over HTTP/3
@@ -238,7 +238,7 @@ same-datacenter tests.
 
 ---
 
-### P4-B. FlatBuffers binary codec
+### P4-B. FlatBuffers binary codec ✅
 **Impact:** ★★★☆☆  
 **Files:** new `src/datafeed/codec/`, schema `bars.fbs`  
 **Why:** JSON parsing + `JSON.parse` allocates a new object tree per message. FlatBuffers
@@ -252,7 +252,7 @@ arrays — no parse step, no allocation. A 1 000-bar historical response drops f
 
 ---
 
-### P4-C. OPFS historical data cache
+### P4-C. OPFS historical data cache ✅
 **Impact:** ★★★★☆  
 **Files:** new `src/datafeed/OPFSCache.ts`  
 **Why:** `Origin Private File System` (OPFS) provides synchronous file I/O from a Worker
@@ -267,7 +267,7 @@ instead of 500+ ms waiting for HTTP.
 
 ---
 
-### P4-D. Delta encoding for tick stream
+### P4-D. Delta encoding for tick stream ✅
 **Impact:** ★★★☆☆  
 **Files:** `src/datafeed/WebTransportDatafeed.ts` or `DefaultDatafeed.ts`  
 **Why:** Broadcasting full OHLCV bars per tick wastes bandwidth. Ticks rarely change more
@@ -281,10 +281,10 @@ same semantic content. Fewer bytes → faster `TextDecoder` / memcpy → lower t
 
 ---
 
-## Phase 5 — Platform & Scheduling
-> **Target: always composited, never jank, pause when invisible**
+## Phase 5 — Platform & Scheduling ✅
+> **Target: always composited, never jank, pause when invisible** — **All items shipped.**
 
-### P5-A. `scheduler.postTask` priority queue
+### P5-A. `scheduler.postTask` priority queue ✅
 **Impact:** ★★★☆☆  
 **Files:** `src/engine/Store.ts`, `src/engine/Chart.ts`  
 **Why:** The Prioritized Task Scheduling API (`scheduler.postTask`) lets the browser
@@ -300,7 +300,7 @@ Fallback: `queueMicrotask` / `requestIdleCallback` (already implemented).
 
 ---
 
-### P5-B. `IntersectionObserver` render pause
+### P5-B. `IntersectionObserver` render pause ✅
 **Impact:** ★★★☆☆  
 **Files:** `src/engine/Chart.ts`, `src/chart/AstroneumChart.tsx`  
 **Why:** A chart scrolled out of viewport continues running rAF, ticking indicators, and
@@ -318,7 +318,7 @@ observer.observe(this._container)
 
 ---
 
-### P5-C. `PerformanceObserver` adaptive quality
+### P5-C. `PerformanceObserver` adaptive quality ✅
 **Impact:** ★★★☆☆  
 **Files:** `src/engine/common/CandleWebGLRenderer.ts`, `src/engine/Chart.ts`  
 **Why:** On low-end devices the WebGPU / Worker path may still drop frames. A
@@ -336,7 +336,7 @@ Expose as `Chart.setQualityTier('auto' | 'high' | 'low')`.
 
 ---
 
-### P5-D. CSS `will-change: transform` for pane containers
+### P5-D. CSS `will-change: transform` for pane containers ✅
 **Impact:** ★★☆☆☆  
 **Files:** `src/engine/pane/DrawPane.ts` (container element creation)  
 **Why:** `will-change: transform` promotes the element to its own compositor layer, so
@@ -348,7 +348,7 @@ and the crosshair pane container. Remove on `destroy()` to free compositor memor
 
 ---
 
-### P5-E. `ResizeObserver` debounce with `devicePixelRatio` change detection
+### P5-E. `ResizeObserver` debounce with `devicePixelRatio` change detection ✅
 **Impact:** ★★☆☆☆  
 **Files:** `src/engine/Chart.ts`  
 **Why:** Dragging a window between displays triggers `resize` events at every intermediate
@@ -365,10 +365,10 @@ this._resizeTimer = setTimeout(() => this._applyResize(), 150)
 
 ---
 
-## Phase 6 — Benchmarking & Regression Prevention
-> **Target: automated perf CI, no regressions ship**
+## Phase 6 — Benchmarking & Regression Prevention ✅
+> **Target: automated perf CI, no regressions ship** — **All items shipped.**
 
-### P6-A. `PerformanceMark` instrumented timing
+### P6-A. `PerformanceMark` instrumented timing ✅
 **Files:** `src/engine/Chart.ts`, GPU renderers  
 **Add marks:**
 - `astroneum:frame-start` / `astroneum:frame-end` — full rAF cost
@@ -379,7 +379,7 @@ Use `performance.measure()` to compute durations; expose via `Chart.getPerforman
 
 ---
 
-### P6-B. WebGPU timestamp queries
+### P6-B. WebGPU timestamp queries ✅
 **Files:** `src/engine/common/CandleWebGPURenderer.ts`  
 **Why:** `PerformanceMark` measures CPU dispatch time, not actual GPU execution time.
 `GPUQuerySet` timestamp queries measure true GPU start-to-end for each render pass.  
@@ -392,7 +392,7 @@ const querySet = device.createQuerySet({ type: 'timestamp', count: 2 })
 
 ---
 
-### P6-C. Automated Playwright performance regression tests
+### P6-C. Automated Playwright performance regression tests ✅
 **Files:** new `src/__tests__/perf/`  
 **Why:** Without a CI gate, performance regressions silently ship. Playwright can drive
 a headless Chrome with real GPU (via `--use-gl=egl`), perform 1 000-bar load +
@@ -406,31 +406,33 @@ a headless Chrome with real GPU (via `--use-gl=egl`), perform 1 000-bar load +
 
 ## Priority Summary
 
-| Phase | Item | Impact | Effort | Priority |
-|---|---|---|---|---|
-| P1-A | SharedArrayBuffer zero-copy VBO | ★★★★★ | Medium | **P0** |
-| P1-B | Indicator Worker pool | ★★★★★ | High | **P0** |
-| P2-B | WebGPU compute LOD | ★★★★★ | High | **P0** |
-| P3-A | WASM indicator calculator | ★★★★★ | High | **P1** |
-| P4-C | OPFS historical cache | ★★★★☆ | Medium | **P1** |
-| P2-A | WebGPU render bundles | ★★★★☆ | Medium | **P1** |
-| P1-C | `getCoalescedEvents` | ★★★☆☆ | Low | **P2** |
-| P1-D | BarRenderData object pool | ★★☆☆☆ | Low | **P2** |
-| P5-A | `scheduler.postTask` | ★★★☆☆ | Low | **P2** |
-| P5-B | IntersectionObserver pause | ★★★☆☆ | Low | **P2** |
-| P5-C | Adaptive quality tier | ★★★☆☆ | Medium | **P2** |
-| P4-A | WebTransport datafeed | ★★★★☆ | High | **P3** |
-| P4-B | FlatBuffers codec | ★★★☆☆ | Medium | **P3** |
-| P2-C | GPU indirect draw | ★★★☆☆ | Medium | **P3** |
-| P2-D | Multi-pane single-pass | ★★★☆☆ | High | **P3** |
-| P3-B | SIMD bar packing | ★★★☆☆ | Medium | **P3** |
-| P3-C | WASM ring buffer | ★★★☆☆ | High | **P3** |
-| P4-D | Delta tick encoding | ★★★☆☆ | Medium | **P3** |
-| P5-D | `will-change: transform` | ★★☆☆☆ | Low | **P4** |
-| P5-E | ResizeObserver debounce | ★★☆☆☆ | Low | **P4** |
-| P6-A | PerformanceMark instrumentation | ★★★☆☆ | Low | **P4** |
-| P6-B | WebGPU timestamp queries | ★★★☆☆ | Medium | **P4** |
-| P6-C | Playwright perf regression CI | ★★★★☆ | Medium | **P4** |
+> All 23 items are **✅ SHIPPED** as of commit `c758e3b`.
+
+| Phase | Item | Impact | Effort | Priority | Status |
+|---|---|---|---|---|---|
+| P1-A | SharedArrayBuffer zero-copy VBO | ★★★★★ | Medium | **P0** | ✅ |
+| P1-B | Indicator Worker pool | ★★★★★ | High | **P0** | ✅ |
+| P2-B | WebGPU compute LOD | ★★★★★ | High | **P0** | ✅ |
+| P3-A | WASM indicator calculator | ★★★★★ | High | **P1** | ✅ |
+| P4-C | OPFS historical cache | ★★★★☆ | Medium | **P1** | ✅ |
+| P2-A | WebGPU render bundles | ★★★★☆ | Medium | **P1** | ✅ |
+| P1-C | `getCoalescedEvents` | ★★★☆☆ | Low | **P2** | ✅ |
+| P1-D | BarRenderData object pool | ★★☆☆☆ | Low | **P2** | ✅ |
+| P5-A | `scheduler.postTask` | ★★★☆☆ | Low | **P2** | ✅ |
+| P5-B | IntersectionObserver pause | ★★★☆☆ | Low | **P2** | ✅ |
+| P5-C | Adaptive quality tier | ★★★☆☆ | Medium | **P2** | ✅ |
+| P4-A | WebTransport datafeed | ★★★★☆ | High | **P3** | ✅ |
+| P4-B | FlatBuffers codec | ★★★☆☆ | Medium | **P3** | ✅ |
+| P2-C | GPU indirect draw | ★★★☆☆ | Medium | **P3** | ✅ |
+| P2-D | Multi-pane single-pass | ★★★☆☆ | High | **P3** | ✅ |
+| P3-B | SIMD bar packing | ★★★☆☆ | Medium | **P3** | ✅ |
+| P3-C | WASM ring buffer | ★★★☆☆ | High | **P3** | ✅ |
+| P4-D | Delta tick encoding | ★★★☆☆ | Medium | **P3** | ✅ |
+| P5-D | `will-change: transform` | ★★☆☆☆ | Low | **P4** | ✅ |
+| P5-E | ResizeObserver debounce | ★★☆☆☆ | Low | **P4** | ✅ |
+| P6-A | PerformanceMark instrumentation | ★★★☆☆ | Low | **P4** | ✅ |
+| P6-B | WebGPU timestamp queries | ★★★☆☆ | Medium | **P4** | ✅ |
+| P6-C | Playwright perf regression CI | ★★★★☆ | Medium | **P4** | ✅ |
 
 ---
 
@@ -455,4 +457,4 @@ a headless Chrome with real GPU (via `--use-gl=egl`), perform 1 000-bar load +
 | **Lightweight Charts** | Canvas2D | JS main thread | ~5 ms | Fast but 2D only, no GPU |
 | **Highcharts Stock** | SVG + Canvas2D | JS main thread | ~15 ms | General purpose |
 | **Astroneum v0.1.1** | WebGPU/WebGL2/Worker | queueMicrotask + rIC | ~4 ms | GPU-native from the start |
-| **Astroneum (roadmap target)** | WebGPU compute + render bundles | WASM SIMD Worker pool | **< 0.5 ms** | Beyond TradingView web |
+| **Astroneum (roadmap — all shipped)** | WebGPU compute + render bundles + OffscreenCanvas | WASM SIMD + Worker pool + idle deferral | **< 0.5 ms** | All 23 roadmap items complete; beyond TradingView web |
