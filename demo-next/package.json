@@ -1,0 +1,22 @@
+{
+  "name": "astroneum-demo-next",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 5556",
+    "build": "next build",
+    "start": "next start --port 5556"
+  },
+  "dependencies": {
+    "astroneum": "file:..",
+    "next": "^15.3.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "typescript": "^5.8.3"
+  }
+}
