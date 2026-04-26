@@ -191,6 +191,15 @@ export class IndicatorRectWebGLRenderer {
   private _fingerprintLastX = 0
   private _fingerprintLastY = 0
 
+  // Sub-pixel culling reuse buffer — grows amortised, never shrinks.
+  private readonly _culledBuf: RectInstanceData[] = []
+
+  // ── Incremental dirty tracking ───────────────────────────────────────────────
+  //  _vboVersion increments whenever the VBO is actually written.
+  //  draw() skips the GL pipeline entirely when _drawnVersion matches.
+  private _vboVersion   = 0
+  private _drawnVersion = -1
+
   constructor (container: HTMLElement) {
     const canvas = document.createElement('canvas')
     canvas.style.position      = 'absolute'
@@ -272,6 +281,7 @@ export class IndicatorRectWebGLRenderer {
     this._canvas.style.height = `${height}px`
     this._canvas.width  = newCanvasWidth
     this._canvas.height = newCanvasHeight
+    this._vboVersion++  // canvas reset — force redraw
   }
 
   // ---------------------------------------------------------------------------
@@ -301,20 +311,34 @@ export class IndicatorRectWebGLRenderer {
 
   /**
    * Upload all rect instances for this frame.
-   * Dirty-flag: skips the GPU upload when the batch is identical to the
-   * previous frame (e.g. crosshair hover redraws, tooltip show/hide).
+   * Sub-pixel culling: rects narrower than 0.5 CSS pixel or shorter than
+   * 0.5 CSS pixel are invisible and skipped before upload — reduces GPU work
+   * at high zoom-out where volume / histogram bars collapse to nothing.
+   * Dirty-flag: skips the GPU upload when the culled batch is identical to
+   * the previous frame.
    */
   setData (rects: RectInstanceData[]): void {
-    const rectCount = rects.length
+    // Sub-pixel culling pass — compact visible rects into the reused buffer
+    const culledBuf = this._culledBuf
+    let culledCount = 0
+    for (let i = 0; i < rects.length; i++) {
+      const r = rects[i]
+      if (r.width < 0.5 || r.height < 0.5) continue
+      if (culledCount >= culledBuf.length) culledBuf.push(r)
+      else culledBuf[culledCount] = r
+      culledCount++
+    }
+    const rectCount = culledCount
     this._rectCount = rectCount
     if (rectCount === 0) {
+      if (this._fingerprintRectCount !== 0) this._vboVersion++   // canvas must be cleared
       this._fingerprintRectCount = 0
       return
     }
 
     // O(1) fingerprint — first/last rect corners detect pan + zoom + new-tick
-    const firstRect = rects[0]
-    const lastRect  = rects[rectCount - 1]
+    const firstRect = culledBuf[0]
+    const lastRect  = culledBuf[culledCount - 1]
     if (
       rectCount      === this._fingerprintRectCount &&
       firstRect.x    === this._fingerprintFirstX    &&
@@ -334,7 +358,7 @@ export class IndicatorRectWebGLRenderer {
     const f32 = this._stagingF32
     const u8  = this._stagingU8
     for (let i = 0; i < rectCount; i++) {
-      const rect     = rects[i]
+      const rect     = culledBuf[i]
       const f32Base  = i * 4          // 4 float32 fields per rect
       const byteBase = i * BYTES_PER_RECT
       f32[f32Base + 0] = rect.x
@@ -351,6 +375,7 @@ export class IndicatorRectWebGLRenderer {
     const gl = this._gl
     gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._stagingU8, 0, rectCount * BYTES_PER_RECT)
+    this._vboVersion++   // VBO updated — draw() must re-render
   }
 
   /**
@@ -363,6 +388,10 @@ export class IndicatorRectWebGLRenderer {
     const pr = getPixelRatio(this._canvas)
     const w  = this._canvas.width
     const h  = this._canvas.height
+
+    // Incremental dirty: skip the GL pipeline when the canvas is already current.
+    if (this._vboVersion === this._drawnVersion) return
+    this._drawnVersion = this._vboVersion
 
     gl.viewport(0, 0, w, h)
     gl.clearColor(0, 0, 0, 0)

@@ -43,7 +43,8 @@ in vec4  a_color;       // RGBA, normalized
 uniform vec2  u_resolution;
 uniform float u_pixelRatio;
 
-out vec4 v_color;
+out vec4  v_color;
+out float v_normDist;   // signed normalised perp distance: ±1 at the line edges
 
 void main() {
   // Quad-expansion pattern for 6 vertices (two triangles):
@@ -72,15 +73,25 @@ void main() {
     0.0, 1.0
   );
 
-  v_color = a_color;
+  v_color    = a_color;
+  v_normDist = n;         // ±1 at the outer edges, interpolated across the quad
 }
 `
 
 const FRAG_SRC = /* glsl */`#version 300 es
 precision mediump float;
-in  vec4 v_color;
-out vec4 fragColor;
-void main() { fragColor = v_color; }
+in  vec4  v_color;
+in  float v_normDist;
+out vec4  fragColor;
+void main() {
+  // Anti-alias the line edge over ~1 physical pixel using the built-in
+  // fwidth() derivative (GLSL ES 3.0 — no extension needed).
+  // abs(v_normDist) → 0 at the centreline, 1 at the hard edge.
+  // smoothstep fades the alpha from 1 → 0 over one derivative-width.
+  float fw = fwidth(v_normDist);
+  float aa = 1.0 - smoothstep(1.0 - fw, 1.0 + fw, abs(v_normDist));
+  fragColor = vec4(v_color.rgb, v_color.a * aa);
+}
 `
 
 // ---------------------------------------------------------------------------
@@ -195,6 +206,16 @@ export class IndicatorLineWebGLRenderer {
   private _fingerprintLastX = 0
   private _fingerprintLastY = 0
 
+  // Sub-pixel culling reuse buffer — grows amortised, never shrinks.
+  // Holds the visible subset of segments after culling each frame.
+  private readonly _culledBuf: LineSegmentData[] = []
+
+  // ── Incremental dirty tracking ───────────────────────────────────────────────
+  //  _vboVersion increments whenever the VBO is actually written.
+  //  draw() skips the GL pipeline entirely when _drawnVersion matches.
+  private _vboVersion   = 0
+  private _drawnVersion = -1
+
   constructor (container: HTMLElement) {
     const canvas = document.createElement('canvas')
     canvas.style.position  = 'absolute'
@@ -277,6 +298,7 @@ export class IndicatorLineWebGLRenderer {
     this._canvas.style.height = `${height}px`
     this._canvas.width  = newCanvasWidth
     this._canvas.height = newCanvasHeight
+    this._vboVersion++  // canvas reset — force redraw
   }
 
   // ---------------------------------------------------------------------------
@@ -306,21 +328,34 @@ export class IndicatorLineWebGLRenderer {
 
   /**
    * Upload all line segments for this frame.
-   * Dirty-flag: skips the GPU upload when the segment set is identical to
-   * the previous frame (e.g. crosshair hover redraws where indicator data
-   * and viewport haven't changed).
+   * Sub-pixel culling: segments where both Δx and Δy are < 0.5 CSS pixel are
+   * invisible at any scale and skipped before upload — proportionally reduces
+   * GPU work at high zoom-out where many indicator segments collapse to a point.
+   * Dirty-flag: skips the GPU upload when the culled segment set is identical
+   * to the previous frame (e.g. crosshair hover redraws).
    */
   setData (segs: LineSegmentData[]): void {
-    const segmentCount = segs.length
+    // Sub-pixel culling pass — compact visible segments into the reused buffer
+    const culledBuf = this._culledBuf
+    let culledCount = 0
+    for (let i = 0; i < segs.length; i++) {
+      const s = segs[i]
+      if (Math.abs(s.x1 - s.x0) < 0.5 && Math.abs(s.y1 - s.y0) < 0.5) continue
+      if (culledCount >= culledBuf.length) culledBuf.push(s)
+      else culledBuf[culledCount] = s
+      culledCount++
+    }
+    const segmentCount = culledCount
     this._segCount = segmentCount
     if (segmentCount === 0) {
+      if (this._fingerprintSegmentCount !== 0) this._vboVersion++   // canvas must be cleared
       this._fingerprintSegmentCount = 0
       return
     }
 
     // O(1) fingerprint — first/last endpoint covers pan + new-tick cases
-    const firstSegment = segs[0]
-    const lastSegment  = segs[segmentCount - 1]
+    const firstSegment = culledBuf[0]
+    const lastSegment  = culledBuf[culledCount - 1]
     if (
       segmentCount     === this._fingerprintSegmentCount &&
       firstSegment.x0  === this._fingerprintFirstX       &&
@@ -340,7 +375,7 @@ export class IndicatorLineWebGLRenderer {
     const f32 = this._stagingF32
     const u8  = this._stagingU8
     for (let i = 0; i < segmentCount; i++) {
-      const seg     = segs[i]
+      const seg     = culledBuf[i]
       const f32Base = i * 5          // 5 float32 fields per segment
       const byteBase = i * BYTES_PER_SEG
       f32[f32Base + 0] = seg.x0
@@ -358,6 +393,7 @@ export class IndicatorLineWebGLRenderer {
     const gl = this._gl
     gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._stagingU8, 0, segmentCount * BYTES_PER_SEG)
+    this._vboVersion++   // VBO updated — draw() must re-render
   }
 
   /**
@@ -370,6 +406,10 @@ export class IndicatorLineWebGLRenderer {
     const pr = getPixelRatio(this._canvas)
     const w  = this._canvas.width
     const h  = this._canvas.height
+
+    // Incremental dirty: skip the GL pipeline when the canvas is already current.
+    if (this._vboVersion === this._drawnVersion) return
+    this._drawnVersion = this._vboVersion
 
     gl.viewport(0, 0, w, h)
     gl.clearColor(0, 0, 0, 0)

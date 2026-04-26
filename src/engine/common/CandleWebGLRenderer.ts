@@ -323,6 +323,28 @@ export class CandleWebGLRenderer {
   private _fingerprintBarStep = 0       // pixels between adjacent bars (spacing == pan, not zoom)
   private _panOffsetCss = 0             // accumulated pan offset fed to u_panOffset uniform
 
+  // ── Incremental dirty tracking ───────────────────────────────────────────────
+  //  _vboVersion increments on every VBO write or pan-offset change.
+  //  draw() writes _drawnVersion = _vboVersion and caches the draw params;
+  //  on the next call, if both the version AND all params match, the entire
+  //  GL pipeline (clear + draw) is skipped — O(1) fast path for any update
+  //  that does not touch price data or viewport (e.g. style-only rebuilds).
+  private _vboVersion    = 0
+  private _drawnVersion  = -1
+  private _lastPriceFrom    = NaN
+  private _lastPriceRange   = NaN
+  private _lastBarHalfWidth = NaN
+  private _lastRenderMode   = -1
+  private _lastOhlcHalfSize = NaN
+
+  // ── LOD (Level of Detail) ─────────────────────────────────────────────────
+  //  When bar density exceeds ~1.5 bars per CSS pixel, aggregate visible bars
+  //  into canvas-width buckets before uploading.  Caps GPU work at O(canvas-width)
+  //  regardless of how many historical bars are in view.
+  private _canvasWidthCss = 0        // CSS pixel width tracked in resize() — LOD threshold
+  private _lodActive = false         // true when LOD downsampling is in effect this frame
+  private readonly _lodBuf: BarRenderData[] = []  // reused bucket buffer — amortised, no GC
+
   //  Dev-mode GPU frame-time profiling via EXT_disjoint_timer_query_webgl2.
   //  Warns to console when GPU frame exceeds the 4 ms budget (60 fps = 16 ms total).
   private _timerExt: GPUTimerEXT | null = null
@@ -476,6 +498,7 @@ export class CandleWebGLRenderer {
   // ---------------------------------------------------------------------------
 
   resize (width: number, height: number): void {
+    this._canvasWidthCss = width  // keep LOD threshold in sync with CSS layout
     const pixelRatio = getPixelRatio(this._canvas)
     const newCanvasWidth = Math.round(width  * pixelRatio)
     const newCanvasHeight = Math.round(height * pixelRatio)
@@ -488,6 +511,51 @@ export class CandleWebGLRenderer {
     this._canvas.style.height = `${height}px`
     this._canvas.width  = newCanvasWidth
     this._canvas.height = newCanvasHeight
+    this._vboVersion++  // canvas contents reset by dimension change — force redraw
+  }
+
+  // ---------------------------------------------------------------------------
+  // LOD aggregation
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Aggregate `rawBars` into `targetCount` OHLC buckets written into `_lodBuf`.
+   *   open    = first raw bar's open
+   *   high    = max  of all raw bars' high in the bucket
+   *   low     = min  of all raw bars' low  in the bucket
+   *   close   = last raw bar's close
+   *   centerX = first raw bar's centerX  (aligns bucket to its leftmost bar)
+   *   colors  = last raw bar's colors    (reflects net close-vs-open direction)
+   * `_lodBuf` grows as needed but never shrinks — zero GC once steady state.
+   */
+  private _applyLod (rawBars: BarRenderData[], targetCount: number): void {
+    while (this._lodBuf.length < targetCount) {
+      this._lodBuf.push({ centerX: 0, open: 0, high: 0, low: 0, close: 0, wickColor: '', bodyColor: '', borderColor: '' })
+    }
+    const n    = rawBars.length
+    const step = n / targetCount
+    for (let i = 0; i < targetCount; i++) {
+      const startIdx = Math.floor(i * step)
+      const endIdx   = Math.min(Math.floor((i + 1) * step) - 1, n - 1)
+      const first    = rawBars[startIdx]
+      const last     = rawBars[endIdx]
+      let high = first.high
+      let low  = first.low
+      for (let j = startIdx + 1; j <= endIdx; j++) {
+        const b = rawBars[j]
+        if (b.high > high) high = b.high
+        if (b.low  < low)  low  = b.low
+      }
+      const out       = this._lodBuf[i]
+      out.centerX     = first.centerX
+      out.open        = first.open
+      out.high        = high
+      out.low         = low
+      out.close       = last.close
+      out.wickColor   = last.wickColor
+      out.bodyColor   = last.bodyColor
+      out.borderColor = last.borderColor
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -512,10 +580,26 @@ export class CandleWebGLRenderer {
    * Packs all bar data into the pre-allocated staging buffer then streams to GPU
    * in a single bufferSubData call.
    *
+   * LOD: when bar density > 1.5 bars/CSS-pixel, aggregates rawBars into
+   * canvas-width buckets first (O(N) CPU cost, but O(canvas-width) GPU cost).
+   *
    * Dirty-flag: an O(1) fingerprint check skips the upload when the visible bar
    * set is identical to the last uploaded frame (e.g. crosshair hover redraws).
    */
-  setData (bars: BarRenderData[]): void {
+  setData (rawBars: BarRenderData[]): void {
+    // LOD: cap instance count at canvas-pixel-width when bar density is too high.
+    // Threshold 1.5 allows a small margin before aggregation kicks in.
+    const LOD_THRESHOLD = 1.5
+    let bars: BarRenderData[]
+    if (this._canvasWidthCss > 0 && rawBars.length > this._canvasWidthCss * LOD_THRESHOLD) {
+      const targetCount = Math.max(1, Math.floor(this._canvasWidthCss))
+      this._applyLod(rawBars, targetCount)
+      bars = this._lodBuf
+      this._lodActive = true
+    } else {
+      bars = rawBars
+      this._lodActive = false
+    }
     const visibleBarCount = bars.length
     this._barCount = visibleBarCount
     if (visibleBarCount === 0) {
@@ -555,6 +639,7 @@ export class CandleWebGLRenderer {
       this._panOffsetCss += firstBar.centerX - this._fingerprintFirstX
       this._fingerprintFirstX = firstBar.centerX
       this._fingerprintLastX = lastBar.centerX
+      this._vboVersion++   // u_panOffset uniform will change → draw() must run
       return
     }
 
@@ -583,6 +668,7 @@ export class CandleWebGLRenderer {
     const gl = this._gl
     gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._stagingU8, 0, visibleBarCount * BYTES_PER_BAR)
+    this._vboVersion++   // VBO updated — draw() must re-render
   }
 
   /**
@@ -593,6 +679,10 @@ export class CandleWebGLRenderer {
    */
   updateLastBar (bar: BarRenderData): void {
     if (this._barCount === 0) return
+    // When LOD is active the last VBO slot is an aggregated bucket whose high/low
+    // come from multiple raw bars.  A single-bar partial write would corrupt it.
+    // Skip the optimisation and let the next setData() re-aggregate correctly.
+    if (this._lodActive) return
     this._fingerprintLastClose = bar.close    // fingerprint: last-bar close matches new value
     this._writeBarIntoViews(bar, this._singleBarF32, this._singleBarU8, 0, 0)
     const gl = this._gl
@@ -602,6 +692,7 @@ export class CandleWebGLRenderer {
       (this._barCount - 1) * BYTES_PER_BAR,
       this._singleBarBuf
     )
+    this._vboVersion++   // last-bar VBO slot updated — draw() must re-render
   }
 
   // ---------------------------------------------------------------------------
@@ -618,6 +709,26 @@ export class CandleWebGLRenderer {
    */
   draw (priceFrom: number, priceRange: number, barHalfWidth: number, renderMode = 0, ohlcHalfSize = 0): void {
     if (this._barCount === 0) return
+
+    // Incremental dirty: skip the entire GL pipeline when the canvas is already
+    // current — no VBO change, no pan, no Y-range or viewport parameter change.
+    // Eliminates ~100 % of redundant redraws caused by style/layout rebuilds that
+    // do not touch price data (e.g. tooltip hover, indicator recalculation with
+    // the same output, theme reload with unchanged colours).
+    if (
+      this._vboVersion     === this._drawnVersion    &&
+      priceFrom            === this._lastPriceFrom   &&
+      priceRange           === this._lastPriceRange  &&
+      barHalfWidth         === this._lastBarHalfWidth &&
+      renderMode           === this._lastRenderMode  &&
+      ohlcHalfSize         === this._lastOhlcHalfSize
+    ) return
+    this._drawnVersion     = this._vboVersion
+    this._lastPriceFrom    = priceFrom
+    this._lastPriceRange   = priceRange
+    this._lastBarHalfWidth = barHalfWidth
+    this._lastRenderMode   = renderMode
+    this._lastOhlcHalfSize = ohlcHalfSize
 
     const gl = this._gl
     const pixelRatio = getPixelRatio(this._canvas)
