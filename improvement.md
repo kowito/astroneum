@@ -195,7 +195,7 @@ WebGPU eliminates the implicit draw-state tracking overhead of the WebGL driver.
 
 ---
 
-### [SPEC] 16. `requestAnimationFrame` gate for `Chart.layout()`
+### [IMPL] 16. `requestAnimationFrame` gate for `Chart.layout()`
 **Impact:** ★★★★☆  
 **Files:** `src/engine/Chart.ts`  
 **Why:** `Chart.layout()` uses `Promise.resolve().then(() => { this._layout(); this._layoutPending = false })` as its dedup fence. Promise microtasks fire synchronously after the current call stack, before the browser compositor runs. On a 125 Hz mouse, `layout()` fires up to twice per vsync window and may execute mid-frame. Using `requestAnimationFrame` aligns `_layout()` exactly with vsync, cutting redundant layout invocations in half during fast scroll and eliminating mid-frame canvas clears.  
@@ -203,7 +203,7 @@ WebGPU eliminates the implicit draw-state tracking overhead of the WebGL driver.
 
 ---
 
-### [SPEC] 17. Remove `destination-over` compositing from `GridView`
+### [IMPL] 17. Remove `destination-over` compositing from `GridView`
 **Impact:** ★★★☆☆  
 **Files:** `src/engine/view/GridView.ts`  
 **Why:** `ctx.globalCompositeOperation = 'destination-over'` forces the GPU to perform a per-pixel alpha blend on the entire grid canvas to place grid content "behind" existing pixels. Because candle and indicator layers are GPU-accelerated canvases in DOM z-order above the 2D canvas, the compositor already renders the grid below the candles without any Canvas2D blending — making the `destination-over` operation entirely redundant.  
@@ -211,7 +211,7 @@ WebGPU eliminates the implicit draw-state tracking overhead of the WebGL driver.
 
 ---
 
-### [SPEC] 18. `measureText` result cache in tooltip views
+### [IMPL] 18. `measureText` result cache in tooltip views
 **Impact:** ★★★★☆  
 **Files:** `src/engine/view/IndicatorTooltipView.ts`, `src/engine/view/CandleTooltipView.ts`  
 **Why:** `drawStandardTooltipLegends()` calls `ctx.font = createFont(...)` + `ctx.measureText(title.text)` + `ctx.measureText(value.text)` for every legend in every indicator on every `mousemove`-triggered redraw. With 3 indicators × 3 values = 18 `measureText` calls at 60fps pointer rate = 1 080 font-shaping ops/second. Blink's `measureText` involves Unicode segmentation + glyph lookup even for short ASCII strings. Measured widths are stable for the same text+font combination — price values only change on a new tick, not per pointer event.  
@@ -219,7 +219,7 @@ WebGPU eliminates the implicit draw-state tracking overhead of the WebGL driver.
 
 ---
 
-### [SPEC] 19. Memoize `createFont()` string construction
+### [IMPL] 19. Memoize `createFont()` string construction
 **Impact:** ★★☆☆☆  
 **Files:** `src/engine/common/utils/canvas.ts`  
 **Why:** `createFont(size, weight, family)` constructs a CSS font string via template literal on every call. It is invoked 30–50× per frame across tooltip, axis, and label views. The number of distinct font variants in a chart is tiny (3–5 combinations). A Map-based cache eliminates the repeated string allocations.  
@@ -227,7 +227,7 @@ WebGPU eliminates the implicit draw-state tracking overhead of the WebGL driver.
 
 ---
 
-### [SPEC] 20. Cache `CanvasGradient` in `CandleAreaView`
+### [IMPL] 20. Cache `CanvasGradient` in `CandleAreaView`
 **Impact:** ★★★☆☆  
 **Files:** `src/engine/view/CandleAreaView.ts`  
 **Why:** `ctx.createLinearGradient(0, bounding.height, 0, minY)` runs on every `drawImp` call — including the live-tick ripple animation at 60fps — even when zoom and price range are unchanged. `createLinearGradient` allocates a GPU-composited gradient object on each call.  
