@@ -111,6 +111,48 @@ WebGPU eliminates the implicit draw-state tracking overhead of the WebGL driver.
 
 ---
 
+---
+
+## Batch 4
+
+### [IMPL] 13. `queueMicrotask` debounce for burst `_calcIndicator` calls
+**Impact:** ★★★★☆  
+**Files:** `src/engine/Store.ts`  
+**Why:** When `appendData()` is called N times synchronously (e.g. bulk historical load or replay fill), `_calcIndicator` fires N times. `TaskScheduler` already coalesces tasks by key, but the first invocation still starts an async task immediately (setting `_running = true`), while tasks 2-N each write to `_holdingTasks`. The first task runs against stale data (only bar 1 present); the merged final task runs against the full dataset. At minimum this is 2 full passes of every indicator. With `queueMicrotask` debouncing, all synchronous `appendData` calls accumulate into a single pending set; exactly one task batch fires after the sync block ends.  
+**How:**
+- Add `private readonly _pendingCalcMap = new Map<string, IndicatorImp>()` and `private _calcMicrotaskScheduled = false` to `ChartStore`.
+- In `_calcIndicator(data)`: instead of directly calling `this._taskScheduler.add(tasks)`, accumulate indicators into `_pendingCalcMap` by ID (last write wins per ID) and schedule a `queueMicrotask` if not already scheduled.
+- The microtask drains `_pendingCalcMap`, builds the `tasks` record from the accumulated indicators, clears the map, then calls `this._taskScheduler.add(tasks)`.
+- This reduces N synchronous `appendData` calls to a single indicator-calc round, eliminating redundant intermediate computations.
+
+---
+
+### [IMPL] 14. `requestIdleCallback` deferral for large-dataset indicator calculation
+**Impact:** ★★★★★  
+**Files:** `src/engine/Store.ts`  
+**Why:** When loading a large historical dataset (≥ 2 000 bars), all indicator calculations run immediately, blocking the main thread before the first frame is painted. On a 10 000-bar load with EMA + MACD + RSI, this is 15-30 ms of synchronous JS on the critical paint path. Using `requestIdleCallback` (with `setTimeout(fn, 0)` fallback for Safari) allows the chart to render its first frame immediately; indicators paint in during the next browser idle period. This matches TradingView's behavior (chart appears instantly, indicators load in 1-2 frames later).  
+**How:**
+- Inside the microtask added by item 13's debounce, check `this._dataList.length >= IDLE_CALC_THRESHOLD` (default 2 000).
+- If above threshold: wrap `this._taskScheduler.add(tasks)` in a `requestIdleCallback` (deadline-aware) / `setTimeout(fn, 0)` fallback.
+- If below threshold: call `this._taskScheduler.add(tasks)` directly (no deferral for small updates — live tick latency must stay sub-frame).
+- When the deferred callback fires, the chart already has data rendered and indicators paint on the next layout cycle.
+
+---
+
+### [SPEC] 15. VBO overscan — tile-based pre-render buffer
+**Impact:** ★★★★☆  
+**Files:** `src/engine/common/CandleWebGLRenderer.ts`, `src/engine/view/CandleBarView.ts`  
+**Why:** The existing pure-pan fast path (O(1) uniform update) only applies when the *identical* set of visible bars is in the VBO. As soon as the user pans by even one bar, the fingerprint changes → full O(N) VBO rebuild. With a VBO overscan buffer (OVERSCAN = 64 bars pre-rendered beyond the viewport on both sides), pans of up to 64 bars in either direction resolve without rebuilding the VBO — only a pan-offset uniform update is needed. This is the chart-specific form of tile-based pre-rendering: the VBO acts as a wider pre-rendered tile, and the scissor/viewport exposes only the visible sub-region.  
+**How:**
+- Add `dataIndex: number` to `BarRenderData`.
+- Add private fields `_vboFirstDataIdx`, `_vboLastDataIdx`, `_vboVisFirstDataIdx`, `_drawStartOffset` to `CandleWebGLRenderer`.
+- Extend `setData(bars, visibleOffset?, visibleCount?)` to accept overscan metadata.
+- In `setData()`, add an **overscan fast path** before the existing pure-pan check: if `newFirstVisibleDataIdx >= _vboFirstDataIdx && newLastVisibleDataIdx <= _vboLastDataIdx && barStep unchanged && no price data change`, compute pan delta from anchor bar (`_vboVisFirstDataIdx`) and update `_panOffsetCss + _drawStartOffset` without VBO upload.
+- In `draw()`, bind the VBO with a byte offset of `_drawStartOffset * BYTES_PER_BAR` when re-specifying instanced attribute pointers, then call `gl.drawArraysInstanced(..., _visibleBarCount)`.
+- In `CandleBarView.ts`: build overscan bars (OVERSCAN = 64) before and after the visible range using `chartStore.getDataList()` + `chartStore.dataIndexToCoordinate(i)`; pass `visibleOffset = overscanLeft.length` to `setData()`.
+
+---
+
 ## Already implemented (prior sessions)
 
 | Feature | Commit |

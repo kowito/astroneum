@@ -309,6 +309,21 @@ export default class StoreImp implements Store {
   private readonly _taskScheduler: TaskScheduler
 
   /**
+   * Batch-13: queueMicrotask debounce for _calcIndicator.
+   * Accumulates indicator references across synchronous calls; a single
+   * microtask drains the map and issues one TaskScheduler batch.
+   */
+  private readonly _pendingCalcMap = new Map<string, IndicatorImp>()
+  private _calcMicrotaskScheduled = false
+
+  /**
+   * Batch-14: minimum data-list length that triggers requestIdleCallback
+   * deferral of the indicator calc batch.  Below this threshold the calc
+   * runs in the microtask directly (keeps live-tick latency sub-frame).
+   */
+  private static readonly _IDLE_CALC_THRESHOLD = 2000
+
+  /**
    * Set to true when a data update requires a full layout (y-axis tick rebuild +
    * width measurement).  Tick-only updates (same bar, same timestamp) use a
    * lighter layout that skips those expensive steps to prevent canvas resize and
@@ -1205,15 +1220,37 @@ export default class StoreImp implements Store {
   }
 
   private _calcIndicator (data: IndicatorImp | IndicatorImp[]): void {
-    let indicators: IndicatorImp[] = []
-    indicators = indicators.concat(data)
-    if (indicators.length > 0) {
+    const indicators: IndicatorImp[] = ([] as IndicatorImp[]).concat(data)
+    if (indicators.length === 0) return
+
+    // Batch-13: accumulate into the pending map (last write per ID wins,
+    // ensuring the most recent indicator instance is used).
+    indicators.forEach(ind => { this._pendingCalcMap.set(ind.id, ind) })
+
+    if (this._calcMicrotaskScheduled) return
+    this._calcMicrotaskScheduled = true
+
+    queueMicrotask(() => {
+      this._calcMicrotaskScheduled = false
+      if (this._pendingCalcMap.size === 0) return
+
       const tasks: Record<string, Promise<unknown>> = {}
-      indicators.forEach(indicator => {
-        tasks[indicator.id] = indicator.calcImp(this._dataList)
+      this._pendingCalcMap.forEach((ind, id) => {
+        tasks[id] = ind.calcImp(this._dataList)
       })
-      this._taskScheduler.add(tasks)
-    }
+      this._pendingCalcMap.clear()
+
+      // Batch-14: for large datasets, defer the task batch to an idle callback
+      // so the chart can paint its first frame before indicators are computed.
+      if (this._dataList.length >= StoreImp._IDLE_CALC_THRESHOLD && typeof requestIdleCallback === 'function') {
+        requestIdleCallback(() => { this._taskScheduler.add(tasks) })
+      } else if (this._dataList.length >= StoreImp._IDLE_CALC_THRESHOLD) {
+        // Safari fallback: yield with a 0 ms timeout
+        setTimeout(() => { this._taskScheduler.add(tasks) }, 0)
+      } else {
+        this._taskScheduler.add(tasks)
+      }
+    })
   }
 
   addIndicator (create: PickRequired<IndicatorCreate, 'id' | 'name'>, paneId: string, isStack: boolean): boolean {

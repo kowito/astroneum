@@ -66,6 +66,7 @@
     "@types/node": "^24.9.1",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
+    "@webgpu/types": "^0.1.69",
     "esbuild": "^0.25.11",
     "eslint": "^9.39.4",
     "less": "^4.6.4",
