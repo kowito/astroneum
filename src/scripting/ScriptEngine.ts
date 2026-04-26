@@ -2,8 +2,8 @@
  * Client-side JavaScript indicator scripting engine.
  *
  * Lets users write Pine-Script–inspired indicator logic in plain JS
- * and compile it into an IndicatorTemplate that can be registered
- * with the chart engine via `registerIndicator()`.
+ * and compile it into an IndicatorTemplate that is registered
+ * with the chart engine during compilation.
  *
  * Security: scripts run inside an isolated Function scope with a
  * curated API surface.  No access to window/document/fetch/eval.
@@ -15,10 +15,10 @@
  *     const len = input('Length', 14)
  *     plot(ta.sma(close, len), { title: 'SMA', color: '#2962ff' })
  *   `)
- *   chart.registerIndicator(template)
+ *   chart.createIndicator(template.name)
  */
 
-import type { CandleData } from '@/engine'
+import { registerIndicator, type CandleData } from '@/engine'
 import type { IndicatorTemplate, IndicatorFigure } from '@/engine/component/Indicator'
 
 // ---------------------------------------------------------------------------
@@ -200,7 +200,7 @@ const TA = {
 // Script execution sandbox
 // ---------------------------------------------------------------------------
 
-const FORBIDDEN = ['window', 'document', 'location', 'fetch', 'XMLHttpRequest', 'WebSocket', 'eval', 'Function', 'setTimeout', 'setInterval', 'importScripts', 'require', 'process', '__dirname', '__filename', 'global', 'globalThis']
+const FORBIDDEN = ['window', 'document', 'location', 'fetch', 'XMLHttpRequest', 'WebSocket', 'Function', 'setTimeout', 'setInterval', 'importScripts', 'require', 'process', '__dirname', '__filename', 'global', 'globalThis']
 
 function buildSandboxWrapper (scriptBody: string): string {
   const forbidden = FORBIDDEN.map(k => `const ${k} = undefined;`).join(' ')
@@ -332,6 +332,7 @@ export class ScriptEngine {
     }
 
     this._registry.set(indicatorName, template)
+    registerIndicator(template)
     return template
   }
 

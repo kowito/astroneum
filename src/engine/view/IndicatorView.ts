@@ -3,14 +3,94 @@
 import type Nullable from '../common/Nullable'
 import type { CandleColorCompareRule, SmoothLineStyle } from '../common/Styles'
 import { formatValue } from '../common/utils/format'
-import { isNumber, isValid } from '../common/utils/typeChecks'
+import { logWarn } from '../common/utils/logger'
+import { isFunction, isNumber, isValid } from '../common/utils/typeChecks'
 import type Coordinate from '../common/Coordinate'
+import { INDICATOR_PLUGIN_RUNTIME_KEY } from '../../constants'
 
 import { eachFigures, type IndicatorFigure, type IndicatorFigureAttrs, type IndicatorFigureStyle } from '../component/Indicator'
-import { getOrCreateLineRenderer, type LineSegmentData } from '../common/IndicatorLineWebGLRenderer'
-import { getOrCreateRectRenderer, isGpuRectEligible, type RectInstanceData } from '../common/IndicatorRectWebGLRenderer'
+import { getLineRenderer, getOrCreateLineRenderer, type LineSegmentData } from '../common/IndicatorLineWebGLRenderer'
+import { getIndicatorPluginRenderer, getOrCreateIndicatorPluginRenderer } from '../common/IndicatorPluginWebGLRenderer'
+import { getOrCreateRectRenderer, getRectRenderer, isGpuRectEligible, type RectInstanceData } from '../common/IndicatorRectWebGLRenderer'
 
 import CandleBarView, { type CandleBarOptions } from './CandleBarView'
+
+type IndicatorPluginRuntimeData = {
+  output?: unknown[]
+  renderGL?: ((
+    gl: WebGL2RenderingContext,
+    output: unknown[],
+    viewport: {
+      priceMin: number
+      priceMax: number
+      timeMin: number
+      timeMax: number
+      resolution: [number, number]
+    },
+    vbo: WebGLBuffer
+  ) => void) | null
+}
+
+function getPluginRuntimeData (indicator: { extendData?: unknown }): IndicatorPluginRuntimeData | null {
+  if (indicator.extendData === null || typeof indicator.extendData !== 'object') {
+    return null
+  }
+  const runtimeData = (indicator.extendData as Record<string, unknown>)[INDICATOR_PLUGIN_RUNTIME_KEY]
+  if (runtimeData === null || typeof runtimeData !== 'object') {
+    return null
+  }
+  return runtimeData as IndicatorPluginRuntimeData
+}
+
+function createPluginViewport (
+  chart: {
+    getDataList: () => Array<{ timestamp?: number }>
+    getVisibleRange: () => { realFrom: number, realTo: number }
+  },
+  yAxis: { getRange: () => { realFrom: number, realTo: number } },
+  bounding: { width: number, height: number }
+): {
+    priceMin: number
+    priceMax: number
+    timeMin: number
+    timeMax: number
+    resolution: [number, number]
+  } {
+  const dataList = chart.getDataList()
+  const visibleRange = chart.getVisibleRange()
+  const priceRange = yAxis.getRange()
+  const width = Math.max(1, Math.floor(bounding.width))
+  const height = Math.max(1, Math.floor(bounding.height))
+
+  const priceMin = Math.min(priceRange.realFrom, priceRange.realTo)
+  const priceMax = Math.max(priceRange.realFrom, priceRange.realTo)
+
+  if (dataList.length === 0) {
+    return {
+      priceMin,
+      priceMax,
+      timeMin: 0,
+      timeMax: 0,
+      resolution: [width, height]
+    }
+  }
+
+  const maxIndex = dataList.length - 1
+  const fromIndex = Math.min(maxIndex, Math.max(0, Math.floor(visibleRange.realFrom)))
+  const toExclusive = Math.min(dataList.length, Math.max(1, Math.ceil(visibleRange.realTo)))
+  const toIndex = Math.min(maxIndex, Math.max(fromIndex, toExclusive - 1))
+
+  const firstTimestamp = Number(dataList[fromIndex]?.timestamp ?? 0)
+  const lastTimestamp = Number(dataList[toIndex]?.timestamp ?? firstTimestamp)
+
+  return {
+    priceMin,
+    priceMax,
+    timeMin: Math.min(firstTimestamp, lastTimestamp),
+    timeMax: Math.max(firstTimestamp, lastTimestamp),
+    resolution: [width, height]
+  }
+}
 
 export default class IndicatorView extends CandleBarView {
   override getCandleBarOptions (): Nullable<CandleBarOptions> {
@@ -67,6 +147,36 @@ export default class IndicatorView extends CandleBarView {
     const gpuLineSegs: LineSegmentData[] = []
     // Accumulate GPU-eligible (solid fill, no border/radius) rect instances.
     const gpuRects: RectInstanceData[] = []
+    // Accumulate plugin-driven WebGL draws that bypass the built-in figure pipeline.
+    const pluginGpuDraws: Array<{
+      indicatorId: string
+      indicator: {
+        draw: ((args: {
+          ctx: CanvasRenderingContext2D
+          chart: typeof chart
+          indicator: unknown
+          bounding: typeof bounding
+          xAxis: typeof xAxis
+          yAxis: typeof yAxis
+        }) => boolean) | null
+      }
+      output: unknown[]
+      runtimeData: IndicatorPluginRuntimeData | null
+      renderGL: (
+        gl: WebGL2RenderingContext,
+        output: unknown[],
+        viewport: {
+          priceMin: number
+          priceMax: number
+          timeMin: number
+          timeMax: number
+          resolution: [number, number]
+        },
+        vbo: WebGLBuffer
+      ) => void
+    }> = []
+
+    let pluginRenderer: ReturnType<typeof getOrCreateIndicatorPluginRenderer> | undefined
 
     ctx.save()
     indicators.forEach(indicator => {
@@ -77,7 +187,29 @@ export default class IndicatorView extends CandleBarView {
           ctx.globalCompositeOperation = 'source-over'
         }
         let isCover = false
-        if (indicator.draw !== null) {
+
+        const pluginRuntimeData = getPluginRuntimeData(indicator)
+        const pluginRenderGL = pluginRuntimeData?.renderGL
+        if (
+          indicator.zLevel >= 0 &&
+          isFunction(pluginRenderGL)
+        ) {
+          if (pluginRenderer === undefined) {
+            pluginRenderer = getOrCreateIndicatorPluginRenderer(widget, widget.getContainer())
+          }
+          if (pluginRenderer !== null) {
+            pluginGpuDraws.push({
+              indicatorId: indicator.id,
+              indicator,
+              output: Array.isArray(pluginRuntimeData.output) ? pluginRuntimeData.output : [],
+              runtimeData: pluginRuntimeData,
+              renderGL: pluginRenderGL
+            })
+            isCover = true
+          }
+        }
+
+        if (!isCover && indicator.draw !== null) {
           ctx.save()
           isCover = indicator.draw({
             ctx,
@@ -277,50 +409,105 @@ export default class IndicatorView extends CandleBarView {
     })
     ctx.restore()
 
+    const activePluginRenderer = pluginRenderer === undefined
+      ? getIndicatorPluginRenderer(widget)
+      : pluginRenderer
+    if (activePluginRenderer !== null) {
+      const { width, height } = bounding
+      activePluginRenderer.resize(width, height)
+      // Always clear the plugin layer every frame to avoid stale WebGL content.
+      activePluginRenderer.beginFrame()
+
+      if (pluginGpuDraws.length > 0) {
+        const gl = activePluginRenderer.getContext()
+        const viewport = createPluginViewport(chart, yAxis, bounding)
+        pluginGpuDraws.forEach(({ indicatorId, indicator, output, runtimeData, renderGL }) => {
+          try {
+            const vbo = activePluginRenderer.getOrCreateVbo(indicatorId)
+            renderGL(gl, output, viewport, vbo)
+          } catch (error) {
+            if (runtimeData !== null) {
+              runtimeData.renderGL = null
+            }
+            const errorMessage = error instanceof Error ? error.message : String(error)
+            logWarn(
+              'IndicatorView.drawImp',
+              'indicator.renderGL',
+              `plugin \`${indicatorId}\` renderGL failed (${errorMessage}). Falling back to render2D when available.`
+            )
+
+            const fallbackDraw = indicator.draw
+            if (isFunction(fallbackDraw)) {
+              try {
+                ctx.save()
+                ctx.globalCompositeOperation = 'source-over'
+                fallbackDraw({
+                  ctx,
+                  chart,
+                  indicator,
+                  bounding,
+                  xAxis,
+                  yAxis
+                })
+                ctx.restore()
+              } catch (fallbackError) {
+                const fallbackErrorMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
+                logWarn(
+                  'IndicatorView.drawImp',
+                  'indicator.draw',
+                  `plugin \`${indicatorId}\` render2D fallback failed (${fallbackErrorMessage}).`
+                )
+              }
+            }
+          }
+        })
+      }
+    }
+
     // -------------------------------------------------------------------------
     // GPU rect flush — single instanced draw call for all accumulated fill-rects
     // -------------------------------------------------------------------------
-    if (gpuRects.length > 0) {
-      const rectRenderer = getOrCreateRectRenderer(widget, widget.getContainer())
-      if (rectRenderer !== null) {
-        const { width, height } = bounding
-        rectRenderer.resize(width, height)
-        rectRenderer.setData(gpuRects)
-        rectRenderer.draw(width, height)
-      } else {
-        // WebGL2 unavailable — render as Canvas2D fillRect calls
-        ctx.save()
-        for (const rect of gpuRects) {
-          ctx.fillStyle = rect.color
-          ctx.fillRect(rect.x, rect.y, rect.width, rect.height)
-        }
-        ctx.restore()
+    const activeRectRenderer = gpuRects.length > 0
+      ? getOrCreateRectRenderer(widget, widget.getContainer())
+      : getRectRenderer(widget)
+    if (activeRectRenderer !== null) {
+      const { width, height } = bounding
+      activeRectRenderer.resize(width, height)
+      activeRectRenderer.setData(gpuRects)
+      activeRectRenderer.draw(width, height)
+    } else if (gpuRects.length > 0) {
+      // WebGL2 unavailable — render as Canvas2D fillRect calls
+      ctx.save()
+      for (const rect of gpuRects) {
+        ctx.fillStyle = rect.color
+        ctx.fillRect(rect.x, rect.y, rect.width, rect.height)
       }
+      ctx.restore()
     }
 
     // -------------------------------------------------------------------------
     // GPU line flush — single instanced draw call for all accumulated segments
     // -------------------------------------------------------------------------
-    if (gpuLineSegs.length > 0) {
-      const lineRenderer = getOrCreateLineRenderer(widget, widget.getContainer())
-      if (lineRenderer !== null) {
-        const { width, height } = bounding
-        lineRenderer.resize(width, height)
-        lineRenderer.setData(gpuLineSegs)
-        lineRenderer.draw(width, height)
-      } else {
-        // WebGL2 unavailable — render segments as Canvas2D strokes (grouped by style)
-        ctx.save()
-        for (const seg of gpuLineSegs) {
-          ctx.beginPath()
-          ctx.strokeStyle = seg.color
-          ctx.lineWidth   = seg.halfWidth * 2
-          ctx.moveTo(seg.x0, seg.y0)
-          ctx.lineTo(seg.x1, seg.y1)
-          ctx.stroke()
-        }
-        ctx.restore()
+    const activeLineRenderer = gpuLineSegs.length > 0
+      ? getOrCreateLineRenderer(widget, widget.getContainer())
+      : getLineRenderer(widget)
+    if (activeLineRenderer !== null) {
+      const { width, height } = bounding
+      activeLineRenderer.resize(width, height)
+      activeLineRenderer.setData(gpuLineSegs)
+      activeLineRenderer.draw(width, height)
+    } else if (gpuLineSegs.length > 0) {
+      // WebGL2 unavailable — render segments as Canvas2D strokes (grouped by style)
+      ctx.save()
+      for (const seg of gpuLineSegs) {
+        ctx.beginPath()
+        ctx.strokeStyle = seg.color
+        ctx.lineWidth   = seg.halfWidth * 2
+        ctx.moveTo(seg.x0, seg.y0)
+        ctx.lineTo(seg.x1, seg.y1)
+        ctx.stroke()
       }
+      ctx.restore()
     }
   }
 }

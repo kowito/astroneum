@@ -92,6 +92,7 @@ export interface ChartProOptions {
   timezone?: string
   mainIndicators?: IndicatorDef[]
   subIndicators?: string[]
+  plugins?: ChartPlugin[]
   datafeed: Datafeed
 }
 
@@ -147,8 +148,32 @@ export interface IndicatorPlugin<TOutput> {
   calc(data: CandleData[], params: number[]): TOutput[]
   /** Canvas 2D renderer — for lightweight overlays and small datasets. */
   render2D?(ctx: CanvasRenderingContext2D, output: TOutput[], viewport: Viewport): void
-  /** WebGL2 renderer — for high-density or GPU-accelerated rendering. */
+  /**
+   * WebGL2 renderer — for high-density or GPU-accelerated rendering.
+   * Astroneum reuses a stable per-indicator vbo and falls back to render2D when WebGL2 is unavailable.
+   */
   renderGL?(gl: WebGL2RenderingContext, output: TOutput[], viewport: Viewport, vbo: WebGLBuffer): void
+}
+
+// ---------------------------------------------------------------------------
+// Chart plugin lifecycle hooks
+// ---------------------------------------------------------------------------
+export interface ChartPluginContext {
+  /** The chart instance mounted by Astroneum. */
+  chart: Chart
+  /** Register a typed indicator plugin at runtime. */
+  registerIndicatorPlugin: (plugin: IndicatorPlugin<unknown>) => void
+  /** Batch register typed indicator plugins at runtime. */
+  registerIndicatorPlugins: (plugins: ReadonlyArray<IndicatorPlugin<unknown>>) => void
+}
+
+export interface ChartPlugin {
+  /** Optional plugin label for diagnostics and debugging. */
+  name?: string
+  /** Indicator plugins to register before this chart starts creating indicators. */
+  indicators?: ReadonlyArray<IndicatorPlugin<unknown>>
+  /** Optional lifecycle hook called once after the chart is initialized. */
+  onInit?: (context: ChartPluginContext) => void | (() => void)
 }
 
 // ---------------------------------------------------------------------------

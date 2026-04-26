@@ -110,6 +110,76 @@ const myDatafeed: Datafeed = {
 }
 ```
 
+## Custom Indicator Plugins
+
+Register custom indicators through the public plugin adapter:
+
+```ts
+import {
+	registerIndicatorPlugin,
+	type CandleData,
+	type IndicatorPlugin
+} from 'astroneum'
+
+const spreadPlugin: IndicatorPlugin<number> = {
+	name: 'SPREAD',
+	shortName: 'Spread',
+	calcParams: [1],
+	calc(data: CandleData[]) {
+		return data.map(candle => candle.high - candle.low)
+	}
+}
+
+registerIndicatorPlugin(spreadPlugin)
+```
+
+Then create it in any chart instance with `chart.createIndicator('SPREAD')`.
+
+If a plugin defines `renderGL`, Astroneum runs it on a dedicated WebGL2 layer with a reusable per-indicator `vbo`.
+If WebGL2 is unavailable, `render2D` is used as the fallback when provided.
+
+If you prefer engine-level templates directly, `registerIndicator` is also exported.
+
+You can also mount plugins per chart instance through `ChartProOptions.plugins`:
+
+```ts
+import {
+	Astroneum,
+	type ChartPlugin
+} from 'astroneum'
+
+const spreadPlugin: ChartPlugin = {
+	name: 'spread-plugin',
+	indicators: [
+		{
+			name: 'SPREAD',
+			calc(data) {
+				return data.map(candle => candle.high - candle.low)
+			}
+		}
+	],
+	onInit({ chart }) {
+		chart.createIndicator('SPREAD', true)
+		return () => {
+			chart.removeIndicator({ name: 'SPREAD' })
+		}
+	}
+}
+
+new Astroneum({
+	container: 'chart',
+	symbol: { ticker: 'AAPL', shortName: 'AAPL', market: 'stocks' },
+	period: { multiplier: 1, timespan: 'day', text: '1D' },
+	plugins: [spreadPlugin],
+	datafeed: myDatafeed
+})
+```
+
+## ScriptEngine Notes
+
+`ScriptEngine.compile()` now registers the compiled indicator automatically.
+After a successful compile, you can immediately call `chart.createIndicator(compiledName)`.
+
 ## Main Exports
 
 - Core: `Astroneum`, `DefaultDatafeed`

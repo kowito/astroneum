@@ -359,8 +359,6 @@ export class IndicatorRectWebGLRenderer {
    * @param height CSS pixel height of the pane widget
    */
   draw (width: number, height: number): void {
-    if (this._rectCount === 0) return
-
     const gl = this._gl
     const pr = getPixelRatio(this._canvas)
     const w  = this._canvas.width
@@ -369,6 +367,8 @@ export class IndicatorRectWebGLRenderer {
     gl.viewport(0, 0, w, h)
     gl.clearColor(0, 0, 0, 0)
     gl.clear(gl.COLOR_BUFFER_BIT)
+
+    if (this._rectCount === 0) return
 
     gl.useProgram(this._program)
     gl.uniform2f(this._uResolution, w, h)
@@ -409,6 +409,10 @@ const _rectGL2Supported: boolean = (() => {
 })()
 
 const _rectRendererCache = new WeakMap<object, IndicatorRectWebGLRenderer>()
+
+export function getRectRenderer (widgetKey: object): IndicatorRectWebGLRenderer | null {
+  return _rectRendererCache.get(widgetKey) ?? null
+}
 
 export function getOrCreateRectRenderer (
   widgetKey: object,

@@ -61,6 +61,7 @@ export default class Astroneum implements ChartPro {
           timezone={options.timezone ?? 'Asia/Shanghai'}
           mainIndicators={options.mainIndicators ?? [{ name: 'EMA', calcParams: [7, 25, 99] }]}
           subIndicators={options.subIndicators ?? ['VOL']}
+          plugins={options.plugins ?? []}
           datafeed={options.datafeed}/>
       ),
       this._container

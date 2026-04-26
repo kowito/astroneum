@@ -366,8 +366,6 @@ export class IndicatorLineWebGLRenderer {
    * @param height CSS pixel height of the pane widget
    */
   draw (width: number, height: number): void {
-    if (this._segCount === 0) return
-
     const gl = this._gl
     const pr = getPixelRatio(this._canvas)
     const w  = this._canvas.width
@@ -376,6 +374,8 @@ export class IndicatorLineWebGLRenderer {
     gl.viewport(0, 0, w, h)
     gl.clearColor(0, 0, 0, 0)
     gl.clear(gl.COLOR_BUFFER_BIT)
+
+    if (this._segCount === 0) return
 
     gl.useProgram(this._program)
     gl.uniform2f(this._uResolution, w, h)
@@ -419,6 +419,10 @@ const _lineGL2Supported: boolean = (() => {
 
 // WeakMap keyed on the widget instance — one renderer per pane widget
 const _lineRendererCache = new WeakMap<object, IndicatorLineWebGLRenderer>()
+
+export function getLineRenderer (widgetKey: object): IndicatorLineWebGLRenderer | null {
+  return _lineRendererCache.get(widgetKey) ?? null
+}
 
 export function getOrCreateLineRenderer (
   widgetKey: object,

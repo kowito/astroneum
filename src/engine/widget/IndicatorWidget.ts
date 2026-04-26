@@ -10,6 +10,9 @@ import IndicatorView from '../view/IndicatorView'
 import CrosshairLineView from '../view/CrosshairLineView'
 import IndicatorTooltipView from '../view/IndicatorTooltipView'
 import OverlayView from '../view/OverlayView'
+import { destroyLineRenderer } from '../common/IndicatorLineWebGLRenderer'
+import { destroyIndicatorPluginRenderer } from '../common/IndicatorPluginWebGLRenderer'
+import { destroyRectRenderer } from '../common/IndicatorRectWebGLRenderer'
 
 export default class IndicatorWidget extends DrawWidget<DrawPane<YAxis>> {
   private readonly _gridView = new GridView(this)
@@ -55,5 +58,12 @@ export default class IndicatorWidget extends DrawWidget<DrawPane<YAxis>> {
       this.updateOverlayContent(ctx)
     }
     this._tooltipView.draw(ctx)
+  }
+
+  override destroy (): void {
+    destroyLineRenderer(this)
+    destroyRectRenderer(this)
+    destroyIndicatorPluginRenderer(this)
+    super.destroy()
   }
 }

@@ -1,4 +1,11 @@
-import { registerOverlay } from '@/engine'
+import {
+  registerIndicator,
+  getSupportedIndicators,
+  registerOverlay,
+  getSupportedOverlays,
+  registerXAxis,
+  registerYAxis
+} from '@/engine'
 
 import overlays from './extension'
 
@@ -26,7 +33,23 @@ import {
   detectPricePrecision
 } from './i18n/format'
 
-import { type Datafeed, type SymbolInfo, type Period, type DatafeedSubscribeCallback, type ChartProOptions, type ChartPro, type CandleData } from './types'
+import {
+  createIndicatorTemplateFromPlugin,
+  registerIndicatorPlugin,
+  registerIndicatorPlugins
+} from './plugin'
+
+import {
+  type Datafeed,
+  type SymbolInfo,
+  type Period,
+  type DatafeedSubscribeCallback,
+  type ChartProOptions,
+  type ChartPro,
+  type CandleData,
+  type ChartPlugin,
+  type ChartPluginContext
+} from './types'
 
 import './styles/index.less'
 
@@ -52,7 +75,16 @@ export {
   formatDateTime,
   formatDuration,
   formatPeriod,
-  detectPricePrecision
+  detectPricePrecision,
+  registerIndicator,
+  getSupportedIndicators,
+  registerOverlay,
+  getSupportedOverlays,
+  registerXAxis,
+  registerYAxis,
+  createIndicatorTemplateFromPlugin,
+  registerIndicatorPlugin,
+  registerIndicatorPlugins
 }
 
 export { asPrice, asVolume, asTimestamp, rafCoalesce, rafMergeTick } from './utils'
@@ -61,7 +93,8 @@ export { TickAnimator } from './engine/common/TickAnimator'
 export { RingBuffer } from './engine/common/RingBuffer'
 
 export type {
-  Datafeed, SymbolInfo, Period, DatafeedSubscribeCallback, ChartProOptions, ChartPro, CandleData
+  Datafeed, SymbolInfo, Period, DatafeedSubscribeCallback, ChartProOptions, ChartPro, CandleData,
+  ChartPlugin, ChartPluginContext
 }
 export type { Viewport, IndicatorPlugin, ChartEventMap, Price, Volume, Timestamp } from './types'
 export type { TickAnimatorOptions } from './engine/common/TickAnimator'

@@ -17,6 +17,7 @@ import {
 } from '@/widget'
 
 import DrawingSnapper from './DrawingSnapper'
+import { mountChartPlugins } from '@/plugin'
 
 import { translateTimezone } from '@/widget/timezone-modal/data'
 
@@ -234,6 +235,8 @@ const ChartProComponent: Component<ChartProComponentProps> = (props: ChartProCom
     })
     widgetRef.current = widget
 
+    const disposePlugins = widget ? mountChartPlugins(widget, props.plugins) : null
+
     // Attach keyboard cleanup ref after widget is initialized
     if (widget !== null) {
       ;(widget as unknown as Record<string, unknown>).__keyCleanup = () => {
@@ -363,6 +366,7 @@ const ChartProComponent: Component<ChartProComponentProps> = (props: ChartProCom
         cancelAnimationFrame(resizeFrameRef.current)
         resizeFrameRef.current = null
       }
+      disposePlugins?.()
       dispose(widgetContainer)
       widgetRef.current = null
     }

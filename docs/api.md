@@ -23,6 +23,7 @@ new Astroneum(options: ChartProOptions): Astroneum
 | `periods` | `Period[]` | | `[1m,5m,15m,1H,2H,4H,D,W,M,Y]` | Timeframes available in the period bar |
 | `mainIndicators` | `IndicatorDef[]` | | `[{ name: 'EMA', calcParams: [7,25,99] }]` | Indicators overlaid on the main candle pane |
 | `subIndicators` | `string[]` | | `['VOL']` | Indicator names rendered in sub-panes below the chart |
+| `plugins` | `ChartPlugin[]` | | `[]` | Plugins mounted with chart lifecycle hooks (`onInit` / disposer) |
 
 ---
 
@@ -212,6 +213,8 @@ import type {
   // Indicator
   IndicatorDef,
   IndicatorPlugin,
+  ChartPlugin,
+  ChartPluginContext,
 
   // Events
   ChartEventMap,
@@ -303,6 +306,54 @@ interface IndicatorPlugin<TOutput> {
 
 Implement this interface to register a custom typed indicator.  
 Use `render2D` for lightweight overlays (< 10k points) and `renderGL` for high-density or GPU-accelerated rendering.
+When `renderGL` is present, Astroneum executes it on a dedicated WebGL2 layer and reuses a per-indicator `vbo`.
+If WebGL2 is unavailable, `render2D` is used as fallback when available.
+
+### `registerIndicatorPlugin(plugin)`
+
+```typescript
+registerIndicatorPlugin<TOutput>(plugin: IndicatorPlugin<TOutput>): void
+```
+
+Adapts `IndicatorPlugin` to the engine `IndicatorTemplate` format and registers it.
+
+### `registerIndicatorPlugins(plugins)`
+
+```typescript
+registerIndicatorPlugins(plugins: IndicatorPlugin<unknown>[]): void
+```
+
+Batch helper for registering multiple indicator plugins.
+
+### `createIndicatorTemplateFromPlugin(plugin)`
+
+```typescript
+createIndicatorTemplateFromPlugin<TOutput>(plugin: IndicatorPlugin<TOutput>): IndicatorTemplate
+```
+
+Returns the converted engine template without registering it. Useful when you want manual control over registration.
+
+### `ChartPlugin`
+
+```typescript
+interface ChartPlugin {
+  name?: string
+  indicators?: IndicatorPlugin<unknown>[]
+  onInit?: (context: ChartPluginContext) => void | (() => void)
+}
+```
+
+`indicators` are registered before chart indicator creation begins. `onInit` runs once after chart initialization and may return a disposer called during chart teardown.
+
+### `ChartPluginContext`
+
+```typescript
+interface ChartPluginContext {
+  chart: Chart
+  registerIndicatorPlugin: (plugin: IndicatorPlugin<unknown>) => void
+  registerIndicatorPlugins: (plugins: IndicatorPlugin<unknown>[]) => void
+}
+```
 
 ### `ChartEventMap`
 
@@ -345,7 +396,15 @@ Represents the currently visible region of the chart canvas. Used for coordinate
 | `BarReplay` | Historical bar replay engine |
 | `DrawingTemplates` | Save/load drawing style templates |
 | `AlertManager` | Price alert creation and monitoring |
-| `ScriptEngine` | Pine-like indicator scripting sandbox |
+| `ScriptEngine` | Pine-like indicator scripting sandbox (`compile()` auto-registers indicators) |
+| `registerIndicator` | Register a raw engine `IndicatorTemplate` |
+| `getSupportedIndicators` | List all registered indicator names |
+| `registerOverlay` | Register a raw engine `OverlayTemplate` |
+| `getSupportedOverlays` | List all registered overlay names |
+| `registerXAxis` / `registerYAxis` | Register custom axis templates |
+| `registerIndicatorPlugin` | Register a typed `IndicatorPlugin` via adapter |
+| `registerIndicatorPlugins` | Batch register typed indicator plugins |
+| `createIndicatorTemplateFromPlugin` | Convert `IndicatorPlugin` to engine template |
 | `WatchlistManager` | Symbol watchlist with live prices |
 | `PortfolioTracker` | Position tracking and P&L calculation |
 | `PerformanceMode` | Reduced-render performance optimization |
