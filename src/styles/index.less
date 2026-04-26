@@ -147,7 +147,6 @@
   background-color: var(--astroneum-background-color);
   font-family: 'Trebuchet MS', -apple-system, BlinkMacSystemFont, Roboto, Ubuntu, sans-serif;
   font-size: 13px;
-  height: 80vh;
   &-watermark {
     position: absolute;
     left: 50%;
@@ -188,11 +187,15 @@
     flex-direction: row;
     width: 100%;
     height: @widget-height;
+    // Explicit background ensures the correct theme colour shows behind the
+    // transparent canvas layers, regardless of GPU compositing behaviour.
+    background-color: var(--astroneum-background-color);
   }
   &-widget {
     width: @widget-width;
     height: 100%;
     margin-left: 0;
+    background-color: var(--astroneum-background-color);
     &[data-drawing-bar-visible="false"] {
       width: 100%;
     }

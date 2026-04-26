@@ -1,3 +1,4 @@
+import type React from 'react'
 import type { CandleData, Styles, DeepPartial, Nullable } from '@/engine'
 import type { Chart, DomPosition } from '@/engine'
 import type { PaneOptions } from '@/engine'
@@ -93,6 +94,10 @@ export interface AstroneumOptions {
   subIndicators?: string[]
   plugins?: ChartPlugin[]
   datafeed: Datafeed
+  /** Inline styles applied to the root `.astroneum` container element. */
+  style?: React.CSSProperties
+  /** Additional class names applied to the root `.astroneum` container element. */
+  className?: string
 }
 
 export interface AstroneumHandle {

@@ -437,7 +437,7 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
   }, [styles])
 
   return (
-    <div className='astroneum' data-theme={theme}>
+    <div className={`astroneum${props.className ? ` ${props.className}` : ''}`} data-theme={theme} style={props.style}>
       <i className="icon-close astroneum-load-icon"/>
       {ui.symbolSearchModalVisible() && (
         <SymbolSearchModal
