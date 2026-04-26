@@ -276,9 +276,9 @@ export const noMagnet = (className?: string) => (
 /** Snap-to-price-levels / key levels icon */
 export const snapLevels = (className?: string) => (
   <svg className={`icon-overlay ${className ?? ''}`} viewBox="0 0 22 22">
-    <line x1="2" y1="6"  x2="20" y2="6"  strokeOpacity="0.5" strokeWidth="1.2" stroke-dasharray="3,2"/>
+    <line x1="2" y1="6"  x2="20" y2="6"  strokeOpacity="0.5" strokeWidth="1.2" strokeDasharray="3,2"/>
     <line x1="2" y1="11" x2="20" y2="11" strokeOpacity="1" strokeWidth="1.5"/>
-    <line x1="2" y1="16" x2="20" y2="16" strokeOpacity="0.5" strokeWidth="1.2" stroke-dasharray="3,2"/>
+    <line x1="2" y1="16" x2="20" y2="16" strokeOpacity="0.5" strokeWidth="1.2" strokeDasharray="3,2"/>
     <circle cx="11" cy="11" r="2" strokeOpacity="0"/>
   </svg>
 )
