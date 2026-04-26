@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { type Component, Show } from '@/react-shared'
+import { type Component } from '@/react-shared'
 
 import { Modal, Button } from '@/component'
 import i18n from '@/i18n'
@@ -57,46 +57,46 @@ const ScriptEditorModal: Component<ScriptEditorModalProps> = props => {
       title={i18n('script_editor', props.locale)}
       width={600}
       onClose={props.onClose}>
-      <div class="astroneum-script-editor">
-        <div class="script-editor-hint">
+      <div className="astroneum-script-editor">
+        <div className="script-editor-hint">
           {i18n('script_editor_hint', props.locale)}
         </div>
 
         <textarea
-          class="script-editor-textarea"
+          className="script-editor-textarea"
           spellcheck={false}
           value={source}
           onInput={e => { setSource((e.target).value); setCompiled(''); setError('') }}
           aria-label="Script source code"
           rows={18}/>
 
-        <Show when={error}>
-          <div class="script-editor-error" role="alert">
+        {error && (
+          <div className="script-editor-error" role="alert">
             {error}
           </div>
-        </Show>
+        )}
 
-        <Show when={compiled}>
-          <div class="script-editor-success" role="status">
+        {compiled && (
+          <div className="script-editor-success" role="status">
             {i18n('script_compiled', props.locale)}: <strong>{compiled}</strong>
           </div>
-        </Show>
+        )}
 
-        <div class="script-editor-actions">
+        <div className="script-editor-actions">
           <Button onClick={compile} type="cancel">
             {running ? '…' : i18n('script_compile', props.locale)}
           </Button>
           <Button
             onClick={apply}
             type="confirm"
-            class={compiled ? '' : 'script-apply-disabled'}>
+            className={compiled ? '' : 'script-apply-disabled'}>
             {i18n('script_apply', props.locale)}
           </Button>
         </div>
 
-        <details class="script-editor-api-ref">
+        <details className="script-editor-api-ref">
           <summary>{i18n('script_api_ref', props.locale)}</summary>
-          <pre class="script-api-code">{`study(name, { overlay?, precision? })
+          <pre className="script-api-code">{`study(name, { overlay?, precision? })
 input(title, default)
 plot(values[], { title?, color?, lineWidth? })
 

@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import type { IndicatorDef } from '@/types'
 
-export function createIndicatorStore (init: { mainIndicators: IndicatorDef[] }) {
+export function useIndicatorStore (init: { mainIndicators: IndicatorDef[] }) {
   const [mainIndicators, setMainIndicators] = useState<IndicatorDef[]>([...init.mainIndicators])
   const mainIndicatorsRef = useRef(mainIndicators)
   mainIndicatorsRef.current = mainIndicators
@@ -19,4 +19,4 @@ export function createIndicatorStore (init: { mainIndicators: IndicatorDef[] }) 
   }
 }
 
-export type IndicatorStore = ReturnType<typeof createIndicatorStore>
+export type IndicatorStore = ReturnType<typeof useIndicatorStore>

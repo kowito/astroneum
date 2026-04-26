@@ -13,7 +13,7 @@ export interface ChartStoreInit {
   styles?: DeepPartial<Styles>
 }
 
-export function createChartStore (init: ChartStoreInit) {
+export function useChartStore (init: ChartStoreInit) {
   const [theme, setTheme] = useState(init.theme)
   const themeRef = useRef(theme)
   themeRef.current = theme
@@ -61,4 +61,4 @@ export function createChartStore (init: ChartStoreInit) {
   }
 }
 
-export type ChartStore = ReturnType<typeof createChartStore>
+export type ChartStore = ReturnType<typeof useChartStore>

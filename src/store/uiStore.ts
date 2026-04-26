@@ -21,7 +21,7 @@ export const EMPTY_INDICATOR_SETTING: IndicatorSettingModalState = {
   lineStyles: []
 }
 
-export function createUIStore (init: { drawingBarVisible: boolean }) {
+export function useUIStore (init: { drawingBarVisible: boolean }) {
   const [drawingBarVisible, setDrawingBarVisible] = useState(init.drawingBarVisible)
   const drawingBarVisibleRef = useRef(drawingBarVisible)
   drawingBarVisibleRef.current = drawingBarVisible
@@ -76,4 +76,4 @@ export function createUIStore (init: { drawingBarVisible: boolean }) {
   }
 }
 
-export type UIStore = ReturnType<typeof createUIStore>
+export type UIStore = ReturnType<typeof useUIStore>

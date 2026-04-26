@@ -1,10 +1,10 @@
-import { type ParentComponent, type ParentProps, type JSX, Show } from '@/react-shared'
+import { type ParentComponent, type ParentProps, type JSX } from '@/react-shared'
 
 import Loading from '../loading'
 import Empty from '../empty'
 
 export interface ListProps<T = unknown> extends ParentProps {
-  class?: string
+  className?: string
   style?: JSX.CSSProperties | string
   loading?: boolean
   dataSource?: T[]
@@ -16,25 +16,11 @@ const List: ParentComponent<ListProps<any>> = props => {
   return (
     <ul
       style={props.style}
-      class={`astroneum-list ${props.class ?? ''}`}>
-      <Show when={props.loading}>
-        <Loading/>
-      </Show>
-      <Show when={!props.loading && !props.children && !props.dataSource?.length}>
-        <Empty/>
-      </Show>
-      <Show
-        when={props.children}>
-        {props.children}
-      </Show>
-      <Show
-        when={!props.children}>
-        {
-          props.dataSource?.map(data => (
-            props.renderItem?.(data) ?? <li></li>
-          ))
-        }
-      </Show>
+      className={`astroneum-list ${props.className ?? ''}`}>
+      {props.loading && <Loading/>}
+      {!props.loading && !props.children && !props.dataSource?.length && <Empty/>}
+      {props.children}
+      {!props.children && props.dataSource?.map(data => props.renderItem?.(data) ?? <li></li>)}
     </ul>
   )
 }

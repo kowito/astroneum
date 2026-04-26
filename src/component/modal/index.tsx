@@ -50,30 +50,30 @@ const Modal: ParentComponent<ModalProps> = (props) => {
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
-      class="astroneum-modal modal is-active">
+      className="astroneum-modal modal is-active">
       <div
-        class="modal-background"
+        className="modal-background"
         onClick={props.onClose}/>
       <div
         ref={el => { cardRef = el }}
         style={{ width: `${props.width ?? 400}px` }}
-        class="modal-card">
+        className="modal-card">
         <header
-          class="modal-card-head">
-          <p id={titleId} class="modal-card-title">{props.title}</p>
+          className="modal-card-head">
+          <p id={titleId} className="modal-card-title">{props.title}</p>
           <button
-            class="delete"
+            className="delete"
             aria-label="close"
             onClick={props.onClose}/>
         </header>
         <section
-          class="modal-card-body">
+          className="modal-card-body">
           {props.children}
         </section>
         {
           (props.buttons && props.buttons.length > 0) && (
             <footer
-              class="modal-card-foot">
+              className="modal-card-foot">
               {
                 props.buttons.map(button => {
                   return (

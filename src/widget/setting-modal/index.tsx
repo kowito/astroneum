@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Fragment } from 'react'
 
-import { type Component, For } from '@/react-shared'
+import { type Component } from '@/react-shared'
 import type { Styles, DeepPartial } from '@/types'
 import { utils } from '@/engine'
 
@@ -53,48 +53,44 @@ const SettingModal: Component<SettingModalProps> = props => {
       ]}
       onClose={props.onClose}>
       <div
-        class="astroneum-setting-modal-content">
-        <For each={options}>
-          {
-            option => {
-              let component
-              const value = utils.formatValue(styles, option.key)
-              switch (option.component) {
-                case 'select': {
-                  component = (
-                    <Select
-                      style={{ width: '120px' }}
-                      value={i18n(value as string, props.locale)}
-                      dataSource={option.dataSource}
-                      onSelected={(data) => {
-                        const newValue = (data as SelectDataSourceItem).key
-                        update(option, newValue)
-                      }}/>
-                  )
-                  break
-                }
-                case 'switch': {
-                  const open = !!value
-                  component = (
-                    <Switch
-                      open={open}
-                      onChange={() => {
-                        const newValue = !open
-                        update(option, newValue)
-                      }}/>
-                  )
-                  break
-                }
-              }
-              return (
-                <>
-                  <span>{option.text}</span>
-                  {component}
-                </>
+        className="astroneum-setting-modal-content">
+        {options.map(option => {
+          let component
+          const value = utils.formatValue(styles, option.key)
+          switch (option.component) {
+            case 'select': {
+              component = (
+                <Select
+                  style={{ width: '120px' }}
+                  value={i18n(value as string, props.locale)}
+                  dataSource={option.dataSource}
+                  onSelected={(data) => {
+                    const newValue = (data as SelectDataSourceItem).key
+                    update(option, newValue)
+                  }}/>
               )
+              break
+            }
+            case 'switch': {
+              const open = !!value
+              component = (
+                <Switch
+                  open={open}
+                  onChange={() => {
+                    const newValue = !open
+                    update(option, newValue)
+                  }}/>
+              )
+              break
             }
           }
-        </For>
+          return (
+            <Fragment key={option.key}>
+              <span>{option.text}</span>
+              {component}
+            </Fragment>
+          )
+        })}
       </div> 
     </Modal>
   )

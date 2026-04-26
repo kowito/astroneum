@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 
-import { type Component, For, Show } from '@/react-shared'
+import { type Component } from '@/react-shared'
 
 import { Modal, Input, List } from '@/component'
 import i18n from '@/i18n'
@@ -66,61 +66,61 @@ const AlertModal: Component<AlertModalProps> = props => {
       title={i18n('alerts', props.locale)}
       width={420}
       onClose={props.onClose}>
-      <div class="astroneum-alert-modal">
+      <div className="astroneum-alert-modal">
         {/* Tabs */}
-        <div class="astroneum-alert-modal-tabs" role="tablist">
+        <div className="astroneum-alert-modal-tabs" role="tablist">
           <button
             role="tab"
             aria-selected={tab === 'create'}
-            class={`tab-btn ${tab === 'create' ? 'active' : ''}`}
+            className={`tab-btn ${tab === 'create' ? 'active' : ''}`}
             onClick={() => setTab('create')}>
             {i18n('alert_create', props.locale)}
           </button>
           <button
             role="tab"
             aria-selected={tab === 'history'}
-            class={`tab-btn ${tab === 'history' ? 'active' : ''}`}
+            className={`tab-btn ${tab === 'history' ? 'active' : ''}`}
             onClick={() => setTab('history')}>
             {i18n('alert_history', props.locale)} ({historyAlerts.length})
           </button>
         </div>
 
-        <Show when={tab === 'create'}>
+        {tab === 'create' && (
+          <>
           {/* Create form */}
-          <div class="astroneum-alert-modal-form">
-            <label class="alert-field-label">{i18n('alert_condition', props.locale)}</label>
-            <div class="alert-condition-row" role="group" aria-label="Alert condition">
-              <For each={CONDITIONS}>
-                {c => (
-                  <button
-                    class={`alert-cond-btn ${condition === c ? 'active' : ''}`}
-                    role="radio"
-                    aria-checked={condition === c}
-                    onClick={() => setCondition(c)}>
-                    {conditionLabel(c, props.locale)}
-                  </button>
-                )}
-              </For>
+          <div className="astroneum-alert-modal-form">
+            <label className="alert-field-label">{i18n('alert_condition', props.locale)}</label>
+            <div className="alert-condition-row" role="group" aria-label="Alert condition">
+              {CONDITIONS.map(c => (
+                <button
+                  key={c}
+                  className={`alert-cond-btn ${condition === c ? 'active' : ''}`}
+                  role="radio"
+                  aria-checked={condition === c}
+                  onClick={() => setCondition(c)}>
+                  {conditionLabel(c, props.locale)}
+                </button>
+              ))}
             </div>
 
-            <label class="alert-field-label">{i18n('alert_price', props.locale)}</label>
+            <label className="alert-field-label">{i18n('alert_price', props.locale)}</label>
             <Input
-              class="alert-price-input"
+              className="alert-price-input"
               precision={8}
               min={0}
               placeholder={String(props.currentPrice ?? 0)}
               value={price}
               onChange={v => setPrice(String(v))}/>
 
-            <label class="alert-field-label">{i18n('alert_note', props.locale)}</label>
+            <label className="alert-field-label">{i18n('alert_note', props.locale)}</label>
             <Input
-              class="alert-note-input"
+              className="alert-note-input"
               placeholder={i18n('alert_note_placeholder', props.locale)}
               value={note}
               onChange={v => setNote(String(v))}/>
 
             <button
-              class="astroneum-button button is-small is-primary alert-submit-btn"
+              className="astroneum-button button is-small is-primary alert-submit-btn"
               disabled={!isFinite(parseFloat(price))}
               onClick={addAlert}
               aria-label={i18n('alert_add', props.locale)}>
@@ -129,72 +129,67 @@ const AlertModal: Component<AlertModalProps> = props => {
           </div>
 
           {/* Active alerts list */}
-          <Show when={activeAlerts.length > 0}>
-            <div class="alert-section-label">{i18n('alert_active', props.locale)} ({activeAlerts.length})</div>
-            <List class="astroneum-alert-modal-list">
-              <For each={activeAlerts}>
-                {alert => (
-                  <li class="alert-list-row">
-                    <span class={`alert-cond-badge alert-cond-${alert.condition}`}>
+          {activeAlerts.length > 0 && (
+            <>
+              <div className="alert-section-label">{i18n('alert_active', props.locale)} ({activeAlerts.length})</div>
+              <List className="astroneum-alert-modal-list">
+                {activeAlerts.map(alert => (
+                  <li key={alert.id} className="alert-list-row">
+                    <span className={`alert-cond-badge alert-cond-${alert.condition}`}>
                       {conditionLabel(alert.condition, props.locale)}
                     </span>
-                    <span class="alert-price">{alert.price}</span>
-                    <Show when={alert.note}>
-                      <span class="alert-note">{alert.note}</span>
-                    </Show>
+                    <span className="alert-price">{alert.price}</span>
+                    {alert.note && <span className="alert-note">{alert.note}</span>}
                     <button
-                      class="alert-delete-btn"
+                      className="alert-delete-btn"
                       aria-label="Delete alert"
                       onClick={() => deleteAlert(alert.id)}>
                       ×
                     </button>
                   </li>
-                )}
-              </For>
-            </List>
-          </Show>
-        </Show>
+                ))}
+              </List>
+            </>
+          )}
+          </>
+        )}
 
-        <Show when={tab === 'history'}>
-          <Show
-            when={historyAlerts.length > 0}
-            fallback={<div class="alert-empty">{i18n('alert_no_history', props.locale)}</div>}>
-            <List class="astroneum-alert-modal-list">
-              <For each={historyAlerts}>
-                {alert => (
-                  <li class="alert-list-row alert-list-row--history">
-                    <span class={`alert-status-badge alert-status-${alert.status}`}>
+        {tab === 'history' && (
+          historyAlerts.length > 0
+            ? (
+              <List className="astroneum-alert-modal-list">
+                {historyAlerts.map(alert => (
+                  <li key={alert.id} className="alert-list-row alert-list-row--history">
+                    <span className={`alert-status-badge alert-status-${alert.status}`}>
                       {alert.status}
                     </span>
-                    <span class={`alert-cond-badge alert-cond-${alert.condition}`}>
+                    <span className={`alert-cond-badge alert-cond-${alert.condition}`}>
                       {conditionLabel(alert.condition, props.locale)}
                     </span>
-                    <span class="alert-price">{alert.price}</span>
-                    <Show when={alert.note}>
-                      <span class="alert-note">{alert.note}</span>
-                    </Show>
-                    <Show when={alert.triggeredAt}>
-                      <span class="alert-time">{new Date(alert.triggeredAt!).toLocaleString(props.locale)}</span>
-                    </Show>
+                    <span className="alert-price">{alert.price}</span>
+                    {alert.note && <span className="alert-note">{alert.note}</span>}
+                    {alert.triggeredAt && (
+                      <span className="alert-time">{new Date(alert.triggeredAt).toLocaleString(props.locale)}</span>
+                    )}
                     <button
-                      class="alert-reactivate-btn"
+                      className="alert-reactivate-btn"
                       aria-label="Re-activate alert"
                       onClick={() => reactivateAlert(alert.id)}
                       title={i18n('alert_reactivate', props.locale)}>
                       ↺
                     </button>
                     <button
-                      class="alert-delete-btn"
+                      className="alert-delete-btn"
                       aria-label="Delete alert"
                       onClick={() => deleteAlert(alert.id)}>
                       ×
                     </button>
                   </li>
-                )}
-              </For>
-            </List>
-          </Show>
-        </Show>
+                ))}
+              </List>
+            )
+            : <div className="alert-empty">{i18n('alert_no_history', props.locale)}</div>
+        )}
       </div>
     </Modal>
   )

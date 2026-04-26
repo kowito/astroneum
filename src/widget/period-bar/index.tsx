@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { type Component, Show } from '@/react-shared'
+import { type Component } from '@/react-shared'
 
 import { type SymbolInfo, type Period } from '@/types'
 
@@ -64,38 +64,36 @@ const PeriodBar: Component<PeriodBarProps> = props => {
       ref={el => { ref = el }}
       role="toolbar"
       aria-label="Chart toolbar"
-      class="astroneum-period-bar">
+      className="astroneum-period-bar">
       <div
-        class='menu-container'
+        className='menu-container'
         role="button"
         tabIndex={0}
         aria-label="Toggle menu"
         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onMenuClick() } }}>
         <svg
-          class={props.spread ? '' : 'rotate'}
+          className={props.spread ? '' : 'rotate'}
           viewBox="0 0 1024 1024"
           onClick={props.onMenuClick}>
           <path d="M192.037 287.953h640.124c17.673 0 32-14.327 32-32s-14.327-32-32-32H192.037c-17.673 0-32 14.327-32 32s14.327 32 32 32zM832.161 479.169H438.553c-17.673 0-32 14.327-32 32s14.327 32 32 32h393.608c17.673 0 32-14.327 32-32s-14.327-32-32-32zM832.161 735.802H192.037c-17.673 0-32 14.327-32 32s14.327 32 32 32h640.124c17.673 0 32-14.327 32-32s-14.327-32-32-32zM319.028 351.594l-160 160 160 160z"/>
         </svg>
       </div>
-      <Show when={props.symbol}>
+      {props.symbol && (
         <div
-          class="symbol"
+          className="symbol"
           role="button"
           tabIndex={0}
           aria-label={`Symbol: ${props.symbol?.shortName ?? props.symbol?.name ?? props.symbol?.ticker ?? ''}`}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onSymbolClick() } }}
           onClick={props.onSymbolClick}>
-          <Show when={props.symbol.logo}>
-            <img alt="symbol" src={props.symbol.logo}/>
-          </Show>
+          {props.symbol.logo && <img alt="symbol" src={props.symbol.logo}/>}
           <span>{props.symbol.shortName ?? props.symbol.name ?? props.symbol.ticker}</span>
         </div>
-      </Show>
+      )}
       {
         props.periods.map(p => (
           <span
-            class={`item period ${periodsEqual(p, props.period) ? 'selected' : ''}`}
+            className={`item period ${periodsEqual(p, props.period) ? 'selected' : ''}`}
             role="button"
             tabIndex={0}
             aria-pressed={periodsEqual(p, props.period)}
@@ -107,7 +105,7 @@ const PeriodBar: Component<PeriodBarProps> = props => {
         ))
       }
       <div
-        class='item tools'
+        className='item tools'
         role="button"
         tabIndex={0}
         aria-label={i18n('indicator', props.locale)}
@@ -119,7 +117,7 @@ const PeriodBar: Component<PeriodBarProps> = props => {
         <span>{i18n('indicator', props.locale)}</span>
       </div>
       <div
-        class='item tools'
+        className='item tools'
         role="button"
         tabIndex={0}
         aria-label={i18n('timezone', props.locale)}
@@ -133,7 +131,7 @@ const PeriodBar: Component<PeriodBarProps> = props => {
         <span>{i18n('timezone', props.locale)}</span>
       </div>
       <div
-        class='item tools'
+        className='item tools'
         role="button"
         tabIndex={0}
         aria-label={i18n('setting', props.locale)}
@@ -145,7 +143,7 @@ const PeriodBar: Component<PeriodBarProps> = props => {
         <span>{i18n('setting', props.locale)}</span>
       </div>
       <div
-        class='item tools'
+        className='item tools'
         role="button"
         tabIndex={0}
         aria-label={i18n('screenshot', props.locale)}
@@ -156,9 +154,9 @@ const PeriodBar: Component<PeriodBarProps> = props => {
         </svg>
         <span>{i18n('screenshot', props.locale)}</span>
       </div>
-      <Show when={props.onAlertClick}>
+      {props.onAlertClick && (
         <div
-          class='item tools'
+          className='item tools'
           role="button"
           tabIndex={0}
           aria-label={i18n('alerts', props.locale)}
@@ -169,9 +167,9 @@ const PeriodBar: Component<PeriodBarProps> = props => {
           </svg>
           <span>{i18n('alerts', props.locale)}</span>
         </div>
-      </Show>
+      )}
       <div
-        class='item tools'
+        className='item tools'
         onClick={() => {
           if (!fullScreen) {
             const el = ref?.parentElement

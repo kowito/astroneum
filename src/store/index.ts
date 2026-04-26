@@ -1,6 +1,6 @@
-export { createChartStore, type ChartStore, type ChartStoreInit } from './chartStore'
-export { createIndicatorStore, type IndicatorStore } from './indicatorStore'
+export { useChartStore, type ChartStore, type ChartStoreInit } from './chartStore'
+export { useIndicatorStore, type IndicatorStore } from './indicatorStore'
 export {
-  createUIStore, type UIStore,
+  useUIStore, type UIStore,
   type IndicatorSettingModalState, EMPTY_INDICATOR_SETTING
 } from './uiStore'

@@ -1,6 +1,7 @@
 import { startTransition, forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 
-import { Show } from '@/react-shared'
+import { useClockTick, useKeyboardShortcuts } from './hooks'
+
 
 import logoSvgRaw from '@/assets/logo.svg'
 
@@ -25,9 +26,9 @@ import { translateTimezone } from '@/widget/timezone-modal/data'
 
 import { type Period, type AstroneumOptions, type AstroneumHandle } from '@/types'
 
-import { createChartStore } from '@/store/chartStore'
-import { createIndicatorStore } from '@/store/indicatorStore'
-import { createUIStore, EMPTY_INDICATOR_SETTING, type LineStyleEntry } from '@/store/uiStore'
+import { useChartStore } from '@/store/chartStore'
+import { useIndicatorStore } from '@/store/indicatorStore'
+import { useUIStore, EMPTY_INDICATOR_SETTING, type LineStyleEntry } from '@/store/uiStore'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -162,7 +163,7 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
   const initialLocale = props.locale ?? 'en-US'
   const initialTimezone = props.timezone ?? 'Asia/Shanghai'
 
-  const chart = createChartStore({
+  const chart = useChartStore({
     theme: initialTheme,
     locale: initialLocale,
     symbol: props.symbol,
@@ -170,20 +171,15 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
     timezone: { key: initialTimezone, text: translateTimezone(initialTimezone, initialLocale) },
     styles: props.styles ?? {}
   })
-  const indicators = createIndicatorStore({ mainIndicators: props.mainIndicators ?? DEFAULT_MAIN_INDICATORS })
-  const ui = createUIStore({ drawingBarVisible: props.drawingBarVisible ?? true })
+  const indicators = useIndicatorStore({ mainIndicators: props.mainIndicators ?? DEFAULT_MAIN_INDICATORS })
+  const ui = useUIStore({ drawingBarVisible: props.drawingBarVisible ?? true })
   const [alertModalVisible, setAlertModalVisible] = useState(false)
   const [scriptEditorModalVisible, setScriptEditorModalVisible] = useState(false)
 
-  const [clockTime, setClockTime] = useState('')
-  const clockIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const _updateClock = (): void => {
-    const now = new Date()
-    setClockTime(
-      `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`
-    )
-  }
+  const clockTime = useClockTick()
+  useKeyboardShortcuts(widgetRef)
 
+  // chart.* getters are stable useCallback refs — stable identity, empty deps is intentional
   useImperativeHandle(ref, () => ({
     setTheme: chart.setTheme,
     getTheme: () => chart.theme(),
@@ -214,22 +210,7 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
       return
     }
 
-    _updateClock()
-    clockIntervalRef.current = setInterval(_updateClock, 1000)
     window.addEventListener('resize', documentResize)
-
-    // Keyboard shortcuts for drawing tools
-    const handleKeyDown = (keyboardEvent: KeyboardEvent): void => {
-      const tag = (document.activeElement as HTMLElement)?.tagName?.toLowerCase()
-      if (tag === 'input' || tag === 'textarea') return
-      if (keyboardEvent.key === 'Delete' || keyboardEvent.key === 'Backspace') {
-        widget?.removeOverlay()
-      } else if (keyboardEvent.key === 'Escape') {
-        widget?.overrideOverlay({ isDrawEnd: true } as never)
-        widget?.removeOverlay({ id: '' }) // deselect without removing
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown)
 
     const widget = init(widgetContainer, {
       formatter: {
@@ -270,13 +251,6 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
     widgetRef.current = widget
 
     const disposePlugins = widget ? mountChartPlugins(widget, props.plugins ?? []) : null
-
-    // Attach keyboard cleanup ref after widget is initialized
-    if (widget !== null) {
-      ;(widget as unknown as Record<string, unknown>).__keyCleanup = () => {
-        document.removeEventListener('keydown', handleKeyDown)
-      }
-    }
 
     if (widget) {
       const watermarkContainer = widget.getDom('candle_pane', 'main')
@@ -388,15 +362,8 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
     })
 
     return () => {
-      if (clockIntervalRef.current !== null) {
-        clearInterval(clockIntervalRef.current)
-        clockIntervalRef.current = null
-      }
       window.removeEventListener('resize', documentResize)
       snapperRef.current?.disable()
-      if (widget) {
-        (widget as unknown as { __keyCleanup?: () => void }).__keyCleanup?.()
-      }
       if (resizeFrameRef.current !== null) {
         cancelAnimationFrame(resizeFrameRef.current)
         resizeFrameRef.current = null
@@ -470,16 +437,16 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
   }, [styles])
 
   return (
-    <div class='astroneum' data-theme={theme}>
-      <i class="icon-close astroneum-load-icon"/>
-      <Show when={ui.symbolSearchModalVisible()}>
+    <div className='astroneum' data-theme={theme}>
+      <i className="icon-close astroneum-load-icon"/>
+      {ui.symbolSearchModalVisible() && (
         <SymbolSearchModal
           locale={locale}
           searchSymbols={props.datafeed.searchSymbols.bind(props.datafeed)}
           onSymbolSelected={s => { chart.setSymbol(s) }}
           onClose={() => { ui.setSymbolSearchModalVisible(false) }}/>
-      </Show>
-      <Show when={ui.indicatorModalVisible()}>
+      )}
+      {ui.indicatorModalVisible() && (
         <IndicatorModal
           locale={locale}
           mainIndicators={indicators.mainIndicators()}
@@ -511,16 +478,16 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
             }
             indicators.setSubIndicators(newSub)
           }}/>
-      </Show>
-      <Show when={ui.timezoneModalVisible()}>
+      )}
+      {ui.timezoneModalVisible() && (
         <TimezoneModal
           locale={locale}
           timezone={chart.timezone()}
           onClose={() => { ui.setTimezoneModalVisible(false) }}
           onConfirm={chart.setTimezone}
         />
-      </Show>
-      <Show when={ui.settingModalVisible()}>
+      )}
+      {ui.settingModalVisible() && (
         <SettingModal
           locale={locale}
           currentStyles={utils.clone(widgetRef.current!.getStyles())}
@@ -537,15 +504,15 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
             widgetRef.current?.setStyles(style)
           }}
         />
-      </Show>
-      <Show when={ui.screenshotUrl().length > 0}>
+      )}
+      {ui.screenshotUrl().length > 0 && (
         <ScreenshotModal
           locale={locale}
           url={ui.screenshotUrl()}
           onClose={() => { ui.setScreenshotUrl('') }}
         />
-      </Show>
-      <Show when={ui.indicatorSettingModalParams().visible}>
+      )}
+      {ui.indicatorSettingModalParams().visible && (
         <IndicatorSettingModal
           locale={locale}
           params={ui.indicatorSettingModalParams()}
@@ -560,21 +527,21 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
             })
           }}
         />
-      </Show>
-      <Show when={alertModalVisible}>
+      )}
+      {alertModalVisible && (
         <AlertModal
           locale={locale}
           symbol={chart.symbol().ticker}
           onClose={() => { setAlertModalVisible(false) }}/>
-      </Show>
-      <Show when={scriptEditorModalVisible}>
+      )}
+      {scriptEditorModalVisible && (
         <ScriptEditorModal
           locale={locale}
           onCompiled={indicatorName => {
             createIndicator(widgetRef.current, { name: indicatorName }, false)
           }}
           onClose={() => { setScriptEditorModalVisible(false) }}/>
-      </Show>
+      )}
       <PeriodBar
         locale={locale}
         symbol={chart.symbol()}
@@ -585,7 +552,9 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
           startTransition(() => {
             ui.setDrawingBarVisible(v => !v)
           })
-          requestAnimationFrame(() => {
+          if (resizeFrameRef.current !== null) cancelAnimationFrame(resizeFrameRef.current)
+          resizeFrameRef.current = requestAnimationFrame(() => {
+            resizeFrameRef.current = null
             widgetRef.current?.resize()
           })
         }}
@@ -597,16 +566,14 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
         onAlertClick={() => { setAlertModalVisible(v => !v) }}
         onScreenshotClick={() => {
           if (widgetRef.current) {
-            const url = widgetRef.current.getConvertPictureUrl(true, 'jpeg', props.theme === 'dark' ? '#151517' : '#ffffff')
+            const url = widgetRef.current.getConvertPictureUrl(true, 'jpeg', theme === 'dark' ? '#151517' : '#ffffff')
             ui.setScreenshotUrl(url)
           }
         }}
       />
-      <div class="astroneum-content">
-        <Show when={ui.loadingVisible()}>
-          <Loading/>
-        </Show>
-        <Show when={ui.drawingBarVisible()}>
+      <div className="astroneum-content">
+        {ui.loadingVisible() && <Loading/>}
+        {ui.drawingBarVisible() && (
           <DrawingBar
             locale={locale}
             onDrawingItemClick={overlay => { widgetRef.current?.createOverlay(overlay) }}
@@ -626,16 +593,17 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
                 snapperRef.current.disable()
               }
             }}/>
-        </Show>
+        )}
         <div
           ref={(el) => {
             widgetContainerRef.current = el
           }}
-          class='astroneum-widget'
+          className='astroneum-widget'
           data-drawing-bar-visible={ui.drawingBarVisible()}/>
-        <div class='astroneum-clock' aria-hidden='true'>{clockTime}</div>
+        <div className='astroneum-clock' aria-hidden='true'>{clockTime}</div>
       </div>
     </div>
   )
 })
+AstroneumChart.displayName = 'AstroneumChart'
 export default AstroneumChart

@@ -1,9 +1,9 @@
 import { useState } from 'react'
 
-import { type JSX, type Component, mergeProps, Show } from '@/react-shared'
+import { type JSX, type Component } from '@/react-shared'
 
 export interface InputProps {
-  class?: string
+  className?: string
   style?: JSX.CSSProperties
   prefix?: JSX.Element
   suffix?: JSX.Element
@@ -17,7 +17,7 @@ export interface InputProps {
 }
 
 const Input: Component<InputProps> = p => {
-  const props = mergeProps({ min: Number.MIN_SAFE_INTEGER, max: Number.MAX_SAFE_INTEGER }, p)
+  const props = { min: Number.MIN_SAFE_INTEGER, max: Number.MAX_SAFE_INTEGER, ...p }
   let input: HTMLInputElement
 
   const [status, setStatus] = useState('normal')
@@ -25,12 +25,12 @@ const Input: Component<InputProps> = p => {
   return (
     <div
       style={props.style}
-      class={`astroneum-input control ${props.prefix ? 'has-icons-left' : ''} ${props.suffix ? 'has-icons-right' : ''} ${props.class ?? ''}`}
+      className={`astroneum-input control ${props.prefix ? 'has-icons-left' : ''} ${props.suffix ? 'has-icons-right' : ''} ${props.className ?? ''}`}
       data-status={status}
       onClick={() => { input?.focus() }}>
       <input
         ref={(el) => { input = el }}
-        class="input is-small"
+        className="input is-small"
         placeholder={props.placeholder ?? ''}
         value={props.value}
         onFocus={() => { setStatus('focus') }}
@@ -52,12 +52,8 @@ const Input: Component<InputProps> = p => {
             props.onChange?.(inputValue)
           }
         }}/>
-      <Show when={props.prefix}>
-        <span class="icon is-small is-left">{props.prefix}</span>
-      </Show>
-      <Show when={props.suffix}>
-        <span class="icon is-small is-right">{props.suffix}</span>
-      </Show>
+      {props.prefix && <span className="icon is-small is-left">{props.prefix}</span>}
+      {props.suffix && <span className="icon is-small is-right">{props.suffix}</span>}
     </div>
   )
 }

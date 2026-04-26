@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react'
-
-import { For, Show } from '@/react-shared'
+import React, { useEffect, useState } from 'react'
 
 import i18n from '@/i18n'
 import WatchlistManager, { type Watchlist } from '@/chart/WatchlistManager'
@@ -51,74 +49,71 @@ const WatchlistPanel = (props: WatchlistProps) => {
   }
 
   return (
-    <div class="astroneum-watchlist" role="region" aria-label={i18n('watchlist', props.locale)}>
-      <div class="watchlist-header">
-        <span class="watchlist-title">{i18n('watchlist', props.locale)}</span>
-        <button class="watchlist-add-list-btn" onClick={addList} title={i18n('watchlist_add_list', props.locale)} aria-label={i18n('watchlist_add_list', props.locale)}>+</button>
+    <div className="astroneum-watchlist" role="region" aria-label={i18n('watchlist', props.locale)}>
+      <div className="watchlist-header">
+        <span className="watchlist-title">{i18n('watchlist', props.locale)}</span>
+        <button className="watchlist-add-list-btn" onClick={addList} title={i18n('watchlist_add_list', props.locale)} aria-label={i18n('watchlist_add_list', props.locale)}>+</button>
       </div>
 
-      <For each={lists}>
-        {list => (
-          <div class="watchlist-group">
-            <div class="watchlist-group-header" onClick={() => { toggleList(list.id) }}>
-              <span class={`watchlist-arrow ${expandedId === list.id ? 'expanded' : ''}`}>▶</span>
-              <Show
-                when={editing !== list.id}
-                fallback={
-                  <input
-                    class="watchlist-rename-input"
-                    value={editValue}
-                    onInput={e => { setEditValue((e.target).value) }}
-                    onBlur={() => { commitRename(list.id) }}
-                    onKeyDown={e => { if (e.key === 'Enter') commitRename(list.id) }}
-                    onClick={e => { e.stopPropagation() }}
-                    autofocus
-                  />
-                }>
-                <span class="watchlist-group-name" onDblClick={e => { e.stopPropagation(); startRename(list) }}>
+      {lists.map(list => (
+        <div key={list.id} className="watchlist-group">
+          <div className="watchlist-group-header" onClick={() => { toggleList(list.id) }}>
+            <span className={`watchlist-arrow ${expandedId === list.id ? 'expanded' : ''}`}>▶</span>
+            {editing !== list.id
+              ? (
+                <span className="watchlist-group-name" onDoubleClick={(e: React.MouseEvent) => { e.stopPropagation(); startRename(list) }}>
                   {list.name}
                 </span>
-              </Show>
-              <button
-                class="watchlist-delete-list-btn"
-                onClick={e => { e.stopPropagation(); manager.deleteList(list.id) }}
-                title={i18n('watchlist_delete_list', props.locale)}
-                aria-label={i18n('watchlist_delete_list', props.locale)}>✕</button>
-            </div>
-
-            <Show when={expandedId === list.id}>
-              <div class="watchlist-symbols">
-                <For each={list.symbols}>
-                  {(symbol, _index) => (
-                    <div class="watchlist-symbol-row" onClick={() => { props.onSymbolSelect?.(symbol.ticker) }}>
-                      <span class="watchlist-symbol-ticker">{symbol.ticker}</span>
-                      <span class="watchlist-symbol-name">{symbol.name ?? ''}</span>
-                      <button
-                        class="watchlist-remove-symbol-btn"
-                        onClick={e => { e.stopPropagation(); manager.removeSymbol(list.id, symbol.ticker) }}
-                        title={i18n('watchlist_remove_symbol', props.locale)}
-                        aria-label={i18n('watchlist_remove_symbol', props.locale)}>✕</button>
-                    </div>
-                  )}
-                </For>
-
-                <div class="watchlist-add-symbol">
-                  <input
-                    class="watchlist-add-symbol-input"
-                    placeholder={i18n('watchlist_enter_symbol', props.locale)}
-                    value={addSymbolValue}
-                    onInput={e => { setAddSymbolValue((e.target).value) }}
-                    onKeyDown={e => { if (e.key === 'Enter') addSymbol(list.id) }}
-                  />
-                  <button class="watchlist-add-symbol-btn" onClick={() => { addSymbol(list.id) }}>
-                    {i18n('watchlist_add_symbol', props.locale)}
-                  </button>
-                </div>
-              </div>
-            </Show>
+              )
+              : (
+                <input
+                  className="watchlist-rename-input"
+                  value={editValue}
+                  onInput={e => { setEditValue((e.target).value) }}
+                  onBlur={() => { commitRename(list.id) }}
+                  onKeyDown={e => { if (e.key === 'Enter') commitRename(list.id) }}
+                  onClick={e => { e.stopPropagation() }}
+                  autoFocus
+                />
+              )
+            }
+            <button
+              className="watchlist-delete-list-btn"
+              onClick={e => { e.stopPropagation(); manager.deleteList(list.id) }}
+              title={i18n('watchlist_delete_list', props.locale)}
+              aria-label={i18n('watchlist_delete_list', props.locale)}>✕</button>
           </div>
-        )}
-      </For>
+
+          {expandedId === list.id && (
+            <div className="watchlist-symbols">
+              {list.symbols.map(symbol => (
+                <div key={symbol.ticker} className="watchlist-symbol-row" onClick={() => { props.onSymbolSelect?.(symbol.ticker) }}>
+                  <span className="watchlist-symbol-ticker">{symbol.ticker}</span>
+                  <span className="watchlist-symbol-name">{symbol.name ?? ''}</span>
+                  <button
+                    className="watchlist-remove-symbol-btn"
+                    onClick={e => { e.stopPropagation(); manager.removeSymbol(list.id, symbol.ticker) }}
+                    title={i18n('watchlist_remove_symbol', props.locale)}
+                    aria-label={i18n('watchlist_remove_symbol', props.locale)}>✕</button>
+                </div>
+              ))}
+
+              <div className="watchlist-add-symbol">
+                <input
+                  className="watchlist-add-symbol-input"
+                  placeholder={i18n('watchlist_enter_symbol', props.locale)}
+                  value={addSymbolValue}
+                  onInput={e => { setAddSymbolValue((e.target).value) }}
+                  onKeyDown={e => { if (e.key === 'Enter') addSymbol(list.id) }}
+                />
+                <button className="watchlist-add-symbol-btn" onClick={() => { addSymbol(list.id) }}>
+                  {i18n('watchlist_add_symbol', props.locale)}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   )
 }

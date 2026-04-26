@@ -8,7 +8,7 @@ export interface SelectDataSourceItem {
 }
 
 export interface SelectProps {
-  class?: string
+  className?: string
   style?: JSX.CSSProperties | string
   value?: JSX.Element
   valueKey?: string
@@ -22,19 +22,19 @@ const Select: Component<SelectProps> = props => {
   return (
     <div
       style={props.style}
-      class={`astroneum-select ${props.class ?? ''} ${open ? 'astroneum-select-show' : ''}`}
+      className={`astroneum-select ${props.className ?? ''} ${open ? 'astroneum-select-show' : ''}`}
       tabIndex="0"
       onClick={_ => { setOpen(o => !o) }}
       onBlur={_ => { setOpen(false) }}>
       <div
-        class="selector-container">
-        <span class="value">{props.value}</span>
-        <i class="arrow"/>
+        className="selector-container">
+        <span className="value">{props.value}</span>
+        <i className="arrow"/>
       </div>
       {
         (props.dataSource && props.dataSource.length > 0) &&
         <div
-          class="drop-down-container">
+          className="drop-down-container">
           <ul>
             {
               props.dataSource.map(data => {

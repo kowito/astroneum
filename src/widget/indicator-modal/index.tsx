@@ -30,8 +30,8 @@ const IndicatorModal: Component<IndicatorModalProps> = props => {
       width={400}
       onClose={props.onClose}>
       <List
-        class="astroneum-indicator-modal-list">
-        <li class="title">{i18n('main_indicator', props.locale)}</li>
+        className="astroneum-indicator-modal-list">
+        <li className="title">{i18n('main_indicator', props.locale)}</li>
         {
           [
             'MA', 'EMA', 'SMA', 'BOLL', 'SAR', 'BBI'
@@ -39,7 +39,7 @@ const IndicatorModal: Component<IndicatorModalProps> = props => {
             const checked = props.mainIndicators.some(i => i.name === name)
             return (
               <li
-                class="row"                role="checkbox"
+                className="row"                role="checkbox"
                 aria-checked={checked}
                 tabIndex={0}
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onMainIndicatorChange({ name, paneId: 'candle_pane', added: !checked }) } }}                onClick={_ => {
@@ -50,7 +50,7 @@ const IndicatorModal: Component<IndicatorModalProps> = props => {
             )
           })
         }
-        <li class="title">{i18n('sub_indicator', props.locale)}</li>
+        <li className="title">{i18n('sub_indicator', props.locale)}</li>
         {
           [
             'MA', 'EMA', 'VOL', 'MACD', 'BOLL', 'KDJ',
@@ -62,7 +62,7 @@ const IndicatorModal: Component<IndicatorModalProps> = props => {
             const checked = name in props.subIndicators
             return (
               <li
-                class="row"
+                className="row"
                 role="checkbox"
                 aria-checked={checked}
                 tabIndex={0}

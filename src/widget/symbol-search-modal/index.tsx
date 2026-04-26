@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { type Component, Show } from '@/react-shared'
+import { type Component } from '@/react-shared'
 
 import { Modal, List, Input } from '@/component'
 
@@ -52,7 +52,7 @@ const SymbolSearchModal: Component<SymbolSearchModalProps> = props => {
       width={460}
       onClose={props.onClose}>
       <Input
-        class="astroneum-symbol-search-modal-input"
+        className="astroneum-symbol-search-modal-input"
         placeholder={i18n('symbol_code', props.locale)}
         suffix={
           <svg viewBox="0 0 1024 1024">
@@ -65,7 +65,7 @@ const SymbolSearchModal: Component<SymbolSearchModalProps> = props => {
           setValue(va)
         }}/>
       <List
-        class="astroneum-symbol-search-modal-list"
+        className="astroneum-symbol-search-modal-list"
         loading={loading}
         dataSource={symbolList}
         renderItem={(symbol: SymbolInfo) => (
@@ -85,9 +85,7 @@ const SymbolSearchModal: Component<SymbolSearchModalProps> = props => {
               props.onClose()
             }}>
             <div>
-              <Show when={symbol.logo}>
-                <img alt="symbol" src={symbol.logo}/>
-              </Show>
+              {symbol.logo && <img alt="symbol" src={symbol.logo}/>}
               <span title={symbol.name ?? ''}>{symbol.shortName ?? symbol.ticker}{`${symbol.name ? `(${symbol.name})` : ''}`}</span>
             </div>
             {symbol.exchange ?? ''}
