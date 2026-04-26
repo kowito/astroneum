@@ -107,6 +107,9 @@ export default class Event implements EventHandler {
       treatHorzDragAsPageScroll: () => false
     })
     container.addEventListener('keydown', this._boundKeyBoardDownEvent)
+    // Also listen on window so Escape cancels in-progress drawings even when
+    // focus is on the drawing-bar button or other UI elements.
+    window.addEventListener('keydown', this._boundKeyBoardDownEvent)
   }
 
   pinchStartEvent (): boolean {
@@ -714,6 +717,7 @@ export default class Event implements EventHandler {
 
   destroy (): void {
     this._container.removeEventListener('keydown', this._boundKeyBoardDownEvent)
+    window.removeEventListener('keydown', this._boundKeyBoardDownEvent)
     this._event.destroy()
   }
 }

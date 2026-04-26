@@ -745,7 +745,10 @@ function getDefaultOverlayStyle (): OverlayStyle {
     },
     polygon: {
       style: 'fill',
-      color: Color.BLUE,
+      // Default to a translucent fill so any accidentally drawn polygon
+      // overlay (e.g. user double-clicks the drawing bar) does not paint
+      // the entire chart pane in solid bright blue.
+      color: alphaBg,
       borderColor: Color.BLUE,
       borderSize: 1,
       borderStyle: 'solid',
