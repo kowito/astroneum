@@ -26,6 +26,9 @@ import { type SharedIndicatorGLCanvas } from './SharedIndicatorGLCanvas'
 const BYTES_PER_RECT = 20
 const COLOR_BYTE_OFF = 16   // byte offset of color field
 const VERTS_PER_RECT = 6    // two triangles, no index buffer
+const FNV_OFFSET_BASIS = 2166136261
+const FNV_PRIME = 16777619
+const FINGERPRINT_SCALE = 1024
 
 // ---------------------------------------------------------------------------
 // Vertex shader — unit-quad expansion via gl_VertexID
@@ -182,15 +185,15 @@ export class IndicatorRectWebGLRenderer {
   private _stagingU8:  Uint8Array   = new Uint8Array(this._stagingBuf)
 
   private readonly _colorCache = new Map<string, readonly [number, number, number, number]>()
+  private readonly _colorHashCache = new Map<string, number>()
 
   // ---------------------------------------------------------------------------
-  // Dirty-flag fingerprint (O(1) — avoids full staging+upload on unchanged frames)
+  // Dirty-flag fingerprint (computed during the existing culling pass).
+  // Keeps upload-skip cheap while still detecting zoom-driven width/height
+  // and y-scale changes that can keep first/last x/y unchanged.
   // ---------------------------------------------------------------------------
   private _fingerprintRectCount = -1
-  private _fingerprintFirstX = 0
-  private _fingerprintFirstY = 0
-  private _fingerprintLastX = 0
-  private _fingerprintLastY = 0
+  private _fingerprintHash = 0
 
   // Sub-pixel culling reuse buffer — grows amortised, never shrinks.
   private readonly _culledBuf: RectInstanceData[] = []
@@ -301,6 +304,26 @@ export class IndicatorRectWebGLRenderer {
     return cachedColor
   }
 
+  private _mixHash (hash: number, value: number): number {
+    return Math.imul(hash ^ value, FNV_PRIME) >>> 0
+  }
+
+  private _hashQuantized (value: number): number {
+    return Math.round(value * FINGERPRINT_SCALE) | 0
+  }
+
+  private _hashColorCached (color: string): number {
+    let colorHash = this._colorHashCache.get(color)
+    if (colorHash === undefined) {
+      colorHash = FNV_OFFSET_BASIS
+      for (let i = 0; i < color.length; i++) {
+        colorHash = this._mixHash(colorHash, color.charCodeAt(i))
+      }
+      this._colorHashCache.set(color, colorHash)
+    }
+    return colorHash
+  }
+
   /**
    * Upload all rect instances for this frame.
    * Sub-pixel culling: rects narrower than 0.5 CSS pixel or shorter than
@@ -313,11 +336,17 @@ export class IndicatorRectWebGLRenderer {
     // Sub-pixel culling pass — compact visible rects into the reused buffer
     const culledBuf = this._culledBuf
     let culledCount = 0
+    let geometryHash = FNV_OFFSET_BASIS
     for (let i = 0; i < rects.length; i++) {
       const r = rects[i]
       if (r.width < 0.5 || r.height < 0.5) continue
       if (culledCount >= culledBuf.length) culledBuf.push(r)
       else culledBuf[culledCount] = r
+      geometryHash = this._mixHash(geometryHash, this._hashQuantized(r.x))
+      geometryHash = this._mixHash(geometryHash, this._hashQuantized(r.y))
+      geometryHash = this._mixHash(geometryHash, this._hashQuantized(r.width))
+      geometryHash = this._mixHash(geometryHash, this._hashQuantized(r.height))
+      geometryHash = this._mixHash(geometryHash, this._hashColorCached(r.color))
       culledCount++
     }
     const rectCount = culledCount
@@ -325,25 +354,17 @@ export class IndicatorRectWebGLRenderer {
     if (rectCount === 0) {
       if (this._fingerprintRectCount !== 0) this._vboVersion++   // canvas must be cleared
       this._fingerprintRectCount = 0
+      this._fingerprintHash = 0
       return
     }
 
-    // O(1) fingerprint — first/last rect corners detect pan + zoom + new-tick
-    const firstRect = culledBuf[0]
-    const lastRect  = culledBuf[culledCount - 1]
     if (
       rectCount      === this._fingerprintRectCount &&
-      firstRect.x    === this._fingerprintFirstX    &&
-      firstRect.y    === this._fingerprintFirstY    &&
-      lastRect.x     === this._fingerprintLastX     &&
-      lastRect.y     === this._fingerprintLastY
+      geometryHash   === this._fingerprintHash
     ) return
 
     this._fingerprintRectCount = rectCount
-    this._fingerprintFirstX = firstRect.x
-    this._fingerprintFirstY = firstRect.y
-    this._fingerprintLastX = lastRect.x
-    this._fingerprintLastY = lastRect.y
+    this._fingerprintHash = geometryHash
 
     this._ensureCapacity(rectCount)
 

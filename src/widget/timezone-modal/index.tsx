@@ -35,7 +35,7 @@ const TimezoneModal: Component<TimezoneModalProps> = props => {
       ]}
       onClose={props.onClose}>
       <Select
-        style={{ width: '100%', 'margin-top': '20px' }}
+        style={{ width: '100%', marginTop: '20px' }}
         value={innerTimezone.text}
         onSelected={(tz) => { setInnerTimezone(tz as SelectDataSourceItem) }}
         dataSource={timezoneOptions}/>

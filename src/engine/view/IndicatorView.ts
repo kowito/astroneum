@@ -140,6 +140,19 @@ export default class IndicatorView extends CandleBarView {
     const indicators = chartStore.getIndicatorsByPaneId(pane.getId())
     const defaultStyles = chartStore.getStyles().indicator
 
+    const hasVolumeIndicator = indicators.some(indicator => indicator.visible && indicator.series === 'volume')
+    if (hasVolumeIndicator) {
+      // Restore a subtle pane backdrop gradient behind VOL bars.
+      const gradient = ctx.createLinearGradient(0, bounding.height, 0, 0)
+      gradient.addColorStop(0, 'rgba(46, 116, 255, 0.24)')
+      gradient.addColorStop(0.45, 'rgba(46, 116, 255, 0.08)')
+      gradient.addColorStop(1, 'rgba(46, 116, 255, 0)')
+      ctx.save()
+      ctx.fillStyle = gradient
+      ctx.fillRect(0, 0, bounding.width, bounding.height)
+      ctx.restore()
+    }
+
     // Accumulate GPU-eligible (solid, non-smooth) line segments from ALL indicators
     // so they can be flushed in a single instanced draw call after the Canvas2D pass.
     // NOTE: indicators with zLevel < 0 use 'destination-over' blending which cannot
@@ -319,6 +332,7 @@ export default class IndicatorView extends CandleBarView {
                 if (isValid<IndicatorFigureAttrs>(attrs) && type !== 'line') {
                   if (
                     indicator.zLevel >= 0 &&
+                    indicator.series !== 'volume' &&
                     (type === 'rect' || type === 'bar') &&
                     isGpuRectEligible(figureStyles)
                   ) {
@@ -461,6 +475,14 @@ export default class IndicatorView extends CandleBarView {
     if (activeShared !== null) {
       // Resize shared canvas once — idempotent, increments sizeVersion if changed.
       activeShared.resize(width, height)
+
+      // If this pane has no GPU indicator payload in the current frame,
+      // still clear the shared layer to avoid stale artifacts from previous
+      // frames when the renderer path changes (e.g., volume bars on Canvas2D).
+      if (!hasGpuIndicators) {
+        activeShared.beginFrame()
+        return
+      }
 
       // Obtain renderers — create only when there is actual GPU work to do;
       // otherwise use cached instances so clean frames can still skip the draw.

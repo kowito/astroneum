@@ -75,9 +75,9 @@ const Modal: ParentComponent<ModalProps> = (props) => {
             <footer
               className="modal-card-foot">
               {
-                props.buttons.map(button => {
+                props.buttons.map((button, index) => {
                   return (
-                    <Button {...button}>
+                    <Button key={`modal-button-${index}`} {...button}>
                       {button.children}
                     </Button>
                   )

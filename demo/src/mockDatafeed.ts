@@ -81,6 +81,14 @@ function generateBars(ticker: string, period: Period, from: number, to: number):
 }
 
 const _timers = new Map<string, ReturnType<typeof setInterval>>()
+const _lastHistoryClose = new Map<string, number>()
+
+interface StreamState {
+  barTs: number
+  bar: CandleData
+}
+
+const _streamState = new Map<string, StreamState>()
 
 function tickKey(symbol: SymbolInfo, period: Period) {
   return `${symbol.ticker}::${period.text}`
@@ -99,7 +107,11 @@ const MockDatafeed: Datafeed = {
   },
 
   getHistoryData(symbol, period, from, to) {
-    return Promise.resolve(generateBars(symbol.ticker, period, from, to))
+    const bars = generateBars(symbol.ticker, period, from, to)
+    if (bars.length > 0) {
+      _lastHistoryClose.set(tickKey(symbol, period), bars[bars.length - 1].close)
+    }
+    return Promise.resolve(bars)
   },
 
   subscribe(symbol, period, callback: DatafeedSubscribeCallback) {
@@ -107,24 +119,58 @@ const MockDatafeed: Datafeed = {
     if (_timers.has(key)) return
 
     const step = periodMs(period)
-    const intervalMs = Math.min(step, 1000)
+    const intervalMs = Math.min(step, 200)
+    const base = SYMBOL_BASE[symbol.ticker] ?? 100
+
+    const createBar = (barTs: number, open: number): CandleData => ({
+      timestamp: barTs,
+      open,
+      high: open,
+      low: open,
+      close: open,
+      volume: 0,
+      turnover: 0,
+    })
 
     const timer = setInterval(() => {
       const now = Date.now()
       const barTs = Math.floor(now / step) * step
-      const base = SYMBOL_BASE[symbol.ticker] ?? 100
-      const noise = (Math.random() - 0.5) * base * 0.004
-      const price = base + noise
+      let state = _streamState.get(key)
+
+      if (state === undefined) {
+        const seedPrice = _lastHistoryClose.get(key) ?? base
+        state = { barTs, bar: createBar(barTs, seedPrice) }
+        _streamState.set(key, state)
+      }
+
+      if (state.barTs !== barTs) {
+        const nextOpen = state.bar.close
+        state = { barTs, bar: createBar(barTs, nextOpen) }
+        _streamState.set(key, state)
+      }
+
+      // Keep intra-bar ticks realistic: gentle mean reversion toward bar open
+      // plus bounded micro-noise, instead of hard pull to a static base price.
+      const priceScale = Math.max(state.bar.open, base, 1)
+      const pullToOpen = (state.bar.open - state.bar.close) * 0.01
+      const noise = (Math.random() - 0.5) * priceScale * 0.0006
+      const rawDelta = pullToOpen + noise
+      const maxStep = priceScale * 0.0015
+      const boundedDelta = Math.max(-maxStep, Math.min(maxStep, rawDelta))
+      const nextClose = Math.max(priceScale * 0.02, state.bar.close + boundedDelta)
+      const tradeVolume = base * (0.005 + Math.random() * 0.015)
 
       const tick: CandleData = {
-        timestamp: barTs,
-        open: price - Math.abs(noise) * 0.3,
-        high: price + Math.abs(noise) * 0.8,
-        low: price - Math.abs(noise) * 0.8,
-        close: price,
-        volume: base * (0.5 + Math.random()) * 10,
-        turnover: base * base * (0.5 + Math.random()),
+        timestamp: state.barTs,
+        open: state.bar.open,
+        high: Math.max(state.bar.high, nextClose),
+        low: Math.min(state.bar.low, nextClose),
+        close: nextClose,
+        volume: (state.bar.volume ?? 0) + tradeVolume,
+        turnover: (state.bar.turnover ?? 0) + tradeVolume * nextClose,
       }
+
+      state.bar = tick
       callback(tick)
     }, intervalMs)
 
@@ -138,6 +184,7 @@ const MockDatafeed: Datafeed = {
       clearInterval(timer)
       _timers.delete(key)
     }
+    _streamState.delete(key)
   },
 }
 

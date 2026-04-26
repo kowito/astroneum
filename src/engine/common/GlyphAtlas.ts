@@ -14,10 +14,12 @@ export const GLYPH_CHARSET =
 
 /**
  * Rasterisation over-sample factor.
- * 2× gives crisp sub-pixel rendering at DPR ≤ 2. For DPR 3 the glyph is
- * upscaled ×1.5 — still acceptable with LINEAR texture filtering.
+ * Uses the actual device pixel ratio (min 2) so glyphs are always 1:1
+ * with physical pixels on any display density.
  */
-const RENDER_SCALE = 2
+function getRenderScale (): number {
+  return Math.max(Math.ceil(typeof window !== 'undefined' ? (window.devicePixelRatio ?? 2) : 2), 2)
+}
 
 export interface GlyphMetrics {
   /** Left UV coordinate (0–1) in the atlas texture. */
@@ -59,6 +61,7 @@ export class GlyphAtlas {
   build (gl: WebGL2RenderingContext): void {
     if (this._texture !== null) return
 
+    const RENDER_SCALE = getRenderScale()
     const chars = Array.from(new Set(GLYPH_CHARSET))
 
     // Measure each glyph at the render-scale font size.

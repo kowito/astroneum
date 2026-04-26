@@ -70,6 +70,7 @@ const SymbolSearchModal: Component<SymbolSearchModalProps> = props => {
         dataSource={symbolList}
         renderItem={(symbol: SymbolInfo) => (
           <li
+            key={symbol.ticker}
             role="option"
             tabIndex={0}
             aria-label={`${symbol.shortName ?? symbol.ticker}${symbol.name ? ` (${symbol.name})` : ''}`}

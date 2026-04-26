@@ -43,6 +43,7 @@ const Select: Component<SelectProps> = props => {
                 const displayValue = selectedItem[props.valueKey ?? 'text'] ?? data
                 return (
                   <li
+                    key={selectedItem.key ?? displayValue}
                     onClick={clickEvent => {
                       clickEvent.stopPropagation()
                       if (props.value !== displayValue) {

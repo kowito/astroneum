@@ -39,6 +39,7 @@ const IndicatorModal: Component<IndicatorModalProps> = props => {
             const checked = props.mainIndicators.some(i => i.name === name)
             return (
               <li
+                key={name}
                 className="row"                role="checkbox"
                 aria-checked={checked}
                 tabIndex={0}
@@ -62,6 +63,7 @@ const IndicatorModal: Component<IndicatorModalProps> = props => {
             const checked = name in props.subIndicators
             return (
               <li
+                key={name}
                 className="row"
                 role="checkbox"
                 aria-checked={checked}

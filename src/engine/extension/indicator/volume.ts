@@ -14,12 +14,33 @@ interface Vol {
   ma3?: number
 }
 
+function toOpaqueColor (color: string): string {
+  const rgbaMatch = color.match(/^rgba\(([^)]+)\)$/i)
+  if (rgbaMatch === null) return color
+  const channels = rgbaMatch[1].split(',').map(v => v.trim())
+  if (channels.length < 3) return color
+  return `rgba(${channels[0]}, ${channels[1]}, ${channels[2]}, 1)`
+}
+
 function getVolumeFigure (): IndicatorFigure<Vol> {
   return {
     key: 'volume',
     title: 'VOLUME: ',
     type: 'bar',
     baseValue: 0,
+    attrs: ({ coordinate, barSpace, yAxis }) => {
+      const valueY = coordinate.current.volume
+      if (!isValid(valueY)) return null
+
+      // Match candlestick body width calculation for visual alignment.
+      const correction = barSpace.gapBar % 2 === 0 ? 1 : 0
+      const baselineY = yAxis.convertToPixel(yAxis.getRange().from)
+      const x = coordinate.current.x - barSpace.halfGapBar
+      const width = barSpace.gapBar + correction
+      const y = Math.min(valueY, baselineY)
+      const height = Math.max(1, Math.abs(baselineY - valueY))
+      return { x, y, width, height }
+    },
     styles: ({ data, indicator, defaultStyles }) => {
       const current = data.current
       let color = formatValue(indicator.styles, 'bars[0].noChangeColor', (defaultStyles!.bars)[0].noChangeColor)
@@ -30,7 +51,7 @@ function getVolumeFigure (): IndicatorFigure<Vol> {
           color = formatValue(indicator.styles, 'bars[0].downColor', (defaultStyles!.bars)[0].downColor)
         }
       }
-      return { color: color as string }
+      return { color: toOpaqueColor(color as string) }
     }
   }
 }

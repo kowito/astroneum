@@ -1,8 +1,15 @@
 'use client'
 
 import 'astroneum/style.css'
-import { useRef, useState, useCallback } from 'react'
-import { AstroneumChart, type AstroneumHandle, type SymbolInfo, type Period } from 'astroneum'
+import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
+import {
+  AstroneumChart,
+  DefaultDatafeed,
+  type AstroneumHandle,
+  type Datafeed,
+  type SymbolInfo,
+  type Period
+} from 'astroneum'
 import MockDatafeed, { MOCK_SYMBOLS } from '@/mockDatafeed'
 
 const PERIODS: Period[] = [
@@ -14,6 +21,19 @@ const PERIODS: Period[] = [
   { multiplier: 1, timespan: 'day', text: 'D' },
   { multiplier: 1, timespan: 'week', text: 'W' },
 ]
+
+type DataSourceMode = 'online' | 'local'
+
+const ONLINE_SYMBOLS: SymbolInfo[] = [
+  { ticker: 'X:BTCUSD', name: 'Bitcoin / US Dollar', shortName: 'BTCUSD', exchange: 'POLYGON', market: 'crypto', pricePrecision: 2, volumePrecision: 6, priceCurrency: 'USD', type: 'crypto' },
+  { ticker: 'X:ETHUSD', name: 'Ethereum / US Dollar', shortName: 'ETHUSD', exchange: 'POLYGON', market: 'crypto', pricePrecision: 2, volumePrecision: 4, priceCurrency: 'USD', type: 'crypto' },
+  { ticker: 'X:SOLUSD', name: 'Solana / US Dollar', shortName: 'SOLUSD', exchange: 'POLYGON', market: 'crypto', pricePrecision: 3, volumePrecision: 2, priceCurrency: 'USD', type: 'crypto' },
+  { ticker: 'AAPL', name: 'Apple Inc.', shortName: 'AAPL', exchange: 'NASDAQ', market: 'stocks', pricePrecision: 2, volumePrecision: 0, priceCurrency: 'USD', type: 'stock' },
+  { ticker: 'TSLA', name: 'Tesla Inc.', shortName: 'TSLA', exchange: 'NASDAQ', market: 'stocks', pricePrecision: 2, volumePrecision: 0, priceCurrency: 'USD', type: 'stock' },
+  { ticker: 'NVDA', name: 'NVIDIA Corp.', shortName: 'NVDA', exchange: 'NASDAQ', market: 'stocks', pricePrecision: 2, volumePrecision: 0, priceCurrency: 'USD', type: 'stock' },
+]
+
+const POLYGON_API_KEY = process.env.NEXT_PUBLIC_POLYGON_API_KEY?.trim() ?? ''
 
 const css = {
   app: {
@@ -99,12 +119,36 @@ const css = {
     cursor: 'pointer',
     userSelect: 'none',
   }),
+  sourceBtn: (active: boolean, disabled = false): React.CSSProperties => ({
+    padding: '4px 10px',
+    borderRadius: 6,
+    border: '1px solid',
+    borderColor: active ? '#58a6ff' : '#30363d',
+    background: active ? '#1f3a5f' : '#21262d',
+    color: active ? '#58a6ff' : '#c9d1d9',
+    fontSize: 12,
+    fontWeight: active ? 600 : 400,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.55 : 1,
+  }),
+  sourceHint: {
+    fontSize: 11,
+    color: '#8b949e',
+    marginLeft: 2,
+  },
 }
 
 export default function ChartDemo() {
   const chartRef = useRef<AstroneumHandle>(null)
 
-  const [symbol, setSymbol] = useState<SymbolInfo>(MOCK_SYMBOLS[0])
+  const onlineDatafeed = useMemo<Datafeed | null>(
+    () => (POLYGON_API_KEY ? new DefaultDatafeed(POLYGON_API_KEY) : null),
+    []
+  )
+  const [dataSourceMode, setDataSourceMode] = useState<DataSourceMode>(onlineDatafeed ? 'online' : 'local')
+  const symbols = dataSourceMode === 'online' ? ONLINE_SYMBOLS : MOCK_SYMBOLS
+
+  const [symbol, setSymbol] = useState<SymbolInfo>(symbols[0])
   const [period, setPeriod] = useState<Period>(PERIODS[5]) // Default: 1D
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [activeSubIndicators, setActiveSubIndicators] = useState<string[]>(['VOL'])
@@ -121,22 +165,51 @@ export default function ChartDemo() {
     setTheme(t => (t === 'dark' ? 'light' : 'dark'))
   }, [])
 
+  useEffect(() => {
+    if (!symbols.some(s => s.ticker === symbol.ticker)) {
+      setSymbol(symbols[0])
+    }
+  }, [symbols, symbol.ticker])
+
+  const datafeed = dataSourceMode === 'online' && onlineDatafeed ? onlineDatafeed : MockDatafeed
+  const onlineEnabled = onlineDatafeed !== null
+
   return (
     <div style={{ ...css.app, background: theme === 'dark' ? '#0d0e12' : '#f6f8fa', color: theme === 'dark' ? '#d1d4dc' : '#24292f' }}>
       {/* Toolbar */}
       <div style={{ ...css.toolbar, background: theme === 'dark' ? '#161b22' : '#ffffff', borderColor: theme === 'dark' ? '#30363d' : '#d0d7de' }}>
         <span style={css.logo}>Astroneum</span>
+
+        <div style={css.btnGroup}>
+          <button
+            style={css.sourceBtn(dataSourceMode === 'online', !onlineEnabled)}
+            onClick={() => { if (onlineEnabled) setDataSourceMode('online') }}
+            disabled={!onlineEnabled}
+            title={onlineEnabled ? 'Use online Polygon market data' : 'Set NEXT_PUBLIC_POLYGON_API_KEY to enable online mode'}
+          >
+            Online
+          </button>
+          <button
+            style={css.sourceBtn(dataSourceMode === 'local')}
+            onClick={() => setDataSourceMode('local')}
+            title="Use local generated candles"
+          >
+            Local Generated
+          </button>
+        </div>
+        {!onlineEnabled && <span style={css.sourceHint}>Set NEXT_PUBLIC_POLYGON_API_KEY to enable online mode</span>}
+
         <div style={css.divider} />
 
         <select
           style={{ ...css.select, background: theme === 'dark' ? '#21262d' : '#f6f8fa', color: theme === 'dark' ? '#c9d1d9' : '#24292f', borderColor: theme === 'dark' ? '#30363d' : '#d0d7de' }}
           value={symbol.ticker}
           onChange={e => {
-            const s = MOCK_SYMBOLS.find(x => x.ticker === e.target.value)
+            const s = symbols.find(x => x.ticker === e.target.value)
             if (s) setSymbol(s)
           }}
         >
-          {MOCK_SYMBOLS.map(s => (
+          {symbols.map(s => (
             <option key={s.ticker} value={s.ticker}>
               {s.ticker} — {s.name}
             </option>
@@ -169,11 +242,12 @@ export default function ChartDemo() {
       {/* Chart */}
       <div style={css.chartWrap}>
         <AstroneumChart
+          key={dataSourceMode}
           ref={chartRef}
           symbol={symbol}
           period={period}
           periods={PERIODS}
-          datafeed={MockDatafeed}
+          datafeed={datafeed}
           theme={theme}
           drawingBarVisible
           mainIndicators={[{ name: 'EMA', calcParams: [7, 25, 99] }]}

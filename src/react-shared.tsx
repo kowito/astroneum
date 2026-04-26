@@ -41,9 +41,24 @@ export function For<T>(props: {
 }): React.ReactElement {
   const list = props.each ?? []
 
+  const resolveKey = (value: T, index: number): React.Key => {
+    if (typeof value === 'string' || typeof value === 'number') {
+      return value
+    }
+    if (typeof value === 'object' && value !== null) {
+      const candidate = (value as { key?: unknown; id?: unknown }).key ?? (value as { id?: unknown }).id
+      if (typeof candidate === 'string' || typeof candidate === 'number') {
+        return candidate
+      }
+    }
+    return index
+  }
+
   return React.createElement(
     Fragment,
     null,
-    ...list.map((value, index) => props.children(value, () => index))
+    ...list.map((value, index) => (
+      React.createElement(Fragment, { key: resolveKey(value, index) }, props.children(value, () => index))
+    ))
   )
 }
