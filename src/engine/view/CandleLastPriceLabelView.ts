@@ -7,7 +7,8 @@ import View from './View'
 
 import type { FigureCreate } from '../component/Figure'
 import type YAxis from '../component/YAxis'
-import type { TextAttrs } from '../extension/figure/text'
+import { type TextAttrs, getTextRect } from '../extension/figure/text'
+import { drawRect } from '../extension/figure/rect'
 
 export default class CandleLastPriceLabelView extends View {
   override drawImp (ctx: CanvasRenderingContext2D): void {
@@ -108,9 +109,32 @@ export default class CandleLastPriceLabelView extends View {
             })
           }
         })
+        const tr = widget.getTextRenderer()
         textFigures.forEach(figure => {
           figure.attrs.width = textWidth
-          this.createFigure(figure)?.draw(ctx)
+          if (tr !== null) {
+            // Hybrid: Canvas2D draws the background rect; GPU draws the glyph.
+            const bgColor = (figure.styles as TextStyle).backgroundColor
+            if (bgColor) {
+              const rect = getTextRect(figure.attrs, figure.styles)
+              drawRect(ctx, [rect], { ...figure.styles, color: bgColor })
+            }
+            const ts = figure.styles as TextStyle
+            tr.queue({
+              text: figure.attrs.text,
+              x: figure.attrs.x,
+              y: figure.attrs.y,
+              fontSize: ts.size ?? 12,
+              fontFamily: ts.family ?? 'Helvetica Neue',
+              color: ts.color ?? '#ffffff',
+              align: figure.attrs.align,
+              baseline: figure.attrs.baseline,
+              paddingLeft: ts.paddingLeft,
+              paddingTop: ts.paddingTop
+            })
+          } else {
+            this.createFigure(figure)?.draw(ctx)
+          }
         })
       }
     }

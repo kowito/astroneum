@@ -9,6 +9,8 @@ import type { Axis } from '../component/Axis'
 import type YAxis from '../component/YAxis'
 
 import type { TextAttrs } from '../extension/figure/text'
+import { getTextRect } from '../extension/figure/text'
+import { drawRect } from '../extension/figure/rect'
 
 import type ChartStore from '../Store'
 
@@ -30,11 +32,34 @@ export default class CrosshairHorizontalLabelView<C extends Axis = YAxis> extend
           const axis = pane.getAxisComponent()
           const text = this.getText(crosshair, chartStore, axis)
           ctx.font = createFont(textStyles.size, textStyles.weight, textStyles.family)
-          this.createFigure({
-            name: 'text',
-            attrs: this.getTextAttrs(text, ctx.measureText(text).width, crosshair, bounding, axis, textStyles),
-            styles: textStyles
-          })?.draw(ctx)
+          const textWidth = ctx.measureText(text).width
+          const attrs = this.getTextAttrs(text, textWidth, crosshair, bounding, axis, textStyles)
+          const tr = widget.getTextRenderer()
+          if (tr !== null) {
+            // Hybrid: Canvas2D draws the background badge rect; GPU draws the glyph.
+            if (textStyles.backgroundColor) {
+              const rect = getTextRect(attrs, textStyles)
+              drawRect(ctx, [rect], { ...textStyles, color: textStyles.backgroundColor })
+            }
+            tr.queue({
+              text,
+              x: attrs.x,
+              y: attrs.y,
+              fontSize: textStyles.size,
+              fontFamily: textStyles.family,
+              color: textStyles.color,
+              align: attrs.align,
+              baseline: attrs.baseline,
+              paddingLeft: textStyles.paddingLeft,
+              paddingTop: textStyles.paddingTop
+            })
+          } else {
+            this.createFigure({
+              name: 'text',
+              attrs,
+              styles: textStyles
+            })?.draw(ctx)
+          }
         }
       }
     }

@@ -94,21 +94,36 @@ export default class CandleHighLowPriceView extends View<YAxis> {
       },
       styles: { color: styles.color }
     })?.draw(ctx)
-    this.createFigure({
-      name: 'text',
-      attrs: {
+    const textStyle = {
+      color: styles.color,
+      size: styles.textSize,
+      family: styles.textFamily,
+      weight: styles.textWeight
+    }
+    const tr = this.getWidget().getTextRenderer()
+    if (tr !== null) {
+      tr.queue({
+        text,
         x: textStartX,
         y,
-        text,
-        align: textAlign,
-        baseline: 'middle'
-      },
-      styles: {
+        fontSize: styles.textSize,
+        fontFamily: styles.textFamily,
         color: styles.color,
-        size: styles.textSize,
-        family: styles.textFamily,
-        weight: styles.textWeight
-      }
-    })?.draw(ctx)
+        align: textAlign as CanvasTextAlign,
+        baseline: 'middle'
+      })
+    } else {
+      this.createFigure({
+        name: 'text',
+        attrs: {
+          x: textStartX,
+          y,
+          text,
+          align: textAlign,
+          baseline: 'middle'
+        },
+        styles: textStyle
+      })?.draw(ctx)
+    }
   }
 }

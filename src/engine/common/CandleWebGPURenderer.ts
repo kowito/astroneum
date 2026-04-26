@@ -251,6 +251,9 @@ export class CandleWebGPURenderer {
   private readonly _singleBarF32 = new Float32Array(this._singleBarBuf)
   private readonly _singleBarU8  = new Uint8Array(this._singleBarBuf)
 
+  // Pre-allocated uniform data — avoids a new Float32Array every draw() call.
+  private readonly _uniformData = new Float32Array(UBO_SIZE / 4)
+
   // Color parse cache
   private readonly _colorCache = new Map<string, readonly [number, number, number, number]>()
 
@@ -627,17 +630,16 @@ export class CandleWebGPURenderer {
     const ph = this._canvas.height
 
     // Write uniform buffer (float32 layout matching the WGSL struct)
-    const uData = new Float32Array(UBO_SIZE / 4)
-    uData[0] = priceFrom
-    uData[1] = priceRange
-    uData[2] = pw
-    uData[3] = ph
-    uData[4] = pr
-    uData[5] = barHalfWidth
-    uData[6] = renderMode as unknown as number  // reinterpreted as u32 in WGSL
-    uData[7] = ohlcHalfSize
-    uData[8] = this._panOffsetCss
-    this._device.queue.writeBuffer(this._uniformBuffer, 0, uData)
+    this._uniformData[0] = priceFrom
+    this._uniformData[1] = priceRange
+    this._uniformData[2] = pw
+    this._uniformData[3] = ph
+    this._uniformData[4] = pr
+    this._uniformData[5] = barHalfWidth
+    this._uniformData[6] = renderMode as unknown as number  // reinterpreted as u32 in WGSL
+    this._uniformData[7] = ohlcHalfSize
+    this._uniformData[8] = this._panOffsetCss
+    this._device.queue.writeBuffer(this._uniformBuffer, 0, this._uniformData)
 
     const commandEncoder = this._device.createCommandEncoder()
     const renderPass = commandEncoder.beginRenderPass({

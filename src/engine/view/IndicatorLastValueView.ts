@@ -7,6 +7,8 @@ import { eachFigures, type IndicatorFigure, type IndicatorFigureStyle } from '..
 import View from './View'
 
 import type { YAxis } from '../component/YAxis'
+import { getTextRect } from '../extension/figure/text'
+import { drawRect } from '../extension/figure/rect'
 
 export default class IndicatorLastValueView extends View<YAxis> {
   override drawImp (ctx: CanvasRenderingContext2D): void {
@@ -57,20 +59,35 @@ export default class IndicatorLastValueView extends View<YAxis> {
                 textAlign = 'right'
               }
 
-              this.createFigure({
-                name: 'text',
-                attrs: {
+              const labelStyles = { ...lastValueMarkTextStyles, backgroundColor: figureStyles.color }
+              const textAttrs = { x, y, text, align: textAlign, baseline: 'middle' }
+              const tr = widget.getTextRenderer()
+              if (tr !== null) {
+                // Hybrid: Canvas2D background badge + GPU text glyph.
+                const bgColor = labelStyles.backgroundColor
+                if (bgColor) {
+                  const rect = getTextRect(textAttrs, labelStyles)
+                  drawRect(ctx, [rect], { ...labelStyles, color: bgColor })
+                }
+                tr.queue({
+                  text,
                   x,
                   y,
-                  text,
+                  fontSize: labelStyles.size ?? 12,
+                  fontFamily: labelStyles.family ?? 'Helvetica Neue',
+                  color: labelStyles.color ?? '#ffffff',
                   align: textAlign,
-                  baseline: 'middle'
-                },
-                styles: {
-                  ...lastValueMarkTextStyles,
-                  backgroundColor: figureStyles.color
-                }
-              })?.draw(ctx)
+                  baseline: 'middle',
+                  paddingLeft: labelStyles.paddingLeft,
+                  paddingTop: labelStyles.paddingTop
+                })
+              } else {
+                this.createFigure({
+                  name: 'text',
+                  attrs: textAttrs,
+                  styles: labelStyles
+                })?.draw(ctx)
+              }
             }
           })
         }

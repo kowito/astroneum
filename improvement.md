@@ -63,6 +63,54 @@ WebGPU eliminates the implicit draw-state tracking overhead of the WebGL driver.
 
 ---
 
+## Batch 3 — Next implementation targets
+
+### [IMPL] 9. Pre-allocate `_uniformData` in `CandleWebGPURenderer`
+**Impact:** ★★★☆☆  
+**Files:** `src/engine/common/CandleWebGPURenderer.ts`  
+**Why:** `draw()` currently executes `const uData = new Float32Array(UBO_SIZE / 4)` on every render frame — allocating 9 × 4 = 36 bytes and triggering a minor GC each time. In the WebGPU path this is the primary remaining hot-path allocation.  
+**How:**
+- Add a private field `private readonly _uniformData = new Float32Array(UBO_SIZE / 4)` to `CandleWebGPURenderer`.
+- Replace the local `const uData = new Float32Array(UBO_SIZE / 4)` in `draw()` with writes to `this._uniformData`.
+- Pass `this._uniformData` to `device.queue.writeBuffer`.
+
+---
+
+### [IMPL] 10. Wire `TextWebGLRenderer` to per-frame price labels
+**Impact:** ★★★★☆  
+**Files:** `src/engine/view/CandleLastPriceLabelView.ts`, `src/engine/view/CandleHighLowPriceView.ts`, `src/engine/view/IndicatorLastValueView.ts`  
+**Why:** These three views draw text on every frame (last price badge, high/low markers, indicator last value). They still call `createFigure('text')` → Canvas2D `fillText`. Because `DrawWidget.getTextRenderer()` already exists and `AxisView` already uses it, wiring these three views costs minimal additional infrastructure.  
+**Architecture:**
+- Each view receives its widget's `TextWebGLRenderer` (via `getTextRenderer()` from the containing `DrawWidget`).
+- If a renderer is available, call `tr.queue(text, x, y, style)` instead of `createFigure('text')`.
+- If the renderer is `null` (WebGL2 not available), keep the existing `createFigure` fallback path unchanged.
+- The renderer's `flush()` is already called by `DrawWidget` at the end of each frame, so the views need only queue — no lifecycle changes needed.
+**Scope constraints:**
+- `CandleLastPriceLabelView` — price text + optional bid/ask labels.
+- `CandleHighLowPriceView` — high and low price annotations (two text figures per bar range).
+- `IndicatorLastValueView` — each indicator's last numeric value displayed at y-axis edge.
+
+---
+
+### [IMPL] 11. Wire `TextWebGLRenderer` to crosshair price/time labels
+**Impact:** ★★★☆☆  
+**Files:** `src/engine/view/CrosshairHorizontalLabelView.ts`, `src/engine/view/CrosshairVerticalLabelView.ts`  
+**Why:** These labels redraw on every `mousemove` event. `CrosshairHorizontalLabelView` already computes `ctx.font` + `ctx.measureText` before delegating to `createFigure('text')`. Routing to `TextWebGLRenderer` removes both the `measureText` call and the Canvas2D state switch on every pointer event.  
+**How:** Same pattern as item 10 — gate on `getTextRenderer()` being non-null; queue the single text item; Canvas2D fallback when GL is absent. The `getTextAttrs()` position calc stays unchanged (still needed for hit testing and label box clipping).
+
+---
+
+### [IMPL] 12. `IndicatorView` Canvas2D fallback hardening
+**Impact:** ★★☆☆☆  
+**Files:** `src/engine/view/IndicatorView.ts`  
+**Why:** The current Canvas2D fallback (inside `else if (hasGpuIndicators)`) iterates `gpuRects` and `gpuLineSegs` with two separate loops. There is no call to `ctx.save()` / `ctx.restore()` around the stroke path, so a `ctx.lineWidth` or `ctx.strokeStyle` left set by a previous segment leaks into subsequent draws when the fallback path is hit (e.g., on Safari where WebGL2 is absent).  
+**How:**
+- Wrap the entire Canvas2D fallback block in `ctx.save()` … `ctx.restore()`.
+- Move `ctx.beginPath()` inside the line loop (before `ctx.moveTo`) so paths don't accumulate across segments.
+- Add `ctx.closePath()` is not needed — just ensure `ctx.stroke()` is called per segment.
+
+---
+
 ## Already implemented (prior sessions)
 
 | Feature | Commit |
