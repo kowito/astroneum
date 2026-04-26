@@ -80,7 +80,6 @@ export interface Datafeed {
 }
 
 export interface ChartProOptions {
-  container: string | HTMLElement
   styles?: DeepPartial<Styles>
   watermark?: string | Node
   theme?: string

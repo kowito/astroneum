@@ -1,6 +1,8 @@
-import { startTransition, useEffect, useRef, useState } from 'react'
+import { startTransition, forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 
-import { type Component, Show } from '@/react-shared'
+import { Show } from '@/react-shared'
+
+import logoSvgRaw from '@/assets/logo.svg'
 
 import { init, dispose, utils } from '@/engine'
 
@@ -28,6 +30,36 @@ import { createIndicatorStore } from '@/store/indicatorStore'
 import { createUIStore, EMPTY_INDICATOR_SETTING, type LineStyleEntry } from '@/store/uiStore'
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+function getSystemTheme (): 'dark' | 'light' {
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
+function createLogoNode (): Node {
+  const div = document.createElement('div')
+  div.innerHTML = logoSvgRaw
+  const svg = div.firstElementChild as SVGElement
+  svg.classList.add('logo')
+  return svg
+}
+
+const DEFAULT_PERIODS: Period[] = [
+  { multiplier: 1, timespan: 'minute', text: '1m' },
+  { multiplier: 5, timespan: 'minute', text: '5m' },
+  { multiplier: 15, timespan: 'minute', text: '15m' },
+  { multiplier: 1, timespan: 'hour', text: '1H' },
+  { multiplier: 2, timespan: 'hour', text: '2H' },
+  { multiplier: 4, timespan: 'hour', text: '4H' },
+  { multiplier: 1, timespan: 'day', text: 'D' },
+  { multiplier: 1, timespan: 'week', text: 'W' },
+  { multiplier: 1, timespan: 'month', text: 'M' },
+  { multiplier: 1, timespan: 'year', text: 'Y' }
+]
+
+const DEFAULT_MAIN_INDICATORS = [{ name: 'EMA', calcParams: [7, 25, 99] }]
+
+// ---------------------------------------------------------------------------
 // Local component-scoped types
 // ---------------------------------------------------------------------------
 interface IndicatorTooltipFeatureClickData {
@@ -36,9 +68,7 @@ interface IndicatorTooltipFeatureClickData {
   feature: { id: string }
 }
 
-export interface ChartProComponentProps extends Required<Omit<ChartProOptions, 'container'>> {
-  ref: (chart: ChartPro) => void
-}
+export type AstroneumChartProps = ChartProOptions
 
 function makeTooltipFeatures (color: string): TooltipFeatureStyle[] {
   const base: Omit<TooltipFeatureStyle, 'id' | 'marginLeft' | 'content'> = {
@@ -119,7 +149,7 @@ function createIndicator (widget: Nullable<Chart>, indicator: IndicatorDef, isSt
   }, isStack, paneOptions) ?? null
 }
 
-const ChartProComponent: Component<ChartProComponentProps> = (props: ChartProComponentProps) => {
+const AstroneumChart = forwardRef<ChartPro, AstroneumChartProps>((props, ref) => {
   const widgetRef = useRef<Chart | null>(null)
   const widgetContainerRef = useRef<HTMLDivElement | null>(null)
   const snapperRef = useRef<DrawingSnapper | null>(null)
@@ -128,16 +158,20 @@ const ChartProComponent: Component<ChartProComponentProps> = (props: ChartProCom
   // ---------------------------------------------------------------------------
   // Focused stores — each slice owns a single concern
   // ---------------------------------------------------------------------------
+  const initialTheme = props.theme ?? getSystemTheme()
+  const initialLocale = props.locale ?? 'en-US'
+  const initialTimezone = props.timezone ?? 'Asia/Shanghai'
+
   const chart = createChartStore({
-    theme: props.theme,
-    locale: props.locale,
+    theme: initialTheme,
+    locale: initialLocale,
     symbol: props.symbol,
     period: props.period,
-    timezone: { key: props.timezone, text: translateTimezone(props.timezone, props.locale) },
-    styles: props.styles
+    timezone: { key: initialTimezone, text: translateTimezone(initialTimezone, initialLocale) },
+    styles: props.styles ?? {}
   })
-  const indicators = createIndicatorStore({ mainIndicators: props.mainIndicators })
-  const ui = createUIStore({ drawingBarVisible: props.drawingBarVisible })
+  const indicators = createIndicatorStore({ mainIndicators: props.mainIndicators ?? DEFAULT_MAIN_INDICATORS })
+  const ui = createUIStore({ drawingBarVisible: props.drawingBarVisible ?? true })
   const [alertModalVisible, setAlertModalVisible] = useState(false)
   const [scriptEditorModalVisible, setScriptEditorModalVisible] = useState(false)
 
@@ -150,7 +184,7 @@ const ChartProComponent: Component<ChartProComponentProps> = (props: ChartProCom
     )
   }
 
-  props.ref({
+  useImperativeHandle(ref, () => ({
     setTheme: chart.setTheme,
     getTheme: () => chart.theme(),
     setStyles: chart.setStyles,
@@ -163,7 +197,7 @@ const ChartProComponent: Component<ChartProComponentProps> = (props: ChartProCom
     getSymbol: () => chart.symbol(),
     setPeriod: chart.setPeriod,
     getPeriod: () => chart.period()
-  })
+  }), [])
 
   const resizeFrameRef = useRef<number | null>(null)
   const documentResize = (): void => {
@@ -235,7 +269,7 @@ const ChartProComponent: Component<ChartProComponentProps> = (props: ChartProCom
     })
     widgetRef.current = widget
 
-    const disposePlugins = widget ? mountChartPlugins(widget, props.plugins) : null
+    const disposePlugins = widget ? mountChartPlugins(widget, props.plugins ?? []) : null
 
     // Attach keyboard cleanup ref after widget is initialized
     if (widget !== null) {
@@ -247,14 +281,15 @@ const ChartProComponent: Component<ChartProComponentProps> = (props: ChartProCom
     if (widget) {
       const watermarkContainer = widget.getDom('candle_pane', 'main')
       if (watermarkContainer) {
-        const watermark = document.createElement('div')
-        watermark.className = 'astroneum-watermark'
-        if (utils.isString(props.watermark)) {
-          watermark.textContent = (props.watermark).trim()
+        const watermarkNode = props.watermark ?? createLogoNode()
+        const watermarkEl = document.createElement('div')
+        watermarkEl.className = 'astroneum-watermark'
+        if (utils.isString(watermarkNode)) {
+          watermarkEl.textContent = watermarkNode.trim()
         } else {
-          watermark.appendChild(props.watermark)
+          watermarkEl.appendChild(watermarkNode)
         }
-        watermarkContainer.appendChild(watermark)
+        watermarkContainer.appendChild(watermarkEl)
       }
 
       const priceUnitContainer = widget.getDom('candle_pane', 'yAxis')
@@ -268,7 +303,7 @@ const ChartProComponent: Component<ChartProComponentProps> = (props: ChartProCom
       createIndicator(widget, indicator, true, { id: 'candle_pane' })
     })
     const subIndicatorMap: Record<string, string> = {}
-    props.subIndicators.forEach(indicator => {
+    ;(props.subIndicators ?? ['VOL']).forEach(indicator => {
       const paneId = createIndicator(widget, { name: indicator }, true)
       if (paneId) {
         subIndicatorMap[indicator] = paneId
@@ -435,18 +470,18 @@ const ChartProComponent: Component<ChartProComponentProps> = (props: ChartProCom
   }, [styles])
 
   return (
-    <>
+    <div class='astroneum' data-theme={theme}>
       <i class="icon-close astroneum-load-icon"/>
       <Show when={ui.symbolSearchModalVisible()}>
         <SymbolSearchModal
-          locale={props.locale}
+          locale={locale}
           searchSymbols={props.datafeed.searchSymbols.bind(props.datafeed)}
           onSymbolSelected={s => { chart.setSymbol(s) }}
           onClose={() => { ui.setSymbolSearchModalVisible(false) }}/>
       </Show>
       <Show when={ui.indicatorModalVisible()}>
         <IndicatorModal
-          locale={props.locale}
+          locale={locale}
           mainIndicators={indicators.mainIndicators()}
           subIndicators={indicators.subIndicators()}
           onClose={() => { ui.setIndicatorModalVisible(false) }}
@@ -479,7 +514,7 @@ const ChartProComponent: Component<ChartProComponentProps> = (props: ChartProCom
       </Show>
       <Show when={ui.timezoneModalVisible()}>
         <TimezoneModal
-          locale={props.locale}
+          locale={locale}
           timezone={chart.timezone()}
           onClose={() => { ui.setTimezoneModalVisible(false) }}
           onConfirm={chart.setTimezone}
@@ -487,7 +522,7 @@ const ChartProComponent: Component<ChartProComponentProps> = (props: ChartProCom
       </Show>
       <Show when={ui.settingModalVisible()}>
         <SettingModal
-          locale={props.locale}
+          locale={locale}
           currentStyles={utils.clone(widgetRef.current!.getStyles())}
           onClose={() => { ui.setSettingModalVisible(false) }}
           onChange={style => {
@@ -505,14 +540,14 @@ const ChartProComponent: Component<ChartProComponentProps> = (props: ChartProCom
       </Show>
       <Show when={ui.screenshotUrl().length > 0}>
         <ScreenshotModal
-          locale={props.locale}
+          locale={locale}
           url={ui.screenshotUrl()}
           onClose={() => { ui.setScreenshotUrl('') }}
         />
       </Show>
       <Show when={ui.indicatorSettingModalParams().visible}>
         <IndicatorSettingModal
-          locale={props.locale}
+          locale={locale}
           params={ui.indicatorSettingModalParams()}
           onClose={() => { ui.setIndicatorSettingModalParams(EMPTY_INDICATOR_SETTING) }}
           onConfirm={(params, lineStyles) => {
@@ -528,24 +563,24 @@ const ChartProComponent: Component<ChartProComponentProps> = (props: ChartProCom
       </Show>
       <Show when={alertModalVisible}>
         <AlertModal
-          locale={props.locale}
+          locale={locale}
           symbol={chart.symbol().ticker}
           onClose={() => { setAlertModalVisible(false) }}/>
       </Show>
       <Show when={scriptEditorModalVisible}>
         <ScriptEditorModal
-          locale={props.locale}
+          locale={locale}
           onCompiled={indicatorName => {
             createIndicator(widgetRef.current, { name: indicatorName }, false)
           }}
           onClose={() => { setScriptEditorModalVisible(false) }}/>
       </Show>
       <PeriodBar
-        locale={props.locale}
+        locale={locale}
         symbol={chart.symbol()}
         spread={ui.drawingBarVisible()}
         period={chart.period()}
-        periods={props.periods}
+        periods={props.periods ?? DEFAULT_PERIODS}
         onMenuClick={() => {
           startTransition(() => {
             ui.setDrawingBarVisible(v => !v)
@@ -573,7 +608,7 @@ const ChartProComponent: Component<ChartProComponentProps> = (props: ChartProCom
         </Show>
         <Show when={ui.drawingBarVisible()}>
           <DrawingBar
-            locale={props.locale}
+            locale={locale}
             onDrawingItemClick={overlay => { widgetRef.current?.createOverlay(overlay) }}
             onModeChange={mode => { widgetRef.current?.overrideOverlay({ mode: mode as OverlayMode }) }}
             onLockChange={lock => { widgetRef.current?.overrideOverlay({ lock }) }}
@@ -600,7 +635,7 @@ const ChartProComponent: Component<ChartProComponentProps> = (props: ChartProCom
           data-drawing-bar-visible={ui.drawingBarVisible()}/>
         <div class='astroneum-clock' aria-hidden='true'>{clockTime}</div>
       </div>
-    </>
+    </div>
   )
-}
-export default ChartProComponent
+})
+export default AstroneumChart

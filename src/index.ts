@@ -10,7 +10,7 @@ import {
 import overlays from './extension'
 
 import DefaultDatafeed from './datafeed'
-import Astroneum from './chart'
+import AstroneumChart from './chart'
 import MultiChartLayout from './chart/MultiChartLayout'
 import BarReplay from './chart/BarReplay'
 import DrawingTemplates from './chart/DrawingTemplates'
@@ -57,7 +57,7 @@ overlays.forEach(o => { registerOverlay(o) })
 
 export {
   DefaultDatafeed,
-  Astroneum,
+  AstroneumChart,
   MultiChartLayout,
   BarReplay,
   DrawingTemplates,

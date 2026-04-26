@@ -1,6 +1,10 @@
-import Astroneum from './Astroneum'
+import React from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { flushSync } from 'react-dom'
 
-import type { ChartProOptions, SymbolInfo, Period } from '@/types'
+import AstroneumChart from './ChartProComponent'
+
+import type { ChartProOptions, ChartPro, SymbolInfo, Period } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -16,7 +20,7 @@ export interface MultiChartSlot {
 }
 
 /** Options for creating a MultiChartLayout. */
-export interface MultiChartLayoutOptions extends Omit<ChartProOptions, 'container' | 'symbol' | 'period'> {
+export interface MultiChartLayoutOptions extends Omit<ChartProOptions, 'symbol' | 'period'> {
   /** The DOM element (or id) to render the layout into. */
   container: string | HTMLElement
   /**
@@ -43,7 +47,8 @@ export interface MultiChartLayoutOptions extends Omit<ChartProOptions, 'containe
 /** A single chart entry inside the layout. */
 interface ChartEntry {
   container: HTMLDivElement
-  instance: Astroneum
+  instance: ChartPro
+  root: Root
 }
 
 // ---------------------------------------------------------------------------
@@ -198,17 +203,26 @@ export default class MultiChartLayout {
 
       wrapper.appendChild(cellEl)
 
-      // Build per-chart options (omit container/symbol/period from template)
-      const chartOptions: ChartProOptions = {
+      // Build per-chart options (omit symbol/period from template)
+      const slotOptions: ChartProOptions = {
         ...this._options,
-        container: cellEl,
         symbol: slot.symbol,
         period: slot.period,
         drawingBarVisible: false // in multi-layout, drawing bar takes too much space
       }
 
-      const instance = new Astroneum(chartOptions)
-      this._charts.push({ container: cellEl, instance })
+      let chartPro: ChartPro | null = null
+      const root = createRoot(cellEl)
+      flushSync(() => {
+        root.render(
+          React.createElement(AstroneumChart, {
+            ...slotOptions,
+            ref: (chart: ChartPro | null) => { if (chart) chartPro = chart }
+          })
+        )
+      })
+      if (!chartPro) throw new Error('MultiChartLayout: chart initialization failed')
+      this._charts.push({ container: cellEl, instance: chartPro, root })
     }
 
     this._container.innerHTML = ''
@@ -228,6 +242,9 @@ export default class MultiChartLayout {
   }
 
   private _destroy (): void {
+    for (const { root } of this._charts) {
+      root.unmount()
+    }
     this._charts = []
     if (this._wrapperEl) {
       this._container.removeChild(this._wrapperEl)
@@ -263,13 +280,13 @@ export default class MultiChartLayout {
     return this._count
   }
 
-  /** Get the Astroneum instance at a given index. */
-  getChart (index: number): Astroneum | undefined {
+  /** Get the chart instance at a given index. */
+  getChart (index: number): ChartPro | undefined {
     return this._charts[index]?.instance
   }
 
   /** Get all chart instances. */
-  getAllCharts (): Astroneum[] {
+  getAllCharts (): ChartPro[] {
     return this._charts.map(c => c.instance)
   }
 
@@ -279,7 +296,7 @@ export default class MultiChartLayout {
   }
 
   /** Get the currently active chart instance. */
-  getActiveChart (): Astroneum | undefined {
+  getActiveChart (): ChartPro | undefined {
     return this._charts[this._activeIndex]?.instance
   }
 
