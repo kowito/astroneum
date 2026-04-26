@@ -140,7 +140,7 @@ If WebGL2 is unavailable, `render2D` is used as the fallback when provided.
 
 If you prefer engine-level templates directly, `registerIndicator` is also exported.
 
-You can also mount plugins per chart instance through `ChartProOptions.plugins`:
+You can also mount plugins per chart instance through `AstroneumOptions.plugins`:
 
 ```ts
 import {
@@ -188,7 +188,7 @@ After a successful compile, you can immediately call `chart.createIndicator(comp
 - Portfolio and watchlist: `WatchlistManager`, `PortfolioTracker`, `PerformanceMode`
 - Formatting and locale: `loadLocales`, `formatPrice`, `formatVolume`, `formatPercent`, `formatDate`, `formatTime`, `formatDateTime`, `formatDuration`, `formatPeriod`, `detectPricePrecision`
 - Utilities: `EventBus`, `TickAnimator`, `RingBuffer`, `rafCoalesce`, `rafMergeTick`, `asPrice`, `asVolume`, `asTimestamp`
-- Types: `ChartProOptions`, `ChartPro`, `Datafeed`, `SymbolInfo`, `Period`, `CandleData`, and related helper types
+- Types: `AstroneumOptions`, `AstroneumHandle`, `Datafeed`, `SymbolInfo`, `Period`, `CandleData`, and related helper types
 
 ## Locale Support
 

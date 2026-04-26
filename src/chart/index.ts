@@ -1,2 +1,2 @@
-export { default } from './ChartProComponent'
-export type { AstroneumChartProps } from './ChartProComponent'
+export { default } from './AstroneumChart'
+export type { AstroneumChartProps } from './AstroneumChart'

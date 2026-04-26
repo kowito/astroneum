@@ -23,7 +23,7 @@ import { mountChartPlugins } from '@/plugin'
 
 import { translateTimezone } from '@/widget/timezone-modal/data'
 
-import { type Period, type ChartProOptions, type ChartPro } from '@/types'
+import { type Period, type AstroneumOptions, type AstroneumHandle } from '@/types'
 
 import { createChartStore } from '@/store/chartStore'
 import { createIndicatorStore } from '@/store/indicatorStore'
@@ -68,7 +68,7 @@ interface IndicatorTooltipFeatureClickData {
   feature: { id: string }
 }
 
-export type AstroneumChartProps = ChartProOptions
+export type AstroneumChartProps = AstroneumOptions
 
 function makeTooltipFeatures (color: string): TooltipFeatureStyle[] {
   const base: Omit<TooltipFeatureStyle, 'id' | 'marginLeft' | 'content'> = {
@@ -149,7 +149,7 @@ function createIndicator (widget: Nullable<Chart>, indicator: IndicatorDef, isSt
   }, isStack, paneOptions) ?? null
 }
 
-const AstroneumChart = forwardRef<ChartPro, AstroneumChartProps>((props, ref) => {
+const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, ref) => {
   const widgetRef = useRef<Chart | null>(null)
   const widgetContainerRef = useRef<HTMLDivElement | null>(null)
   const snapperRef = useRef<DrawingSnapper | null>(null)

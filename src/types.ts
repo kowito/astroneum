@@ -79,7 +79,7 @@ export interface Datafeed {
   unsubscribe(symbol: SymbolInfo, period: Period): void
 }
 
-export interface ChartProOptions {
+export interface AstroneumOptions {
   styles?: DeepPartial<Styles>
   watermark?: string | Node
   theme?: string
@@ -95,7 +95,7 @@ export interface ChartProOptions {
   datafeed: Datafeed
 }
 
-export interface ChartPro {
+export interface AstroneumHandle {
   setTheme(theme: string): void
   getTheme(): string
   setStyles(styles: DeepPartial<Styles>): void

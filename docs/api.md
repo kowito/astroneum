@@ -3,10 +3,10 @@
 ## Constructor
 
 ```typescript
-new Astroneum(options: ChartProOptions): Astroneum
+<AstroneumChart ref={ref} {...options} />
 ```
 
-### `ChartProOptions`
+### `AstroneumOptions`
 
 | Property | Type | Required | Default | Description |
 |---|---|---|---|---|
@@ -197,8 +197,8 @@ Fixed-capacity O(1) circular buffer designed for streaming time-series data.
 ```typescript
 import type {
   // Core
-  ChartProOptions,
-  ChartPro,
+  AstroneumOptions,
+  AstroneumHandle,
   Datafeed,
   SymbolInfo,
   Period,
