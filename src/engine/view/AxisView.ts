@@ -6,6 +6,8 @@ import type { TextAttrs } from '../extension/figure/text'
 
 import type { AxisTick, Axis } from '../component/Axis'
 
+import type DrawWidget from '../widget/DrawWidget'
+
 import View from './View'
 
 export default abstract class AxisView<C extends Axis = Axis> extends View<C> {
@@ -37,11 +39,32 @@ export default abstract class AxisView<C extends Axis = Axis> extends View<C> {
         }
         if (styles.tickText.show) {
           const texts = this.createTickTexts(ticks, bounding, styles)
-          this.createFigure({
-            name: 'text',
-            attrs: texts,
-            styles: styles.tickText
-          })?.draw(ctx)
+          // Prefer GPU text via TextWebGLRenderer; fall back to Canvas2D.
+          const tr = (widget as DrawWidget).getTextRenderer()
+          if (tr !== null) {
+            const ts = styles.tickText
+            const color: string = ts.color ?? '#888888'
+            const fontSize: number = ts.size ?? 12
+            const fontFamily: string = ts.family ?? 'Helvetica Neue'
+            for (const t of texts) {
+              tr.queue({
+                text: t.text,
+                x: t.x,
+                y: t.y,
+                fontSize,
+                fontFamily,
+                color,
+                align: t.align,
+                baseline: t.baseline
+              })
+            }
+          } else {
+            this.createFigure({
+              name: 'text',
+              attrs: texts,
+              styles: styles.tickText
+            })?.draw(ctx)
+          }
         }
       }
     }

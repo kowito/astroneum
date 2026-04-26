@@ -51,14 +51,10 @@ Items marked **[DONE]** are committed. Items marked **[IMPL]** are implemented i
 Move candle renderer GPU commands into a `CandleWorkerRenderer`. Main thread handles LOD + colour parsing + staging-buffer pack. Worker owns the OffscreenCanvas and runs `gl.bufferSubData + gl.drawArraysInstanced` off the main thread — eliminates main-thread GL-driver stalls during fast scroll/zoom while a tooltip is updating.  
 **Implemented:** `candleShaders.ts` (shared constants + fixed OHLC shader bug), `CandleWorkerRenderer.ts` (blob-URL worker, same fingerprint/pan/LOD API as `CandleWebGLRenderer`), `CandleBarView.ts` (tries worker first, falls back to main-thread GL), `CandleWidget.ts` (destroys both renderer types on cleanup). Structured-clone upload keeps staging buffer intact on main thread.
 
-### [ ] 7. GPU text / SDF glyph atlas
+### [IMPL] 7. GPU text / SDF glyph atlas
 **Impact:** ★★★☆☆  
 Price labels, axis tick text, and tooltip numbers are currently `Canvas2D.fillText()` per tick. Pre-render all needed glyphs into a `gl.LUMINANCE` texture atlas; render text quads sampling the atlas. Result: sub-pixel-smooth text at any DPI, zero `fillText` calls in the render loop.  
-**Rough plan:**
-1. Build atlas from charset at init (offline Canvas2D render into `ImageData`)
-2. Upload as `gl.LUMINANCE` 1-channel texture
-3. Add glyph-quad VBO; vertex shader reads UV from atlas lookup table
-4. Fragment shader: `texture(u_atlas, v_uv).r` drives alpha; colorise with uniform
+**Implemented:** `GlyphAtlas.ts` (RGBA atlas at 2× RENDER_SCALE via off-screen Canvas2D), `TextWebGLRenderer.ts` (owns a `<canvas>` at z-index 3; instanced TRIANGLE_STRIP quads; two-phase `beginMainFrame`/`beginOverlayFrame`/`flush` lifecycle; per-renderer atlas cache keyed by fontSize+family), `DrawWidget.ts` (creates renderer, wraps canvas listeners, exposes `getTextRenderer()`/`queueText()`, resizes and destroys on teardown), `AxisView.ts` (routes tick-label `TextAttrs` through `tr.queue()` when GL is available; Canvas2D fallback otherwise).
 
 ### [ ] 8. WebGPU path
 **Impact:** ★★★☆☆ (browser support ~75 % as of 2026)  
