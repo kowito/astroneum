@@ -15,9 +15,7 @@ import { getOrCreateRenderer, destroyRenderer, type BarRenderData } from '../com
 import { getOrCreateWorkerRenderer, getWorkerRenderer, destroyWorkerRenderer } from '../common/CandleWorkerRenderer'
 import {
   getWebGPURenderer,
-  getOrCreateWebGPURenderer,
-  destroyWebGPURenderer,
-  CandleWebGPURenderer
+  getOrCreateWebGPURenderer
 } from '../common/CandleWebGPURenderer'
 
 export interface CandleBarOptions {
@@ -33,6 +31,8 @@ export default class CandleBarView extends ChildrenView {
 
   // Track whether a WebGPU async-init has been started for this view's widget.
   private _webGPUInitStarted = false
+  // True once WebGPU has rendered its first frame — triggers cleanup of stale Worker/GL canvases.
+  private _webGPUActive = false
 
   // ---------------------------------------------------------------------------
   // WebGL/WebGPU render path (Phase 4.2 + 4.3 + 4.4)
@@ -67,6 +67,12 @@ export default class CandleBarView extends ChildrenView {
 
     if (gpuRenderer !== null) {
       activeRenderer = gpuRenderer
+      // First frame under WebGPU: destroy stale Worker/GL canvases to avoid DOM overlap.
+      if (!this._webGPUActive) {
+        this._webGPUActive = true
+        destroyWorkerRenderer(widget)
+        destroyRenderer(widget)
+      }
     } else {
       // ── Worker renderer (OffscreenCanvas) ────────────────────────────────
       let renderer = getWorkerRenderer(widget)
