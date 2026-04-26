@@ -10,7 +10,6 @@
 
 | Property | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `container` | `string \| HTMLElement` | ✓ | — | Container element or its `id` attribute |
 | `symbol` | `SymbolInfo` | ✓ | — | Symbol to display on load |
 | `period` | `Period` | ✓ | — | Initial timeframe |
 | `datafeed` | `Datafeed` | ✓ | — | Data source implementation |

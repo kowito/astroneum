@@ -23,56 +23,57 @@ No additional framework runtime is required.
 - ESM-compatible bundler/runtime
 - Styles imported from `astroneum/style.css`
 
-## Quick Start (ESM)
+## Quick Start
 
-```ts
-import { Astroneum, DefaultDatafeed } from 'astroneum'
+```tsx
+import { useRef } from 'react'
+import { AstroneumChart, type AstroneumHandle, DefaultDatafeed } from 'astroneum'
 import 'astroneum/style.css'
 
-const chart = new Astroneum({
-	container: 'chart',
-	symbol: {
-		ticker: 'AAPL',
-		shortName: 'AAPL',
-		market: 'stocks'
-	},
-	period: { multiplier: 1, timespan: 'day', text: '1D' },
-	datafeed: new DefaultDatafeed('YOUR_POLYGON_API_KEY')
-})
+const datafeed = new DefaultDatafeed('YOUR_POLYGON_API_KEY')
 
-chart.setTheme('dark')
+export default function App() {
+	const chartRef = useRef<AstroneumHandle>(null)
+
+	return (
+		<AstroneumChart
+			ref={chartRef}
+			symbol={{ ticker: 'AAPL', shortName: 'AAPL', market: 'stocks' }}
+			period={{ multiplier: 1, timespan: 'day', text: '1D' }}
+			datafeed={datafeed}
+			theme="dark"
+			style={{ width: '100%', height: 560 }}
+		/>
+	)
+}
 ```
 
 `DefaultDatafeed` uses Polygon.io REST + delayed WebSocket endpoints.
 
-## React / Next.js Usage
-
-Astroneum itself is not a React component. Create it inside a client-only effect.
+## Next.js Usage
 
 ```tsx
 'use client'
 
-import { useEffect, useRef } from 'react'
-import { Astroneum, DefaultDatafeed } from 'astroneum'
+import { useRef } from 'react'
+import { AstroneumChart, type AstroneumHandle, DefaultDatafeed } from 'astroneum'
 import 'astroneum/style.css'
 
+const datafeed = new DefaultDatafeed(process.env.NEXT_PUBLIC_POLYGON_API_KEY ?? '')
+
 export default function ChartView() {
-	const containerRef = useRef<HTMLDivElement>(null)
+	const chartRef = useRef<AstroneumHandle>(null)
 
-	useEffect(() => {
-		if (!containerRef.current) return
-
-		const chart = new Astroneum({
-			container: containerRef.current,
-			symbol: { ticker: 'AAPL', shortName: 'AAPL', market: 'stocks' },
-			period: { multiplier: 1, timespan: 'day', text: '1D' },
-			datafeed: new DefaultDatafeed(process.env.NEXT_PUBLIC_POLYGON_API_KEY ?? '')
-		})
-
-		chart.setLocale('en-US')
-	}, [])
-
-	return <div id="chart" ref={containerRef} style={{ width: '100%', height: 560 }} />
+	return (
+		<AstroneumChart
+			ref={chartRef}
+			symbol={{ ticker: 'AAPL', shortName: 'AAPL', market: 'stocks' }}
+			period={{ multiplier: 1, timespan: 'day', text: '1D' }}
+			datafeed={datafeed}
+			locale="en-US"
+			style={{ width: '100%', height: 560 }}
+		/>
+	)
 }
 ```
 
@@ -144,7 +145,6 @@ You can also mount plugins per chart instance through `AstroneumOptions.plugins`
 
 ```ts
 import {
-	Astroneum,
 	type ChartPlugin
 } from 'astroneum'
 
@@ -166,13 +166,14 @@ const spreadPlugin: ChartPlugin = {
 	}
 }
 
-new Astroneum({
-	container: 'chart',
-	symbol: { ticker: 'AAPL', shortName: 'AAPL', market: 'stocks' },
-	period: { multiplier: 1, timespan: 'day', text: '1D' },
-	plugins: [spreadPlugin],
-	datafeed: myDatafeed
-})
+// Pass plugins as a prop to the component
+<AstroneumChart
+	symbol={{ ticker: 'AAPL', shortName: 'AAPL', market: 'stocks' }}
+	period={{ multiplier: 1, timespan: 'day', text: '1D' }}
+	plugins={[spreadPlugin]}
+	datafeed={myDatafeed}
+	style={{ width: '100%', height: 560 }}
+/>
 ```
 
 ## ScriptEngine Notes
@@ -182,7 +183,7 @@ After a successful compile, you can immediately call `chart.createIndicator(comp
 
 ## Main Exports
 
-- Core: `Astroneum`, `DefaultDatafeed`
+- Core: `AstroneumChart`, `DefaultDatafeed`
 - Layout and replay: `MultiChartLayout`, `BarReplay`
 - Templates and tools: `DrawingTemplates`, `AlertManager`, `ScriptEngine`
 - Portfolio and watchlist: `WatchlistManager`, `PortfolioTracker`, `PerformanceMode`
