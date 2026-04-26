@@ -1,4 +1,5 @@
 import { getPixelRatio } from './utils/canvas'
+import { WebGLCanvas } from './WebGLCanvas'
 
 // ---------------------------------------------------------------------------
 // GPU rect/bar renderer for histogram-style indicator figures (Priority 4).
@@ -222,6 +223,8 @@ export class IndicatorRectWebGLRenderer {
 
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+    gl.disable(gl.DEPTH_TEST)     // 2D only — no depth reads/writes
+    gl.enable(gl.SCISSOR_TEST)    // reject fragments outside the pane canvas
 
     this._program = createProgram(gl)
     gl.useProgram(this._program)
@@ -380,10 +383,8 @@ export class IndicatorRectWebGLRenderer {
 
   /**
    * Draw all uploaded rects in a single instanced draw call.
-   * @param width  CSS pixel width of the pane widget
-   * @param height CSS pixel height of the pane widget
    */
-  draw (width: number, height: number): void {
+  draw (): void {
     const gl = this._gl
     const pr = getPixelRatio(this._canvas)
     const w  = this._canvas.width
@@ -394,6 +395,7 @@ export class IndicatorRectWebGLRenderer {
     this._drawnVersion = this._vboVersion
 
     gl.viewport(0, 0, w, h)
+    gl.scissor(0, 0, w, h)
     gl.clearColor(0, 0, 0, 0)
     gl.clear(gl.COLOR_BUFFER_BIT)
 
@@ -422,21 +424,6 @@ export class IndicatorRectWebGLRenderer {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Module-level WebGL2 support cache
-// ---------------------------------------------------------------------------
-const _rectGL2Supported: boolean = (() => {
-  try {
-    const c  = document.createElement('canvas')
-    const gl = c.getContext('webgl2')
-    if (gl === null) return false
-    gl.getExtension('WEBGL_lose_context')?.loseContext()
-    return true
-  } catch {
-    return false
-  }
-})()
-
 const _rectRendererCache = new WeakMap<object, IndicatorRectWebGLRenderer>()
 
 export function getRectRenderer (widgetKey: object): IndicatorRectWebGLRenderer | null {
@@ -447,7 +434,7 @@ export function getOrCreateRectRenderer (
   widgetKey: object,
   container: HTMLElement
 ): IndicatorRectWebGLRenderer | null {
-  if (!_rectGL2Supported) return null
+  if (!WebGLCanvas.isSupported()) return null
   let r = _rectRendererCache.get(widgetKey)
   if (r === undefined) {
     try {

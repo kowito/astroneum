@@ -1,4 +1,5 @@
 import { getPixelRatio } from './utils/canvas'
+import { WebGLCanvas } from './WebGLCanvas'
 
 // ---------------------------------------------------------------------------
 // GPU line renderer for indicator figure lines (Priority 3).
@@ -238,6 +239,8 @@ export class IndicatorLineWebGLRenderer {
 
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+    gl.disable(gl.DEPTH_TEST)     // 2D only — no depth reads/writes
+    gl.enable(gl.SCISSOR_TEST)    // reject fragments outside the pane canvas
 
     this._program = createProgram(gl)
     gl.useProgram(this._program)
@@ -398,10 +401,8 @@ export class IndicatorLineWebGLRenderer {
 
   /**
    * Draw all uploaded line segments in a single instanced draw call.
-   * @param width  CSS pixel width of the pane widget
-   * @param height CSS pixel height of the pane widget
    */
-  draw (width: number, height: number): void {
+  draw (): void {
     const gl = this._gl
     const pr = getPixelRatio(this._canvas)
     const w  = this._canvas.width
@@ -412,6 +413,7 @@ export class IndicatorLineWebGLRenderer {
     this._drawnVersion = this._vboVersion
 
     gl.viewport(0, 0, w, h)
+    gl.scissor(0, 0, w, h)
     gl.clearColor(0, 0, 0, 0)
     gl.clear(gl.COLOR_BUFFER_BIT)
 
@@ -441,22 +443,6 @@ export class IndicatorLineWebGLRenderer {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Module-level WebGL2 support cache (same approach as CandleWebGLRenderer —
-// avoids creating throwaway contexts on every draw call).
-// ---------------------------------------------------------------------------
-const _lineGL2Supported: boolean = (() => {
-  try {
-    const c  = document.createElement('canvas')
-    const gl = c.getContext('webgl2')
-    if (gl === null) return false
-    gl.getExtension('WEBGL_lose_context')?.loseContext()
-    return true
-  } catch {
-    return false
-  }
-})()
-
 // WeakMap keyed on the widget instance — one renderer per pane widget
 const _lineRendererCache = new WeakMap<object, IndicatorLineWebGLRenderer>()
 
@@ -468,7 +454,7 @@ export function getOrCreateLineRenderer (
   widgetKey: object,
   container: HTMLElement
 ): IndicatorLineWebGLRenderer | null {
-  if (!_lineGL2Supported) return null
+  if (!WebGLCanvas.isSupported()) return null
   let r = _lineRendererCache.get(widgetKey)
   if (r === undefined) {
     try {

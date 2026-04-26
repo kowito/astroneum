@@ -1,0 +1,80 @@
+# GPU Rendering Improvements
+
+Ordered by impact and implementation cost.  
+Items marked **[DONE]** are committed. Items marked **[IMPL]** are implemented in this batch.
+
+---
+
+## Batch 1 — Implemented this session
+
+### [IMPL] 1. Scissor test per pane
+**Files:** `CandleWebGLRenderer`, `IndicatorLineWebGLRenderer`, `IndicatorRectWebGLRenderer`  
+**Why:** `gl.SCISSOR_TEST` causes the GPU to reject any fragment outside the scissor rectangle before executing the fragment shader. For thick indicator lines whose expanded quads slightly overhang the canvas edge, this eliminates the shader invocations for those invisible fragments. In multi-pane layouts the cumulative saving compounds across each pane redraw.  
+**How:** `gl.enable(gl.SCISSOR_TEST)` once in each renderer constructor; `gl.scissor(0, 0, w, h)` before `gl.clear()` in each `draw()`.
+
+### [IMPL] 2. Explicit depth test disable
+**Files:** `CandleWebGLRenderer`, `IndicatorLineWebGLRenderer`, `IndicatorRectWebGLRenderer`  
+**Why:** Some GPU drivers silently enable depth testing. An explicit `gl.disable(gl.DEPTH_TEST)` removes the per-fragment depth read/write overhead on those drivers and makes the state machine intent unambiguous (all our geometry is 2-D and intentionally drawn in submission order).
+
+### [IMPL] 3. Deduplicate WebGL2 support probe
+**Files:** `CandleWebGLRenderer`, `IndicatorLineWebGLRenderer`, `IndicatorRectWebGLRenderer`  
+**Why:** Each renderer has its own module-level IIFE that spins up a throwaway `webgl2` canvas context to check support. Three separate probes means three extra `getContext` calls and three extra context slots consumed at module load. `WebGLCanvas.isSupported()` already performs exactly this probe and caches the result — reuse it everywhere.  
+**How:** Remove `_webgl2Supported` / `_rectGL2Supported` / `_lineGL2Supported` IIFEs; import and call `WebGLCanvas.isSupported()`.
+
+### [IMPL] 4. Remove dead `width`/`height` params from indicator renderer `draw()`
+**Files:** `IndicatorLineWebGLRenderer`, `IndicatorRectWebGLRenderer`, `IndicatorView`  
+**Why:** Both `draw(width, height)` methods ignore their parameters entirely — the canvas dimensions are always read from `this._canvas.width/height` which `resize()` keeps current. The dead params cause confusion about which source-of-truth is authoritative and generate implicit lint noise.  
+**How:** Drop params to `draw()`, update the two call sites in `IndicatorView`.
+
+---
+
+## Batch 2 — Next implementation targets
+
+### [ ] 5. Scissor + viewport per pane on a shared WebGL canvas (multi-pane refactor)
+**Impact:** ★★★★☆  
+Currently each renderer creates its **own** `<canvas>` element, so there is one WebGL context per pane. Browsers cap WebGL contexts at ~16 per page. With many open panes the fallback to Canvas2D is silent. Migrating to a single shared `WebGL2RenderingContext` and isolating each pane with `gl.viewport` + `gl.scissor` removes the context-count ceiling entirely.
+
+### [ ] 6. OffscreenCanvas + Web Worker
+**Impact:** ★★★★★  
+Move all three renderers into a `RenderWorker`. Main thread transfers `Float32Array` data via `postMessage` (zero-copy `Transferable`). The GPU submission loop never competes with React reconciliation or JS event handlers — eliminates main-thread jank during fast scroll/zoom while a tooltip is also updating.  
+**Rough plan:**
+1. `canvas.transferControlToOffscreen()` → post to worker
+2. Worker owns `WebGL2RenderingContext`, runs `requestAnimationFrame` loop
+3. Main thread posts typed-array messages: `{ type: 'bars', data: Float32Array }`
+4. Fallback when `'OffscreenCanvas' in self` is false
+
+### [ ] 7. GPU text / SDF glyph atlas
+**Impact:** ★★★☆☆  
+Price labels, axis tick text, and tooltip numbers are currently `Canvas2D.fillText()` per tick. Pre-render all needed glyphs into a `gl.LUMINANCE` texture atlas; render text quads sampling the atlas. Result: sub-pixel-smooth text at any DPI, zero `fillText` calls in the render loop.  
+**Rough plan:**
+1. Build atlas from charset at init (offline Canvas2D render into `ImageData`)
+2. Upload as `gl.LUMINANCE` 1-channel texture
+3. Add glyph-quad VBO; vertex shader reads UV from atlas lookup table
+4. Fragment shader: `texture(u_atlas, v_uv).r` drives alpha; colorise with uniform
+
+### [ ] 8. WebGPU path
+**Impact:** ★★★☆☆ (browser support ~75 % as of 2026)  
+WebGPU eliminates the implicit draw-state tracking overhead of the WebGL driver. WGSL shaders compile faster; the explicit command-buffer model reduces CPU time by 2–3× vs WebGL2 at equal draw-call count.  
+**Rough plan:**
+1. `navigator.gpu.requestAdapter()` capability gate with WebGL2 fallback
+2. WGSL port of all three vertex+fragment shader pairs
+3. Replace `bufferSubData` with `GPUQueue.writeBuffer`
+4. Compute shaders for LOD aggregation (move CPU bucket loop to GPU)
+
+---
+
+## Already implemented (prior sessions)
+
+| Feature | Commit |
+|---|---|
+| Instanced rendering — 1 draw call for all bars | earlier |
+| Packed 32-byte VBO (5 floats + 3 × UByte4 colors) | earlier |
+| GPU price→Y coordinate transform via uniforms | earlier |
+| Pan-offset uniform — O(1) bandwidth on pure pan | earlier |
+| Dirty-flag VBO fingerprint (5 scalar compares) | earlier |
+| Color cache — no CSS color re-parse per frame | earlier |
+| `EXT_disjoint_timer_query_webgl2` GPU timer (dev) | earlier |
+| LOD aggregation — cap geometry at canvas-width buckets | earlier |
+| Sub-pixel culling — skip segments/rects < 0.5 px | earlier |
+| Incremental dirty tracking (`_vboVersion` gate) | d97d05c |
+| `fwidth()`-based AA lines in fragment shader | d97d05c |

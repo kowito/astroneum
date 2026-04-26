@@ -474,7 +474,7 @@ export default class IndicatorView extends CandleBarView {
       const { width, height } = bounding
       activeRectRenderer.resize(width, height)
       activeRectRenderer.setData(gpuRects)
-      activeRectRenderer.draw(width, height)
+      activeRectRenderer.draw()
     } else if (gpuRects.length > 0) {
       // WebGL2 unavailable — render as Canvas2D fillRect calls
       ctx.save()
@@ -495,7 +495,7 @@ export default class IndicatorView extends CandleBarView {
       const { width, height } = bounding
       activeLineRenderer.resize(width, height)
       activeLineRenderer.setData(gpuLineSegs)
-      activeLineRenderer.draw(width, height)
+      activeLineRenderer.draw()
     } else if (gpuLineSegs.length > 0) {
       // WebGL2 unavailable — render segments as Canvas2D strokes (grouped by style)
       ctx.save()

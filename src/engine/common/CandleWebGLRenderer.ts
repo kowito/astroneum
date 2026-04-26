@@ -1,4 +1,5 @@
 import { getPixelRatio } from './utils/canvas'
+import { WebGLCanvas } from './WebGLCanvas'
 
 // ---------------------------------------------------------------------------
 // Minimal local type for EXT_disjoint_timer_query_webgl2 (WebGL2 variant).
@@ -376,6 +377,8 @@ export class CandleWebGLRenderer {
 
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+    gl.disable(gl.DEPTH_TEST)     // 2D only — no depth reads/writes
+    gl.enable(gl.SCISSOR_TEST)    // reject fragments outside the pane canvas
 
     this._program = createProgram(gl)
     gl.useProgram(this._program)
@@ -759,6 +762,7 @@ export class CandleWebGLRenderer {
     }
 
     gl.viewport(0, 0, canvasWidthPx, canvasHeightPx)
+    gl.scissor(0, 0, canvasWidthPx, canvasHeightPx)
     gl.clearColor(0, 0, 0, 0)
     gl.clear(gl.COLOR_BUFFER_BIT)
 
@@ -804,29 +808,9 @@ export class CandleWebGLRenderer {
   // ---------------------------------------------------------------------------
 
   static isSupported (): boolean {
-    return _webgl2Supported
+    return WebGLCanvas.isSupported()
   }
 }
-
-// ---------------------------------------------------------------------------
-// WebGL2 support is probed once at module load time and cached.  Calling
-// getContext('webgl2') on a throwaway canvas on every draw frame is the
-// primary cause of "Too many active WebGL contexts" — browsers count
-// unreleased probe contexts against the per-page limit (~16).
-// ---------------------------------------------------------------------------
-const _webgl2Supported: boolean = (() => {
-  try {
-    const c = document.createElement('canvas')
-    const gl = c.getContext('webgl2')
-    if (gl === null) return false
-    // Explicitly lose the probe context so the browser can free the slot.
-    const ext = gl.getExtension('WEBGL_lose_context')
-    ext?.loseContext()
-    return true
-  } catch {
-    return false
-  }
-})()
 
 // ---------------------------------------------------------------------------
 // WeakMap cache: DrawWidget instance → CandleWebGLRenderer
@@ -839,7 +823,7 @@ export function getOrCreateRenderer (
   widgetKey: object,
   container: HTMLElement
 ): CandleWebGLRenderer | null {
-  if (!_webgl2Supported) return null
+  if (!WebGLCanvas.isSupported()) return null
   let r = _rendererCache.get(widgetKey)
   if (r === undefined) {
     try {
