@@ -30,7 +30,7 @@ const ScreenshotModal: Component<ScreenshotModalProps> = props => {
         }
       ]}
       onClose={props.onClose}>
-      <img style="width:500px;margin-top: 20px" src={props.url}/>
+      <img style={{width:'500px',marginTop:'20px'}} src={props.url}/>
     </Modal>
   )
 }

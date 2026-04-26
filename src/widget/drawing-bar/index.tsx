@@ -62,13 +62,14 @@ const DrawingBar: Component<DrawingBarProps> = props => {
       {
         overlays.map(item => (
           <div
+            key={item.key}
             className="item"
             role="group"
             aria-label={item.key}
             tabIndex={0}
             onBlur={() => { setPopoverKey('') }}>
             <span
-              style="width:32px;height:32px"
+              style={{width:"32px",height:"32px"}}
               role="button"
               tabIndex={0}
               aria-label={item.icon}
@@ -88,7 +89,7 @@ const DrawingBar: Component<DrawingBarProps> = props => {
               <svg
                 className={item.key === popoverKey ? 'rotate' : ''}
                 viewBox="0 0 4 6">
-                <path d="M1.07298,0.159458C0.827521,-0.0531526,0.429553,-0.0531526,0.184094,0.159458C-0.0613648,0.372068,-0.0613648,0.716778,0.184094,0.929388L2.61275,3.03303L0.260362,5.07061C0.0149035,5.28322,0.0149035,5.62793,0.260362,5.84054C0.505822,6.05315,0.903789,6.05315,1.14925,5.84054L3.81591,3.53075C4.01812,3.3556,4.05374,3.0908,3.92279,2.88406C3.93219,2.73496,3.87113,2.58315,3.73964,2.46925L1.07298,0.159458Z" stroke="none" stroke-opacity="0"/>
+                <path d="M1.07298,0.159458C0.827521,-0.0531526,0.429553,-0.0531526,0.184094,0.159458C-0.0613648,0.372068,-0.0613648,0.716778,0.184094,0.929388L2.61275,3.03303L0.260362,5.07061C0.0149035,5.28322,0.0149035,5.62793,0.260362,5.84054C0.505822,6.05315,0.903789,6.05315,1.14925,5.84054L3.81591,3.53075C4.01812,3.3556,4.05374,3.0908,3.92279,2.88406C3.93219,2.73496,3.87113,2.58315,3.73964,2.46925L1.07298,0.159458Z" stroke="none" strokeOpacity={0}/>
               </svg>
             </div>
             {
@@ -97,13 +98,14 @@ const DrawingBar: Component<DrawingBarProps> = props => {
                   {
                     item.list.map(data => (
                       <li
+                        key={data.key}
                         onClick={() => {
                           item.setter(data.key)
                           props.onDrawingItemClick({ name: data.key, lock, mode: mode as OverlayMode })
                           setPopoverKey('')
                         }}>
                         <Icon name={data.key}/>
-                        <span style="padding-left:8px">{data.text}</span>
+                        <span style={{paddingLeft:"8px"}}>{data.text}</span>
                       </li>
                     ))
                   }
@@ -119,7 +121,7 @@ const DrawingBar: Component<DrawingBarProps> = props => {
         tabIndex={0}
         onBlur={() => { setPopoverKey('') }}>
         <span
-          style="width:32px;height:32px"
+          style={{width:"32px",height:"32px"}}
           onClick={() => {
             let currentMode = modeIcon
             if (mode !== 'normal') {
@@ -147,7 +149,7 @@ const DrawingBar: Component<DrawingBarProps> = props => {
           <svg
             className={popoverKey === 'mode' ? 'rotate' : ''}
             viewBox="0 0 4 6">
-            <path d="M1.07298,0.159458C0.827521,-0.0531526,0.429553,-0.0531526,0.184094,0.159458C-0.0613648,0.372068,-0.0613648,0.716778,0.184094,0.929388L2.61275,3.03303L0.260362,5.07061C0.0149035,5.28322,0.0149035,5.62793,0.260362,5.84054C0.505822,6.05315,0.903789,6.05315,1.14925,5.84054L3.81591,3.53075C4.01812,3.3556,4.05374,3.0908,3.92279,2.88406C3.93219,2.73496,3.87113,2.58315,3.73964,2.46925L1.07298,0.159458Z" stroke="none" stroke-opacity="0"/>
+            <path d="M1.07298,0.159458C0.827521,-0.0531526,0.429553,-0.0531526,0.184094,0.159458C-0.0613648,0.372068,-0.0613648,0.716778,0.184094,0.929388L2.61275,3.03303L0.260362,5.07061C0.0149035,5.28322,0.0149035,5.62793,0.260362,5.84054C0.505822,6.05315,0.903789,6.05315,1.14925,5.84054L3.81591,3.53075C4.01812,3.3556,4.05374,3.0908,3.92279,2.88406C3.93219,2.73496,3.87113,2.58315,3.73964,2.46925L1.07298,0.159458Z" stroke="none" strokeOpacity={0}/>
           </svg>
         </div>
         {
@@ -156,6 +158,7 @@ const DrawingBar: Component<DrawingBarProps> = props => {
               {
                 modes.map(data => (
                   <li
+                    key={data.key}
                     onClick={() => {
                       setModeIcon(data.key)
                       const engineMode = data.key === 'no_magnet' ? 'normal' : data.key
@@ -164,7 +167,7 @@ const DrawingBar: Component<DrawingBarProps> = props => {
                       setPopoverKey('')
                     }}>
                     <Icon name={data.key}/>
-                    <span style="padding-left:8px">{data.text}</span>
+                    <span style={{paddingLeft:"8px"}}>{data.text}</span>
                   </li>
                 ))
               }
@@ -175,7 +178,7 @@ const DrawingBar: Component<DrawingBarProps> = props => {
       <div
         className="item">
         <span
-          style="width:32px;height:32px"
+          style={{width:"32px",height:"32px"}}
           onClick={() => {
             const currentLock = !lock
             setLock(currentLock)
@@ -189,7 +192,7 @@ const DrawingBar: Component<DrawingBarProps> = props => {
       <div
         className="item">
         <span
-          style="width:32px;height:32px"
+          style={{width:"32px",height:"32px"}}
           onClick={() => {
             const nextVisible = !visible
             setVisible(nextVisible)
@@ -207,7 +210,7 @@ const DrawingBar: Component<DrawingBarProps> = props => {
         <span
           role="button"
           tabIndex={0}
-          style="width:32px;height:32px"
+          style={{width:"32px",height:"32px"}}
           aria-pressed={snapLevelsActive}
           aria-label={i18n('snap_levels', props.locale)}
           onKeyDown={e => {
@@ -229,7 +232,7 @@ const DrawingBar: Component<DrawingBarProps> = props => {
       <div
         className="item">
         <span
-          style="width:32px;height:32px"
+          style={{width:"32px",height:"32px"}}
           onClick={() => { props.onRemoveClick(DRAWING_GROUP_ID) }}>
           <Icon name="remove" />
         </span>

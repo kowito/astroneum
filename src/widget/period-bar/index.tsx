@@ -93,6 +93,7 @@ const PeriodBar: Component<PeriodBarProps> = props => {
       {
         props.periods.map(p => (
           <span
+            key={p.text}
             className={`item period ${periodsEqual(p, props.period) ? 'selected' : ''}`}
             role="button"
             tabIndex={0}
