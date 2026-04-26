@@ -12,6 +12,7 @@ import ChildrenView from './ChildrenView'
 
 import { PaneIdConstants } from '../pane/types'
 import { getOrCreateRenderer, destroyRenderer, type BarRenderData } from '../common/CandleWebGLRenderer'
+import { getOrCreateWorkerRenderer, getWorkerRenderer, destroyWorkerRenderer } from '../common/CandleWorkerRenderer'
 
 export interface CandleBarOptions {
   type: Exclude<CandleType, 'area'>
@@ -38,12 +39,20 @@ export default class CandleBarView extends ChildrenView {
     const pane       = widget.getPane()
     const chartStore = pane.getChart().getChartStore()
 
-    const renderer = getOrCreateRenderer(widget, widget.getContainer())
-    if (renderer === null) return false
+    // Worker renderer (OffscreenCanvas) takes priority when available; the
+    // main-thread WebGL renderer is the fallback.  Once one type is created
+    // for a widget, the other is never created — they are mutually exclusive.
+    let renderer = getWorkerRenderer(widget)
+    if (renderer === null) {
+      renderer = getOrCreateWorkerRenderer(widget, widget.getContainer())
+    }
+    const mainRenderer = renderer === null ? getOrCreateRenderer(widget, widget.getContainer()) : null
+    if (renderer === null && mainRenderer === null) return false
+    const activeRenderer = renderer ?? mainRenderer!
 
     // Sync canvas size with the widget bounding box
     const { width, height } = widget.getBounding()
-    renderer.resize(width, height)
+    activeRenderer.resize(width, height)
 
     // Transparent body colour → hollow candle (stroke types)
     const TRANSPARENT = 'rgba(0,0,0,0)'
@@ -103,8 +112,8 @@ export default class CandleBarView extends ChildrenView {
       ohlcHalfSize = Math.floor(ohlcSize / 2)
     }
 
-    renderer.setData(barRenderData)
-    renderer.draw(range.realFrom, range.realRange, barSpace.halfGapBar, renderMode, ohlcHalfSize)
+    activeRenderer.setData(barRenderData)
+    activeRenderer.draw(range.realFrom, range.realRange, barSpace.halfGapBar, renderMode, ohlcHalfSize)
     return true
   }
 

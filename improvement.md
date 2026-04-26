@@ -46,14 +46,10 @@ Items marked **[DONE]** are committed. Items marked **[IMPL]** are implemented i
 **Why:** The plugin renderer was skipped in batch 1. It still had its own `_pluginGL2Supported` IIFE, was missing `gl.disable(gl.DEPTH_TEST)` and `gl.enable(gl.SCISSOR_TEST)`, and `beginFrame()` was missing the `gl.scissor()` call.
 **How:** Add depth-disable + scissor-enable in constructor; add `gl.scissor(0, 0, w, h)` in `beginFrame()`; replace IIFE with `WebGLCanvas.isSupported()`.
 
-### [ ] 6. OffscreenCanvas + Web Worker
+### [IMPL] 6. OffscreenCanvas + Web Worker
 **Impact:** ★★★★★  
-Move all three renderers into a `RenderWorker`. Main thread transfers `Float32Array` data via `postMessage` (zero-copy `Transferable`). The GPU submission loop never competes with React reconciliation or JS event handlers — eliminates main-thread jank during fast scroll/zoom while a tooltip is also updating.  
-**Rough plan:**
-1. `canvas.transferControlToOffscreen()` → post to worker
-2. Worker owns `WebGL2RenderingContext`, runs `requestAnimationFrame` loop
-3. Main thread posts typed-array messages: `{ type: 'bars', data: Float32Array }`
-4. Fallback when `'OffscreenCanvas' in self` is false
+Move candle renderer GPU commands into a `CandleWorkerRenderer`. Main thread handles LOD + colour parsing + staging-buffer pack. Worker owns the OffscreenCanvas and runs `gl.bufferSubData + gl.drawArraysInstanced` off the main thread — eliminates main-thread GL-driver stalls during fast scroll/zoom while a tooltip is updating.  
+**Implemented:** `candleShaders.ts` (shared constants + fixed OHLC shader bug), `CandleWorkerRenderer.ts` (blob-URL worker, same fingerprint/pan/LOD API as `CandleWebGLRenderer`), `CandleBarView.ts` (tries worker first, falls back to main-thread GL), `CandleWidget.ts` (destroys both renderer types on cleanup). Structured-clone upload keeps staging buffer intact on main thread.
 
 ### [ ] 7. GPU text / SDF glyph atlas
 **Impact:** ★★★☆☆  

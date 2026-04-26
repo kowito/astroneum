@@ -13,6 +13,7 @@ import type AxisPane from '../pane/DrawPane'
 
 import type { YAxis } from '../component/YAxis'
 import { destroyRenderer } from '../common/CandleWebGLRenderer'
+import { destroyWorkerRenderer } from '../common/CandleWorkerRenderer'
 
 export default class CandleWidget extends IndicatorWidget {
   private readonly _candleBarView = new CandleBarView(this)
@@ -48,7 +49,8 @@ export default class CandleWidget extends IndicatorWidget {
   }
 
   override destroy (): void {
-    destroyRenderer(this)
+    destroyWorkerRenderer(this)   // worker renderer (if created)
+    destroyRenderer(this)         // main-thread GL renderer (if created)
     super.destroy()
   }
 }
