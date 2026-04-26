@@ -57,31 +57,44 @@ export default class Event implements EventHandler {
   private _mouseMoveTriggerWidgetInfo: EventTriggerWidgetInfo = { pane: null, widget: null }
 
   private readonly _boundKeyBoardDownEvent: ((event: KeyboardEvent) => void) = (event: KeyboardEvent) => {
-    if (event.shiftKey) {
-      switch (event.code) {
-        case 'Equal': {
-          this._chart.getChartStore().zoom(0.5, null, 'main')
-          break
+    switch (event.code) {
+      case 'Escape': {
+        const store = this._chart.getChartStore()
+        const progressInfo = store.getProgressOverlayInfo()
+        if (progressInfo !== null) {
+          store.removeOverlay({ id: progressInfo.overlay.id })
         }
-        case 'Minus': {
-          this._chart.getChartStore().zoom(-0.5, null, 'main')
-          break
+        break
+      }
+      default: {
+        if (event.shiftKey) {
+          switch (event.code) {
+            case 'Equal': {
+              this._chart.getChartStore().zoom(0.5, null, 'main')
+              break
+            }
+            case 'Minus': {
+              this._chart.getChartStore().zoom(-0.5, null, 'main')
+              break
+            }
+            case 'ArrowLeft': {
+              const store = this._chart.getChartStore()
+              store.startScroll()
+              store.scroll(-3 * store.getBarSpace().bar)
+              break
+            }
+            case 'ArrowRight': {
+              const store = this._chart.getChartStore()
+              store.startScroll()
+              store.scroll(3 * store.getBarSpace().bar)
+              break
+            }
+            default: {
+              break
+            }
+          }
         }
-        case 'ArrowLeft': {
-          const store = this._chart.getChartStore()
-          store.startScroll()
-          store.scroll(-3 * store.getBarSpace().bar)
-          break
-        }
-        case 'ArrowRight': {
-          const store = this._chart.getChartStore()
-          store.startScroll()
-          store.scroll(3 * store.getBarSpace().bar)
-          break
-        }
-        default: {
-          break
-        }
+        break
       }
     }
   }

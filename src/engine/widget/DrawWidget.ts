@@ -60,7 +60,8 @@ export default abstract class DrawWidget<P extends DrawPane = DrawPane> extends 
       top: '0',
       overflow: 'hidden',
       boxSizing: 'border-box',
-      zIndex: '1'
+      zIndex: '1',
+      backgroundColor: 'inherit'
     })
   }
 
