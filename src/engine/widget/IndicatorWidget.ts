@@ -35,8 +35,8 @@ export default class IndicatorWidget extends DrawWidget<DrawPane<YAxis>> {
   protected updateMain (ctx: CanvasRenderingContext2D): void {
     if (this.getPane().getOptions().state !== 'minimize') {
       this.updateMainContent(ctx)
+      this._gridView.draw(ctx)        // sets GL grid data first (so drawGrid runs behind indicators)
       this._indicatorView.draw(ctx)
-      this._gridView.draw(ctx)
     }
   }
 

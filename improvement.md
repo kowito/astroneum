@@ -139,7 +139,7 @@ WebGPU eliminates the implicit draw-state tracking overhead of the WebGL driver.
 
 ---
 
-### [SPEC] 15. VBO overscan — tile-based pre-render buffer
+### [IMPL] 15. VBO overscan — tile-based pre-render buffer
 **Impact:** ★★★★☆  
 **Files:** `src/engine/common/CandleWebGLRenderer.ts`, `src/engine/view/CandleBarView.ts`  
 **Why:** The existing pure-pan fast path (O(1) uniform update) only applies when the *identical* set of visible bars is in the VBO. As soon as the user pans by even one bar, the fingerprint changes → full O(N) VBO rebuild. With a VBO overscan buffer (OVERSCAN = 64 bars pre-rendered beyond the viewport on both sides), pans of up to 64 bars in either direction resolve without rebuilding the VBO — only a pan-offset uniform update is needed. This is the chart-specific form of tile-based pre-rendering: the VBO acts as a wider pre-rendered tile, and the scissor/viewport exposes only the visible sub-region.  
@@ -235,7 +235,7 @@ WebGPU eliminates the implicit draw-state tracking overhead of the WebGL driver.
 
 ---
 
-### [SPEC] 21. GPU grid lines via `IndicatorLineWebGLRenderer`
+### [IMPL] 21. GPU grid lines via `IndicatorLineWebGLRenderer`
 **Impact:** ★★★★☆  
 **Files:** `src/engine/view/GridView.ts`  
 **Why:** `GridView.drawImp()` issues one `createFigure({ name: 'line' })?.draw(ctx)` call per tick. A 3-pane chart with 10 H + 10 V ticks per pane = 60 Canvas2D path open/stroke/close cycles per grid redraw. `IndicatorLineWebGLRenderer` already packs every line segment as a 16-byte VBO entry and renders all segments in one `gl.drawArraysInstanced()` call. Grid lines have the same geometry as indicator lines and map directly to the `[x1, y1, x2, y2]` + colour instanced attribute layout.  
@@ -248,7 +248,7 @@ WebGPU eliminates the implicit draw-state tracking overhead of the WebGL driver.
 
 ---
 
-### [SPEC] 22. Incremental tail-update for live-tick indicator recalc
+### [IMPL] 22. Incremental tail-update for live-tick indicator recalc
 **Impact:** ★★★★★  
 **Files:** `src/engine/Store.ts`, `src/engine/component/Indicator.ts`  
 **Why:** `updateData(latestBar)` triggers a full `dataList.map()` pass for every indicator. With 10k bars and 3 standard indicators (MACD, RSI, SMA) this is ~30 000 scalar operations per main-thread tick. Only the last `maxPeriod + 1` bars can produce changed output; all earlier results are already correct. Restricting the recalc window to `maxPeriod * 2` bars and splicing the tail back into `indicator.result` achieves O(maxPeriod) per tick — a ~200× speedup at N = 10 000.  

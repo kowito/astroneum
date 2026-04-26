@@ -496,11 +496,14 @@ export default class IndicatorView extends CandleBarView {
 
       // Dirty detection: any stale VBO or canvas-resize triggers a full redraw.
       const anyDirty = (activeRectRenderer?.isDirty() ?? false) ||
-                       (activeLineRenderer?.isDirty() ?? false)
+                       (activeLineRenderer?.isDirty() ?? false) ||
+                       (activeLineRenderer?.isGridDirty() ?? false)
       if (anyDirty) {
         // Clear once, then draw rects first (below lines for correct compositing).
+        // Draw grid lines before indicator lines so they appear behind.
         activeShared.beginFrame()
         activeRectRenderer?.draw()
+        activeLineRenderer?.drawGrid()
         activeLineRenderer?.draw()
       }
     } else if (hasGpuIndicators) {

@@ -64,6 +64,7 @@ export default class CandleBarView extends ChildrenView {
     }
 
     let activeRenderer: { resize(w: number, h: number): void; setData(b: BarRenderData[]): void; draw(...a: number[]): void } | null = null
+    let mainWebGLRenderer: ReturnType<typeof getOrCreateRenderer> = null
 
     if (gpuRenderer !== null) {
       activeRenderer = gpuRenderer
@@ -79,9 +80,9 @@ export default class CandleBarView extends ChildrenView {
       if (renderer === null) {
         renderer = getOrCreateWorkerRenderer(widget, widget.getContainer())
       }
-      const mainRenderer = renderer === null ? getOrCreateRenderer(widget, widget.getContainer()) : null
-      if (renderer === null && mainRenderer === null) return false
-      activeRenderer = (renderer ?? mainRenderer)!
+      mainWebGLRenderer = renderer === null ? getOrCreateRenderer(widget, widget.getContainer()) : null
+      if (renderer === null && mainWebGLRenderer === null) return false
+      activeRenderer = (renderer ?? mainWebGLRenderer)!
     }
 
     // Sync canvas size with the widget bounding box
@@ -96,13 +97,15 @@ export default class CandleBarView extends ChildrenView {
     const barSpace    = chartStore.getBarSpace()
     const barRenderData: BarRenderData[] = []
 
-    for (const vd of visibleData) {
-      const { x, data: { current, prev } } = vd
-      if (!isValid(current)) continue
-
+    // ── Bar color helper ──────────────────────────────────────────────────────
+    const buildBar = (
+      dataIndex: number,
+      x: number,
+      current: { open: number; high: number; low: number; close: number },
+      prevClose: number | undefined
+    ): BarRenderData => {
       const { open, high, low, close } = current
-      const comparePrice = styles.compareRule === 'current_open' ? open : (prev?.close ?? close)
-
+      const comparePrice = styles.compareRule === 'current_open' ? open : (prevClose ?? close)
       let wickColor: string, bodyColor: string, borderColor: string
       if (close > comparePrice) {
         wickColor   = styles.upWickColor
@@ -117,18 +120,62 @@ export default class CandleBarView extends ChildrenView {
         bodyColor   = styles.noChangeColor
         borderColor = styles.noChangeBorderColor
       }
-
-      // Hollow body for stroke types:
-      //   candle_stroke      → always hollow
-      //   candle_up_stroke   → hollow only when close > open  (up bar)
-      //   candle_down_stroke → hollow only when open  > close (down bar)
       const isHollow =
         type === 'candle_stroke' ||
         (type === 'candle_up_stroke'   && close > open) ||
         (type === 'candle_down_stroke' && open  > close)
       if (isHollow) bodyColor = TRANSPARENT
+      return { dataIndex, centerX: x, open, high, low, close, wickColor, bodyColor, borderColor }
+    }
 
-      barRenderData.push({ centerX: x, open, high, low, close, wickColor, bodyColor, borderColor })
+    // ── VBO overscan (Item 15) ────────────────────────────────────────────────
+    // For the main-thread WebGL renderer only: pre-load OVERSCAN = 64 bars
+    // before/after the visible range into the VBO so that small pans don't
+    // require a full O(N) VBO re-upload.
+    const OVERSCAN = 64
+    let visibleOffset = 0
+
+    if (mainWebGLRenderer !== null && visibleData.length > 0) {
+      const dataList = chartStore.getDataList()
+      const firstVis = visibleData[0]
+      const lastVis  = visibleData[visibleData.length - 1]
+
+      // Overscan bars BEFORE the visible range (older bars, to the left)
+      const nBefore = Math.min(OVERSCAN, firstVis.dataIndex)
+      for (let k = nBefore; k >= 1; k--) {
+        const idx = firstVis.dataIndex - k
+        const current = dataList[idx]
+        if (!isValid(current)) continue
+        const prev = idx > 0 ? dataList[idx - 1] : null
+        const x = firstVis.x - k * barSpace.gapBar
+        barRenderData.push(buildBar(idx, x, current, prev?.close))
+      }
+      visibleOffset = barRenderData.length  // = nBefore (or fewer if some data is invalid)
+    }
+
+    // ── Visible bars ──────────────────────────────────────────────────────────
+    const visibleStart = barRenderData.length
+    for (const vd of visibleData) {
+      const { x, dataIndex: di, data: { current, prev } } = vd
+      if (!isValid(current)) continue
+      barRenderData.push(buildBar(di, x, current, prev?.close))
+    }
+    const visibleCount = barRenderData.length - visibleStart
+
+    if (mainWebGLRenderer !== null && visibleData.length > 0) {
+      const dataList = chartStore.getDataList()
+      const lastVis  = visibleData[visibleData.length - 1]
+
+      // Overscan bars AFTER the visible range (newer bars, to the right)
+      const nAfter = Math.min(OVERSCAN, dataList.length - 1 - lastVis.dataIndex)
+      for (let k = 1; k <= nAfter; k++) {
+        const idx = lastVis.dataIndex + k
+        const current = dataList[idx]
+        if (!isValid(current)) continue
+        const prev = dataList[idx - 1] ?? null
+        const x = lastVis.x + k * barSpace.gapBar
+        barRenderData.push(buildBar(idx, x, current, prev?.close))
+      }
     }
 
     // Phase 4.3 — pass Y-axis range as uniforms (O(1) on pan/zoom)
@@ -146,8 +193,15 @@ export default class CandleBarView extends ChildrenView {
       ohlcHalfSize = Math.floor(ohlcSize / 2)
     }
 
-    activeRenderer.setData(barRenderData)
-    activeRenderer.draw(range.realFrom, range.realRange, barSpace.halfGapBar, renderMode, ohlcHalfSize)
+    // For the main WebGL renderer, pass overscan metadata to enable the VBO
+    // overscan fast path (skips full re-upload when panning by a few bars).
+    // Other renderers receive the full array without overscan params.
+    if (mainWebGLRenderer !== null) {
+      mainWebGLRenderer.setData(barRenderData, visibleOffset, visibleCount)
+    } else {
+      activeRenderer!.setData(barRenderData)
+    }
+    activeRenderer!.draw(range.realFrom, range.realRange, barSpace.halfGapBar, renderMode, ohlcHalfSize)
     return true
   }
 

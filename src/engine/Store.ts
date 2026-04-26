@@ -313,7 +313,7 @@ export default class StoreImp implements Store {
    * Accumulates indicator references across synchronous calls; a single
    * microtask drains the map and issues one TaskScheduler batch.
    */
-  private readonly _pendingCalcMap = new Map<string, IndicatorImp>()
+  private readonly _pendingCalcMap = new Map<string, { ind: IndicatorImp; mode: 'full' | 'tail' }>()
   private _calcMicrotaskScheduled = false
 
   /**
@@ -639,7 +639,7 @@ export default class StoreImp implements Store {
         if (!isTickUpdate) {
           this._fullLayoutNeeded = true
         }
-        this._calcIndicator(filterIndicators)
+        this._calcIndicator(filterIndicators, isTickUpdate ? 'tail' : 'full')
       } else {
         if (isTickUpdate) {
           // Keep buildYAxisTick: true so the Y-axis range is recalculated on every tick
@@ -1219,13 +1219,19 @@ export default class StoreImp implements Store {
     }
   }
 
-  private _calcIndicator (data: IndicatorImp | IndicatorImp[]): void {
+  private _calcIndicator (data: IndicatorImp | IndicatorImp[], updateMode: 'full' | 'tail' = 'full'): void {
     const indicators: IndicatorImp[] = ([] as IndicatorImp[]).concat(data)
     if (indicators.length === 0) return
 
     // Batch-13: accumulate into the pending map (last write per ID wins,
     // ensuring the most recent indicator instance is used).
-    indicators.forEach(ind => { this._pendingCalcMap.set(ind.id, ind) })
+    // 'full' mode cannot be downgraded to 'tail' once queued.
+    indicators.forEach(ind => {
+      const existing = this._pendingCalcMap.get(ind.id)
+      if (existing === undefined || updateMode === 'full') {
+        this._pendingCalcMap.set(ind.id, { ind, mode: updateMode })
+      }
+    })
 
     if (this._calcMicrotaskScheduled) return
     this._calcMicrotaskScheduled = true
@@ -1235,8 +1241,8 @@ export default class StoreImp implements Store {
       if (this._pendingCalcMap.size === 0) return
 
       const tasks: Record<string, Promise<unknown>> = {}
-      this._pendingCalcMap.forEach((ind, id) => {
-        tasks[id] = ind.calcImp(this._dataList)
+      this._pendingCalcMap.forEach((entry, id) => {
+        tasks[id] = entry.ind.calcImp(this._dataList, entry.mode)
       })
       this._pendingCalcMap.clear()
 

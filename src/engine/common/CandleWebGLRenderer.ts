@@ -61,6 +61,8 @@ export interface BarRenderData {
   wickColor: string
   bodyColor: string
   borderColor: string
+  /** 0-based index into the chart data list — used by the VBO overscan fast path. */
+  dataIndex?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -148,6 +150,19 @@ export class CandleWebGLRenderer {
   //  When bar density exceeds ~1.5 bars per CSS pixel, aggregate visible bars
   //  into canvas-width buckets before uploading.  Caps GPU work at O(canvas-width)
   //  regardless of how many historical bars are in view.
+  // ── VBO overscan (Priority 15) ─────────────────────────────────────────────
+  //  Stores OVERSCAN bars before/after the visible range in the VBO so that
+  //  panning by a few bars doesn't require a full O(N) re-upload.  When the
+  //  new visible range falls within the stored overscan, just update
+  //  _drawStartOffset and _panOffsetCss (O(1)) without touching the VBO.
+  private _vboFirstDataIdx = -1    // dataIndex of VBO[0] bar
+  private _vboLastDataIdx  = -1    // dataIndex of VBO[_barCount-1] bar
+  private _vboBar0X        = 0     // CSS pixel X of VBO[0] bar at last full upload
+  private _vboBarStep      = 0     // CSS pixel bar spacing at last full upload
+  private _drawStartOffset = 0     // VBO instance offset (skip overscan prefix)
+  private _visibleBarCount = 0     // number of visible bars to draw
+  private _lastDrawStartOffset = -1  // last value used to rebind attribs
+
   private _canvasWidthCss = 0        // CSS pixel width tracked in resize() — LOD threshold
   private _lodActive = false         // true when LOD downsampling is in effect this frame
   private readonly _lodBuf: BarRenderData[] = []  // reused bucket buffer — amortised, no GC
@@ -272,23 +287,32 @@ export class CandleWebGLRenderer {
   // ---------------------------------------------------------------------------
 
   private _setupAttribs (gl: WebGL2RenderingContext): void {
+    this._rebindAttribsWithOffset(gl, 0)
+  }
+
+  /**
+   * Rebind all instanced attribute pointers with a base byte offset.
+   * Called during construction (offset = 0) and in draw() when _drawStartOffset
+   * changes (overscan fast path) — updates the VAO's captured state.
+   */
+  private _rebindAttribsWithOffset (gl: WebGL2RenderingContext, baseOffset: number): void {
     const prog   = this._program
     const stride = BYTES_PER_BAR
 
-    const bindF32 = (name: string, byteOffset: number): void => {
+    const bindF32 = (name: string, fieldOffset: number): void => {
       const loc = gl.getAttribLocation(prog, name)
       if (loc < 0) return
       gl.enableVertexAttribArray(loc)
-      gl.vertexAttribPointer(loc, 1, gl.FLOAT, false, stride, byteOffset)
+      gl.vertexAttribPointer(loc, 1, gl.FLOAT, false, stride, baseOffset + fieldOffset)
       gl.vertexAttribDivisor(loc, 1)
     }
 
-    const bindU8Color = (name: string, byteOffset: number): void => {
+    const bindU8Color = (name: string, fieldOffset: number): void => {
       const loc = gl.getAttribLocation(prog, name)
       if (loc < 0) return
       gl.enableVertexAttribArray(loc)
       // normalized=true: GPU divides UNSIGNED_BYTE [0..255] by 255 → [0..1]
-      gl.vertexAttribPointer(loc, 4, gl.UNSIGNED_BYTE, true, stride, byteOffset)
+      gl.vertexAttribPointer(loc, 4, gl.UNSIGNED_BYTE, true, stride, baseOffset + fieldOffset)
       gl.vertexAttribDivisor(loc, 1)
     }
 
@@ -385,42 +409,115 @@ export class CandleWebGLRenderer {
   }
 
   /**
-   * Full upload of all visible bars. Called on symbol/period change or initial load.
+   * Full upload of all visible bars (+ optional overscan prefix/suffix).
+   * Called on symbol/period change or initial load.
    * Packs all bar data into the pre-allocated staging buffer then streams to GPU
    * in a single bufferSubData call.
+   *
+   * @param rawBars       All bars to upload (overscan + visible + overscan).
+   * @param visibleOffset Index within rawBars of the first visible bar (default 0).
+   * @param visibleCount  Number of visible bars to draw (default rawBars.length).
    *
    * LOD: when bar density > 1.5 bars/CSS-pixel, aggregates rawBars into
    * canvas-width buckets first (O(N) CPU cost, but O(canvas-width) GPU cost).
    *
    * Dirty-flag: an O(1) fingerprint check skips the upload when the visible bar
    * set is identical to the last uploaded frame (e.g. crosshair hover redraws).
+   *
+   * Overscan fast path: when the new visible range falls within the VBO's stored
+   * data-index range, updates _drawStartOffset and _panOffsetCss without any
+   * VBO upload — O(1) even when new bars scroll into view from the buffer.
    */
-  setData (rawBars: BarRenderData[]): void {
+  setData (rawBars: BarRenderData[], visibleOffset = 0, visibleCount = rawBars.length): void {
+    // ── Overscan fast path (Priority 15) ─────────────────────────────────────
+    // When the caller provides dataIndex on each bar and the new visible range
+    // falls entirely within the VBO's previously-uploaded data range, skip the
+    // VBO write and just update the draw-start offset + pan offset.
+    // Guard: skip when LOD is active (aggregated buckets break the index mapping).
+    if (
+      !this._lodActive &&
+      visibleOffset > 0 &&
+      visibleCount > 0 &&
+      visibleOffset + visibleCount <= rawBars.length &&
+      this._barCount > 0 &&
+      this._vboFirstDataIdx >= 0 &&
+      this._vboBarStep !== 0
+    ) {
+      const firstVis = rawBars[visibleOffset]
+      const lastVis  = rawBars[visibleOffset + visibleCount - 1]
+      if (
+        firstVis.dataIndex !== undefined &&
+        lastVis.dataIndex  !== undefined &&
+        firstVis.dataIndex >= this._vboFirstDataIdx &&
+        lastVis.dataIndex  <= this._vboLastDataIdx  &&
+        // Ensure bar step matches (guards against zoom change)
+        (visibleCount < 2 || (rawBars[visibleOffset + 1].centerX - firstVis.centerX) === this._vboBarStep)
+      ) {
+        const newDrawStart = firstVis.dataIndex - this._vboFirstDataIdx
+        // Recompute pan offset: new visualX of first visible bar must equal
+        // stored VBO X + _panOffsetCss (shader adds the offset at draw time).
+        // storedX = _vboBar0X + newDrawStart * _vboBarStep
+        const storedX = this._vboBar0X + newDrawStart * this._vboBarStep
+        this._panOffsetCss  = firstVis.centerX - storedX
+        this._drawStartOffset = newDrawStart
+        this._visibleBarCount = visibleCount
+        // Update fingerprints so the pure-pan path works on subsequent frames
+        this._fingerprintBarCount = visibleCount
+        this._fingerprintFirstX = firstVis.centerX
+        this._fingerprintLastX  = lastVis.centerX
+        this._fingerprintLastClose = lastVis.close
+        this._fingerprintLastBodyColor = lastVis.bodyColor
+        this._fingerprintFirstOpen  = firstVis.open
+        this._fingerprintFirstClose = firstVis.close
+        this._fingerprintBarStep = visibleCount >= 2
+          ? rawBars[visibleOffset + 1].centerX - firstVis.centerX
+          : this._fingerprintBarStep
+        this._vboVersion++   // draw params changed — must redraw
+        return
+      }
+    }
+
     // LOD: cap instance count at canvas-pixel-width when bar density is too high.
-    // Threshold 1.5 allows a small margin before aggregation kicks in.
+    // Use visibleCount (not rawBars.length) so overscan bars don't skew the threshold.
+    // When LOD is active, aggregate only the visible window; drawStartOffset = 0.
     const LOD_THRESHOLD = 1.5
     let bars: BarRenderData[]
-    if (this._canvasWidthCss > 0 && rawBars.length > this._canvasWidthCss * LOD_THRESHOLD) {
+    const rawVisibleCount = Math.min(visibleCount, rawBars.length - visibleOffset)
+    if (this._canvasWidthCss > 0 && rawVisibleCount > this._canvasWidthCss * LOD_THRESHOLD) {
       const targetCount = Math.max(1, Math.floor(this._canvasWidthCss))
-      this._applyLod(rawBars, targetCount)
+      // Slice visible bars only for LOD aggregation (keeps overscan out of buckets)
+      const visibleSlice = (visibleOffset === 0 && rawVisibleCount === rawBars.length)
+        ? rawBars
+        : rawBars.slice(visibleOffset, visibleOffset + rawVisibleCount)
+      this._applyLod(visibleSlice, targetCount)
       bars = this._lodBuf
       this._lodActive = true
     } else {
       bars = rawBars
       this._lodActive = false
     }
-    const visibleBarCount = bars.length
-    this._barCount = visibleBarCount
-    if (visibleBarCount === 0) {
+    const totalBarCount = bars.length
+    this._barCount = totalBarCount
+    if (totalBarCount === 0) {
+      this._fingerprintBarCount = 0
+      return
+    }
+
+    // For fingerprint and pan-offset checks, use the VISIBLE portion of bars.
+    // When LOD is active bars = _lodBuf (only visible, no overscan), fpStart = 0.
+    // When LOD is inactive bars = rawBars (full array), fpStart = visibleOffset.
+    const fpStart = this._lodActive ? 0 : visibleOffset
+    const fpCount = this._lodActive ? totalBarCount : Math.min(visibleCount, totalBarCount - visibleOffset)
+    if (fpCount === 0) {
       this._fingerprintBarCount = 0
       return
     }
 
     // O(1) fingerprint — skip the O(N) staging + bufferSubData when unchanged
-    const firstBar = bars[0]
-    const lastBar  = bars[visibleBarCount - 1]
+    const firstBar = bars[fpStart]
+    const lastBar  = bars[fpStart + fpCount - 1]
     if (
-      visibleBarCount               === this._fingerprintBarCount    &&
+      fpCount                       === this._fingerprintBarCount    &&
       firstBar.centerX              === this._fingerprintFirstX      &&
       lastBar.centerX               === this._fingerprintLastX       &&
       lastBar.close                 === this._fingerprintLastClose   &&
@@ -433,11 +530,11 @@ export class CandleWebGLRenderer {
     // If detected → accumulate the pixel delta into _panOffsetCss and return
     // without touching the VBO at all.  The vertex shader adds _panOffsetCss
     // to every a_centerX, so the visual result is identical.
-    const currentBarStep = visibleBarCount >= 2
-      ? bars[1].centerX - firstBar.centerX
+    const currentBarStep = fpCount >= 2
+      ? bars[fpStart + 1].centerX - firstBar.centerX
       : this._fingerprintBarStep
     if (
-      visibleBarCount               === this._fingerprintBarCount     &&
+      fpCount                       === this._fingerprintBarCount     &&
       lastBar.close                 === this._fingerprintLastClose    &&
       lastBar.bodyColor             === this._fingerprintLastBodyColor &&
       firstBar.open                 === this._fingerprintFirstOpen    &&
@@ -456,7 +553,7 @@ export class CandleWebGLRenderer {
     // Reset pan accumulator: the VBO will be written with the current visual
     // positions, so the shader must add 0 (no net pan offset).
     this._panOffsetCss = 0
-    this._fingerprintBarCount = visibleBarCount
+    this._fingerprintBarCount = fpCount
     this._fingerprintFirstX = firstBar.centerX
     this._fingerprintLastX = lastBar.centerX
     this._fingerprintLastClose = lastBar.close
@@ -465,18 +562,32 @@ export class CandleWebGLRenderer {
     this._fingerprintFirstClose = firstBar.close
     this._fingerprintBarStep = currentBarStep
 
-    this._ensureCapacity(visibleBarCount)
+    // ── Overscan metadata ────────────────────────────────────────────────────
+    // Store first/last dataIndex and bar geometry so the overscan fast path can
+    // detect future setData() calls that fall within this VBO's range.
+    // When no dataIndex is provided (non-overscan caller), disable the fast path.
+    this._vboFirstDataIdx = bars[0].dataIndex ?? -1
+    this._vboLastDataIdx  = bars[totalBarCount - 1].dataIndex ?? -1
+    this._vboBar0X        = bars[0].centerX   // X at upload time (panOffset=0)
+    this._vboBarStep      = currentBarStep
+    // Draw parameters for the visible window within the overscan array.
+    // When caller passes visibleOffset=0 (default), these equal the full range.
+    // For LOD paths _drawStartOffset is always 0 (whole aggregated array is visible).
+    this._drawStartOffset = this._lodActive ? 0 : visibleOffset
+    this._visibleBarCount = this._lodActive ? totalBarCount : fpCount
+
+    this._ensureCapacity(totalBarCount)
 
     const f32 = this._stagingF32
     const u8  = this._stagingU8
-    for (let i = 0; i < visibleBarCount; i++) {
+    for (let i = 0; i < totalBarCount; i++) {
       // BYTES_PER_BAR = 32 → f32Base = i * 8  (32 / sizeof(float32) = 8)
       this._writeBarIntoViews(bars[i], f32, u8, i << 3, i * BYTES_PER_BAR)
     }
 
     const gl = this._gl
     gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._stagingU8, 0, visibleBarCount * BYTES_PER_BAR)
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._stagingU8, 0, totalBarCount * BYTES_PER_BAR)
     this._vboVersion++   // VBO updated — draw() must re-render
   }
 
@@ -496,9 +607,14 @@ export class CandleWebGLRenderer {
     this._writeBarIntoViews(bar, this._singleBarF32, this._singleBarU8, 0, 0)
     const gl = this._gl
     gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
+    // With overscan, the live-tick bar is always the last VISIBLE bar
+    // (at _drawStartOffset + _visibleBarCount - 1 in the VBO).
+    const lastVisibleVboIdx = this._visibleBarCount > 0
+      ? this._drawStartOffset + this._visibleBarCount - 1
+      : this._barCount - 1
     gl.bufferSubData(
       gl.ARRAY_BUFFER,
-      (this._barCount - 1) * BYTES_PER_BAR,
+      lastVisibleVboIdx * BYTES_PER_BAR,
       this._singleBarBuf
     )
     this._vboVersion++   // last-bar VBO slot updated — draw() must re-render
@@ -585,8 +701,19 @@ export class CandleWebGLRenderer {
     gl.uniform1f(this._uPanOffset,    this._panOffsetCss)
 
     gl.bindVertexArray(this._vao)
-    // Single instanced draw call: VERTS_PER_BAR vertices × barCount instances
-    gl.drawArraysInstanced(gl.TRIANGLES, 0, VERTS_PER_BAR, this._barCount)
+    // Overscan: rebind attribute pointers if the draw-start offset changed.
+    // This updates the VAO's captured state so the draw call starts at the
+    // correct VBO byte position (skipping the overscan prefix).
+    const drawStartByte = this._drawStartOffset * BYTES_PER_BAR
+    if (this._drawStartOffset !== this._lastDrawStartOffset) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
+      this._rebindAttribsWithOffset(gl, drawStartByte)
+      this._lastDrawStartOffset = this._drawStartOffset
+    }
+    // Use _visibleBarCount (excludes overscan) if set, else fall back to _barCount.
+    const instanceCount = this._visibleBarCount > 0 ? this._visibleBarCount : this._barCount
+    // Single instanced draw call: VERTS_PER_BAR vertices × instanceCount instances
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, VERTS_PER_BAR, instanceCount)
     gl.bindVertexArray(null)
 
     if (this._timerExt !== null && this._timerQuery !== null && this._timerQueryActive) {

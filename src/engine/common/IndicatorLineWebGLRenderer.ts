@@ -198,6 +198,23 @@ export class IndicatorLineWebGLRenderer {
   // Color cache — indicator palettes are small (≤10 distinct colors typically)
   private readonly _colorCache = new Map<string, readonly [number, number, number, number]>()
 
+  // ── Grid line GPU resources (separate VAO + VBO so grid and indicator data are independent)
+  private readonly _gridVao: WebGLVertexArrayObject
+  private readonly _gridVbo: WebGLBuffer
+  private _gridCapacity = 0
+  private _gridSegCount = 0
+  private _gridStagingBuf: ArrayBuffer = new ArrayBuffer(128 * BYTES_PER_SEG)
+  private _gridStagingF32: Float32Array = new Float32Array(this._gridStagingBuf)
+  private _gridStagingU8:  Uint8Array   = new Uint8Array(this._gridStagingBuf)
+  private _gridVboVersion   = 0
+  private _gridDrawnVersion = -1
+  // O(1) fingerprint for grid lines (changes only on zoom/resize, not pan)
+  private _gridFingerprintCount  = -1
+  private _gridFingerprintFirstX = 0
+  private _gridFingerprintFirstY = 0
+  private _gridFingerprintLastX  = 0
+  private _gridFingerprintLastY  = 0
+
   // ---------------------------------------------------------------------------
   // Dirty-flag fingerprint (same O(1) strategy as CandleWebGLRenderer)
   // ---------------------------------------------------------------------------
@@ -237,6 +254,16 @@ export class IndicatorLineWebGLRenderer {
 
     this._vbo = gl.createBuffer()!
     gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
+
+    this._setupAttribs(gl)
+    gl.bindVertexArray(null)
+
+    // Grid VAO/VBO — same shader, separate instance buffer
+    this._gridVao = gl.createVertexArray()!
+    gl.bindVertexArray(this._gridVao)
+
+    this._gridVbo = gl.createBuffer()!
+    gl.bindBuffer(gl.ARRAY_BUFFER, this._gridVbo)
 
     this._setupAttribs(gl)
     gl.bindVertexArray(null)
@@ -420,8 +447,122 @@ export class IndicatorLineWebGLRenderer {
   // Cleanup
   // ---------------------------------------------------------------------------
 
+  // ---------------------------------------------------------------------------
+  // Grid dirty tracking
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns true when the grid layer is stale and must be redrawn.
+   * Stale when the grid VBO contents changed OR the shared canvas was resized.
+   */
+  isGridDirty (): boolean {
+    return this._gridVboVersion !== this._gridDrawnVersion ||
+           this._lastSizeVersion !== this._sharedCanvas.sizeVersion
+  }
+
+  // ---------------------------------------------------------------------------
+  // Grid VBO management
+  // ---------------------------------------------------------------------------
+
+  private _ensureGridCapacity (count: number): void {
+    if (count <= this._gridCapacity) return
+    const newCap = Math.max(count, this._gridCapacity * 2, 128)
+    this._gridStagingBuf = new ArrayBuffer(newCap * BYTES_PER_SEG)
+    this._gridStagingF32 = new Float32Array(this._gridStagingBuf)
+    this._gridStagingU8  = new Uint8Array(this._gridStagingBuf)
+    const gl = this._gl
+    gl.bindBuffer(gl.ARRAY_BUFFER, this._gridVbo)
+    gl.bufferData(gl.ARRAY_BUFFER, newCap * BYTES_PER_SEG, gl.DYNAMIC_DRAW)
+    this._gridCapacity = newCap
+  }
+
+  /**
+   * Upload grid line segments (horizontal + vertical grid ticks).
+   * Called from GridView before IndicatorView flushes its GPU draw.
+   * Fingerprint gate: grid segments change only on zoom/resize, not pan —
+   * so most live-tick frames skip the VBO write entirely.
+   */
+  setGridLines (segs: LineSegmentData[]): void {
+    const count = segs.length
+    this._gridSegCount = count
+    if (count === 0) {
+      if (this._gridFingerprintCount !== 0) this._gridVboVersion++
+      this._gridFingerprintCount = 0
+      return
+    }
+
+    const first = segs[0]
+    const last  = segs[count - 1]
+    if (
+      count      === this._gridFingerprintCount  &&
+      first.x0   === this._gridFingerprintFirstX &&
+      first.y0   === this._gridFingerprintFirstY &&
+      last.x1    === this._gridFingerprintLastX  &&
+      last.y1    === this._gridFingerprintLastY
+    ) return
+
+    this._gridFingerprintCount  = count
+    this._gridFingerprintFirstX = first.x0
+    this._gridFingerprintFirstY = first.y0
+    this._gridFingerprintLastX  = last.x1
+    this._gridFingerprintLastY  = last.y1
+
+    this._ensureGridCapacity(count)
+
+    const f32 = this._gridStagingF32
+    const u8  = this._gridStagingU8
+    for (let i = 0; i < count; i++) {
+      const seg      = segs[i]
+      const f32Base  = i * 5
+      const byteBase = i * BYTES_PER_SEG
+      f32[f32Base + 0] = seg.x0
+      f32[f32Base + 1] = seg.y0
+      f32[f32Base + 2] = seg.x1
+      f32[f32Base + 3] = seg.y1
+      f32[f32Base + 4] = seg.halfWidth
+      const rgba = this._parseColorCached(seg.color)
+      u8[byteBase + COLOR_BYTE_OFF]     = (rgba[0] * 255 + 0.5) | 0
+      u8[byteBase + COLOR_BYTE_OFF + 1] = (rgba[1] * 255 + 0.5) | 0
+      u8[byteBase + COLOR_BYTE_OFF + 2] = (rgba[2] * 255 + 0.5) | 0
+      u8[byteBase + COLOR_BYTE_OFF + 3] = (rgba[3] * 255 + 0.5) | 0
+    }
+
+    const gl = this._gl
+    gl.bindBuffer(gl.ARRAY_BUFFER, this._gridVbo)
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._gridStagingU8, 0, count * BYTES_PER_SEG)
+    this._gridVboVersion++
+  }
+
+  /**
+   * Draw all uploaded grid line segments in a single instanced draw call.
+   * Must be called AFTER sharedCanvas.beginFrame() and BEFORE draw() so that
+   * grid lines appear behind indicator lines.
+   */
+  drawGrid (): void {
+    this._gridDrawnVersion = this._gridVboVersion
+    this._lastSizeVersion  = this._sharedCanvas.sizeVersion
+    if (this._gridSegCount === 0) return
+
+    const shared = this._sharedCanvas
+    const canvas = shared.canvas
+    const gl     = this._gl
+    const pr = getPixelRatio(canvas)
+    const w  = canvas.width
+    const h  = canvas.height
+
+    gl.useProgram(this._program)
+    gl.uniform2f(this._uResolution, w, h)
+    gl.uniform1f(this._uPixelRatio, pr)
+
+    gl.bindVertexArray(this._gridVao)
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, VERTS_PER_SEG, this._gridSegCount)
+    gl.bindVertexArray(null)
+  }
+
   destroy (): void {
     const gl = this._gl
+    gl.deleteVertexArray(this._gridVao)
+    gl.deleteBuffer(this._gridVbo)
     gl.deleteVertexArray(this._vao)
     gl.deleteBuffer(this._vbo)
     gl.deleteProgram(this._program)
