@@ -4,7 +4,7 @@ import type Crosshair from '../common/Crosshair'
 import type { TooltipStyle, TooltipTextStyle, TooltipLegend, TooltipLegendChild, TooltipFeatureStyle, FeatureIconFontStyle, FeaturePathStyle } from '../common/Styles'
 import { formatPrecision } from '../common/utils/format'
 import { isValid, isObject, isString, isNumber, isFunction } from '../common/utils/typeChecks'
-import { createFont } from '../common/utils/canvas'
+import { createFont, cachedTextWidth } from '../common/utils/canvas'
 import type Coordinate from '../common/Coordinate'
 import type Nullable from '../common/Nullable'
 import type { ActionType } from '../common/Action'
@@ -178,7 +178,7 @@ export default class IndicatorTooltipView extends View<YAxis> {
     const { marginLeft = 0, marginTop = 0, marginRight = 0, marginBottom = 0, size = 12, family, weight, color } = styles
     const text = isCollapsed ? '›' : '∨'
     ctx.font = createFont(size, weight, family)
-    const textWidth = ctx.measureText(text).width
+    const textWidth = cachedTextWidth(ctx, text)
     const h = marginTop + size + marginBottom
     prevRowHeight = Math.max(prevRowHeight, h)
     this.createFigure({
@@ -214,7 +214,7 @@ export default class IndicatorTooltipView extends View<YAxis> {
         if (type === 'icon_font') {
           const iconFont = content as FeatureIconFontStyle
           ctx.font = createFont(size, 'normal', iconFont.family)
-          contentWidth = ctx.measureText(iconFont.code).width
+          contentWidth = cachedTextWidth(ctx, iconFont.code)
         } else {
           contentWidth = size
         }
@@ -281,7 +281,7 @@ export default class IndicatorTooltipView extends View<YAxis> {
               backgroundColor: finalBackgroundColor
             }
           }, eventHandler)?.draw(ctx)
-          contentWidth = ctx.measureText(iconFont.code).width
+          contentWidth = cachedTextWidth(ctx, iconFont.code)
         } else {
           this.createFigure({
             name: 'rect',
@@ -327,8 +327,8 @@ export default class IndicatorTooltipView extends View<YAxis> {
       legends.forEach(data => {
         const title = data.title as TooltipLegendChild
         const value = data.value as TooltipLegendChild
-        const titleTextWidth = ctx.measureText(title.text).width
-        const valueTextWidth = ctx.measureText(value.text).width
+        const titleTextWidth = cachedTextWidth(ctx, title.text)
+        const valueTextWidth = cachedTextWidth(ctx, value.text)
         const totalTextWidth = titleTextWidth + valueTextWidth
         const h = marginTop + size + marginBottom
         if (coordinate.x + marginLeft + totalTextWidth + marginRight > maxWidth) {

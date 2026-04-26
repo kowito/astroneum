@@ -13,8 +13,6 @@ export default class GridView extends View {
     const show = styles.show
 
     if (show) {
-      ctx.save()
-      ctx.globalCompositeOperation = 'destination-over'
       const horizontalStyles = styles.horizontal
       const horizontalShow = horizontalStyles.show
       if (horizontalShow) {
@@ -47,7 +45,6 @@ export default class GridView extends View {
           styles: verticalStyles
         })?.draw(ctx)
       }
-      ctx.restore()
     }
   }
 }

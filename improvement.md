@@ -153,6 +153,114 @@ WebGPU eliminates the implicit draw-state tracking overhead of the WebGL driver.
 
 ---
 
+---
+
+## Batch 5 — Analytical Audit + Remaining Gap Checklist
+
+### Gap Analysis vs. TradingView (as of Batch 4)
+
+**Rendering path status:**
+
+| Layer | Current state | Gap |
+|---|---|---|
+| Candles | WebGPU → Worker WebGL2 → main-thread WebGL2 | ✅ |
+| Indicators | SharedIndicatorGLCanvas — instanced WebGL2 | ✅ |
+| Axis labels | TextWebGLRenderer (instanced GPU text) | ✅ |
+| Crosshair labels | TextWebGLRenderer | ✅ |
+| Price / last-value labels | TextWebGLRenderer | ✅ |
+| Grid lines | Canvas2D — one `createFigure('line')` per tick | ❌ Item 21 |
+| Tooltip text layout | Canvas2D — `ctx.measureText` ×18 per `mousemove` | ❌ Item 18 |
+| Area chart gradient | `createLinearGradient` recreated every frame | ❌ Item 20 |
+| Grid compositing mode | `destination-over` — expensive per-pixel blend | ❌ Item 17 |
+
+**Layout loop status:**
+
+| Mechanism | Current state | Gap |
+|---|---|---|
+| Layout dedup fence | `Promise.resolve().then()` — fires at microtask time | Runs before vsync → Item 16 |
+| Indicator calc dedup | `queueMicrotask` → `requestIdleCallback` | ✅ Batch 4 |
+| Live-tick indicator recalc | Full O(N) `.map()` on every tick update | 30 000 ops/s at 10k bars → Item 22 |
+
+**Hot-path allocation audit:**
+
+| Allocation | Location | Rate | Fix |
+|---|---|---|---|
+| `createLinearGradient()` | `CandleAreaView.drawImp` | 60×/s at rest | Item 20 |
+| `createFont()` string | tooltip + axis views | 30–50×/frame | Item 19 |
+| `ctx.measureText()` | `IndicatorTooltipView`, `CandleTooltipView` | 18+×/mousemove | Item 18 |
+
+**VBO bandwidth audit:**
+- Pan by 1 bar → fingerprint mismatch → full O(N) VBO rebuild: 500 bars × 32 B = 16 KB upload per step.
+- At 60fps scroll: 960 KB/s of redundant VBO uploads eliminated by Item 15.
+
+---
+
+### [SPEC] 16. `requestAnimationFrame` gate for `Chart.layout()`
+**Impact:** ★★★★☆  
+**Files:** `src/engine/Chart.ts`  
+**Why:** `Chart.layout()` uses `Promise.resolve().then(() => { this._layout(); this._layoutPending = false })` as its dedup fence. Promise microtasks fire synchronously after the current call stack, before the browser compositor runs. On a 125 Hz mouse, `layout()` fires up to twice per vsync window and may execute mid-frame. Using `requestAnimationFrame` aligns `_layout()` exactly with vsync, cutting redundant layout invocations in half during fast scroll and eliminating mid-frame canvas clears.  
+**How:** Replace `Promise.resolve().then(() => { this._layout(); this._layoutPending = false })` with `requestAnimationFrame(() => { this._layout(); this._layoutPending = false })`. Store the rAF handle in `private _layoutRafId = 0` to allow cancellation in `destroy()`.
+
+---
+
+### [SPEC] 17. Remove `destination-over` compositing from `GridView`
+**Impact:** ★★★☆☆  
+**Files:** `src/engine/view/GridView.ts`  
+**Why:** `ctx.globalCompositeOperation = 'destination-over'` forces the GPU to perform a per-pixel alpha blend on the entire grid canvas to place grid content "behind" existing pixels. Because candle and indicator layers are GPU-accelerated canvases in DOM z-order above the 2D canvas, the compositor already renders the grid below the candles without any Canvas2D blending — making the `destination-over` operation entirely redundant.  
+**How:** Remove `ctx.globalCompositeOperation = 'destination-over'` and its surrounding `ctx.save()/restore()`. Verify visually that grid renders behind candles under DOM z-order alone (confirmed: main 2D canvas z-index is lower than all GL canvases).
+
+---
+
+### [SPEC] 18. `measureText` result cache in tooltip views
+**Impact:** ★★★★☆  
+**Files:** `src/engine/view/IndicatorTooltipView.ts`, `src/engine/view/CandleTooltipView.ts`  
+**Why:** `drawStandardTooltipLegends()` calls `ctx.font = createFont(...)` + `ctx.measureText(title.text)` + `ctx.measureText(value.text)` for every legend in every indicator on every `mousemove`-triggered redraw. With 3 indicators × 3 values = 18 `measureText` calls at 60fps pointer rate = 1 080 font-shaping ops/second. Blink's `measureText` involves Unicode segmentation + glyph lookup even for short ASCII strings. Measured widths are stable for the same text+font combination — price values only change on a new tick, not per pointer event.  
+**How:** Add a module-level `const _textWidthCache = new Map<string, number>()` in each tooltip-view file. Replace `ctx.measureText(text).width` with a helper `cachedTextWidth(ctx, text, font): number` that checks the cache keyed by `"${font}\0${text}"`, measures + stores on miss, and returns the cached value. Reset via `.clear()` only on explicit style-change events, not per frame.
+
+---
+
+### [SPEC] 19. Memoize `createFont()` string construction
+**Impact:** ★★☆☆☆  
+**Files:** `src/engine/common/utils/canvas.ts`  
+**Why:** `createFont(size, weight, family)` constructs a CSS font string via template literal on every call. It is invoked 30–50× per frame across tooltip, axis, and label views. The number of distinct font variants in a chart is tiny (3–5 combinations). A Map-based cache eliminates the repeated string allocations.  
+**How:** Add `const _fontCache = new Map<string, string>()` at module scope. Key: `"${size}:${weight}:${family}"`. Return cache hit immediately; store and return on miss.
+
+---
+
+### [SPEC] 20. Cache `CanvasGradient` in `CandleAreaView`
+**Impact:** ★★★☆☆  
+**Files:** `src/engine/view/CandleAreaView.ts`  
+**Why:** `ctx.createLinearGradient(0, bounding.height, 0, minY)` runs on every `drawImp` call — including the live-tick ripple animation at 60fps — even when zoom and price range are unchanged. `createLinearGradient` allocates a GPU-composited gradient object on each call.  
+**How:** Add `private _gradientCache: { gradient: CanvasGradient; height: number; minY: number } | null = null`. Before calling `createLinearGradient`, check if `_gradientCache?.height === bounding.height && _gradientCache?.minY === minY`; reuse on match. Invalidate and recreate on mismatch.
+
+---
+
+### [SPEC] 21. GPU grid lines via `IndicatorLineWebGLRenderer`
+**Impact:** ★★★★☆  
+**Files:** `src/engine/view/GridView.ts`  
+**Why:** `GridView.drawImp()` issues one `createFigure({ name: 'line' })?.draw(ctx)` call per tick. A 3-pane chart with 10 H + 10 V ticks per pane = 60 Canvas2D path open/stroke/close cycles per grid redraw. `IndicatorLineWebGLRenderer` already packs every line segment as a 16-byte VBO entry and renders all segments in one `gl.drawArraysInstanced()` call. Grid lines have the same geometry as indicator lines and map directly to the `[x1, y1, x2, y2]` + colour instanced attribute layout.  
+**How:**
+- Collect all H + V tick segments into a flat array of `GridLineSegment = { x1, y1, x2, y2, r, g, b, a }`.
+- Add `setGridLines(segments)` to `IndicatorLineWebGLRenderer` (or reuse `setData` with a separate VBO region).
+- Call `beginFrame()` + draw grid segments first in `IndicatorWidget` (grid renders behind indicator lines).
+- Ticks change only on zoom/resize (not on pan) — gate the upload on a tick-version counter to skip redundant VBO writes.
+- Canvas2D fallback (no shared GL canvas): keep the existing `createFigure` loop under `if (glCanvas === null)`.
+
+---
+
+### [SPEC] 22. Incremental tail-update for live-tick indicator recalc
+**Impact:** ★★★★★  
+**Files:** `src/engine/Store.ts`, `src/engine/component/Indicator.ts`  
+**Why:** `updateData(latestBar)` triggers a full `dataList.map()` pass for every indicator. With 10k bars and 3 standard indicators (MACD, RSI, SMA) this is ~30 000 scalar operations per main-thread tick. Only the last `maxPeriod + 1` bars can produce changed output; all earlier results are already correct. Restricting the recalc window to `maxPeriod * 2` bars and splicing the tail back into `indicator.result` achieves O(maxPeriod) per tick — a ~200× speedup at N = 10 000.  
+**How:**
+- Add `updateMode?: 'full' | 'tail'` to the internal `_calcIndicator` call signature.
+- In `updateData()` (single-bar replace), pass `updateMode: 'tail'`.
+- In `Indicator.calcImp()` for tail mode: `windowStart = Math.max(0, dataList.length - maxPeriod * 2)`; call `indicator.calc(dataList.slice(windowStart))`; splice the returned array back into `indicator.result` from `windowStart`.
+- Guard: only activate tail mode when `resultList.length === dataList.length - 1` (complete prior result exists). Fall back to full mode otherwise (initial load, param change, etc.).
+- `maxPeriod` is `Math.max(...indicator.calcParams)` — already available on every `IndicatorImp`.
+
+---
+
 ## Already implemented (prior sessions)
 
 | Feature | Commit |

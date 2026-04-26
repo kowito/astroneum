@@ -24,6 +24,8 @@ export default class CandleAreaView extends ChildrenView {
 
   private _animationFrameTime = 0
 
+  private _gradientCache: { gradient: CanvasGradient; height: number; minY: number } | null = null
+
   private readonly _animation = new Animation({ iterationCount: Infinity }).doFrame((time) => {
     this._animationFrameTime = time
     const pane = this.getWidget().getPane()
@@ -76,14 +78,21 @@ export default class CandleAreaView extends ChildrenView {
       const backgroundColor = styles.backgroundColor
       let color: string | CanvasGradient = ''
       if (isArray<GradientColor>(backgroundColor)) {
-        const gradient = ctx.createLinearGradient(0, bounding.height, 0, minY)
-        try {
-          backgroundColor.forEach(({ offset, color }) => {
-            gradient.addColorStop(offset, color)
-          })
-        } catch (e) {
+        if (
+          this._gradientCache === null ||
+          this._gradientCache.height !== bounding.height ||
+          this._gradientCache.minY !== minY
+        ) {
+          const gradient = ctx.createLinearGradient(0, bounding.height, 0, minY)
+          try {
+            backgroundColor.forEach(({ offset, color }) => {
+              gradient.addColorStop(offset, color)
+            })
+          } catch (e) {
+          }
+          this._gradientCache = { gradient, height: bounding.height, minY }
         }
-        color = gradient
+        color = this._gradientCache.gradient
       } else {
         color = backgroundColor
       }

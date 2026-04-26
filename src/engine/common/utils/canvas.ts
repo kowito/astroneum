@@ -12,8 +12,16 @@ export function getPixelRatio (canvas: HTMLCanvasElement): number {
   return canvas.ownerDocument.defaultView?.devicePixelRatio ?? 1
 }
 
+const _fontCache = new Map<string, string>()
+
 export function createFont (size?: number, weight?: string | number, family?: string): string {
-  return `${weight ?? 'normal'} ${size ?? 12}px ${family ?? 'Helvetica Neue'}`
+  const key = `${size ?? 12}:${weight ?? 'normal'}:${family ?? 'Helvetica Neue'}`
+  let font = _fontCache.get(key)
+  if (font === undefined) {
+    font = `${weight ?? 'normal'} ${size ?? 12}px ${family ?? 'Helvetica Neue'}`
+    _fontCache.set(key, font)
+  }
+  return font
 }
 
 /**
@@ -30,4 +38,20 @@ export function calcTextWidth (text: string, size?: number, weight?: string | nu
   }
   measureCtx.font = createFont(size, weight, family)
   return Math.round(measureCtx.measureText(text).width)
+}
+
+const _textWidthCache = new Map<string, number>()
+
+/**
+ * Measure text width using ctx's current font, caching the result.
+ * Key: current ctx.font + '\0' + text
+ */
+export function cachedTextWidth (ctx: CanvasRenderingContext2D, text: string): number {
+  const key = `${ctx.font}\0${text}`
+  let w = _textWidthCache.get(key)
+  if (w === undefined) {
+    w = ctx.measureText(text).width
+    _textWidthCache.set(key, w)
+  }
+  return w
 }

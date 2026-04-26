@@ -109,6 +109,7 @@ export default class ChartImp implements Chart {
   }
 
   private _layoutPending = false
+  private _layoutRafId = 0
 
   private readonly _cacheYAxisWidth = { left: 0, right: 0 }
 
@@ -321,11 +322,9 @@ export default class ChartImp implements Chart {
     }
     if (!this._layoutPending) {
       this._layoutPending = true
-      Promise.resolve().then(_ => {
+      this._layoutRafId = requestAnimationFrame(() => {
         this._layout()
         this._layoutPending = false
-      }).catch((_: unknown) => {
-        // todo
       })
     }
   }
@@ -1170,6 +1169,10 @@ export default class ChartImp implements Chart {
   }
 
   destroy (): void {
+    if (this._layoutRafId !== 0) {
+      cancelAnimationFrame(this._layoutRafId)
+      this._layoutRafId = 0
+    }
     this._chartEvent.destroy()
     this._drawPanes.forEach(pane => {
       pane.destroy()

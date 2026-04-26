@@ -4,7 +4,7 @@ import type {
   TooltipLegend, TooltipLegendChild
 } from '../common/Styles'
 import { formatPrecision, formatTemplateString } from '../common/utils/format'
-import { createFont } from '../common/utils/canvas'
+import { createFont, cachedTextWidth } from '../common/utils/canvas'
 import { isFunction, isObject, isValid } from '../common/utils/typeChecks'
 import { PeriodTypeCrosshairTooltipFormat } from '../common/Period'
 import { SymbolDefaultPrecisionConstants } from '../common/SymbolInfo'
@@ -174,7 +174,7 @@ export default class CandleTooltipView extends IndicatorTooltipView {
           const title = data.title as TooltipLegendChild
           const value = data.value as TooltipLegendChild
           const text = `${title.text}${value.text}`
-          const labelWidth = ctx.measureText(text).width + baseLegendMarginLeft + baseLegendMarginRight
+          const labelWidth = cachedTextWidth(ctx, text) + baseLegendMarginLeft + baseLegendMarginRight
           maxTextWidth = Math.max(maxTextWidth, labelWidth)
         })
         rectHeight += ((baseLegendMarginBottom + baseLegendMarginTop + baseLegendSize) * candleLegends.length)
@@ -200,7 +200,7 @@ export default class CandleTooltipView extends IndicatorTooltipView {
             const title = data.title as TooltipLegendChild
             const value = data.value as TooltipLegendChild
             const text = `${title.text}${value.text}`
-            const textWidth = ctx.measureText(text).width + indicatorLegendMarginLeft + indicatorLegendMarginRight
+            const textWidth = cachedTextWidth(ctx, text) + indicatorLegendMarginLeft + indicatorLegendMarginRight
             maxTextWidth = Math.max(maxTextWidth, textWidth)
             rectHeight += (indicatorLegendMarginTop + indicatorLegendMarginBottom + indicatorLegendSize)
           })
