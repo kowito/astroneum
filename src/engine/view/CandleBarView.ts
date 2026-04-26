@@ -13,6 +13,12 @@ import ChildrenView from './ChildrenView'
 import { PaneIdConstants } from '../pane/types'
 import { getOrCreateRenderer, destroyRenderer, type BarRenderData } from '../common/CandleWebGLRenderer'
 import { getOrCreateWorkerRenderer, getWorkerRenderer, destroyWorkerRenderer } from '../common/CandleWorkerRenderer'
+import {
+  getWebGPURenderer,
+  getOrCreateWebGPURenderer,
+  destroyWebGPURenderer,
+  CandleWebGPURenderer
+} from '../common/CandleWebGPURenderer'
 
 export interface CandleBarOptions {
   type: Exclude<CandleType, 'area'>
@@ -25,9 +31,12 @@ export default class CandleBarView extends ChildrenView {
     return false
   }
 
+  // Track whether a WebGPU async-init has been started for this view's widget.
+  private _webGPUInitStarted = false
+
   // ---------------------------------------------------------------------------
-  // WebGL render path (Phase 4.2 + 4.3)
-  // Falls back to Canvas2D for non-solid types or when WebGL2 is unavailable.
+  // WebGL/WebGPU render path (Phase 4.2 + 4.3 + 4.4)
+  // Priority: WebGPU → Worker(OffscreenCanvas) → WebGL2 → Canvas2D
   // ---------------------------------------------------------------------------
 
   private _drawWithWebGL (
@@ -39,16 +48,35 @@ export default class CandleBarView extends ChildrenView {
     const pane       = widget.getPane()
     const chartStore = pane.getChart().getChartStore()
 
-    // Worker renderer (OffscreenCanvas) takes priority when available; the
-    // main-thread WebGL renderer is the fallback.  Once one type is created
-    // for a widget, the other is never created — they are mutually exclusive.
-    let renderer = getWorkerRenderer(widget)
-    if (renderer === null) {
-      renderer = getOrCreateWorkerRenderer(widget, widget.getContainer())
+    // ── WebGPU path (highest priority, async init) ────────────────────────
+    // On the very first call we fire off `getOrCreateWebGPURenderer` in the
+    // background and fall through to the WebGL path for this frame.  On
+    // subsequent frames the synchronous `getWebGPURenderer` returns the ready
+    // renderer, so rendering shifts over automatically.
+    let gpuRenderer = getWebGPURenderer(widget)
+    if (gpuRenderer === null && !this._webGPUInitStarted) {
+      this._webGPUInitStarted = true
+      // Fire-and-forget: resolve on a future frame
+      getOrCreateWebGPURenderer(widget, widget.getContainer()).catch(() => {
+        // If WebGPU init fails, _webGPUInitStarted stays true so we don't
+        // keep retrying, and getWebGPURenderer(widget) will return null.
+      })
     }
-    const mainRenderer = renderer === null ? getOrCreateRenderer(widget, widget.getContainer()) : null
-    if (renderer === null && mainRenderer === null) return false
-    const activeRenderer = renderer ?? mainRenderer!
+
+    let activeRenderer: { resize(w: number, h: number): void; setData(b: BarRenderData[]): void; draw(...a: number[]): void } | null = null
+
+    if (gpuRenderer !== null) {
+      activeRenderer = gpuRenderer
+    } else {
+      // ── Worker renderer (OffscreenCanvas) ────────────────────────────────
+      let renderer = getWorkerRenderer(widget)
+      if (renderer === null) {
+        renderer = getOrCreateWorkerRenderer(widget, widget.getContainer())
+      }
+      const mainRenderer = renderer === null ? getOrCreateRenderer(widget, widget.getContainer()) : null
+      if (renderer === null && mainRenderer === null) return false
+      activeRenderer = (renderer ?? mainRenderer)!
+    }
 
     // Sync canvas size with the widget bounding box
     const { width, height } = widget.getBounding()

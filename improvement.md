@@ -56,14 +56,10 @@ Move candle renderer GPU commands into a `CandleWorkerRenderer`. Main thread han
 Price labels, axis tick text, and tooltip numbers are currently `Canvas2D.fillText()` per tick. Pre-render all needed glyphs into a `gl.LUMINANCE` texture atlas; render text quads sampling the atlas. Result: sub-pixel-smooth text at any DPI, zero `fillText` calls in the render loop.  
 **Implemented:** `GlyphAtlas.ts` (RGBA atlas at 2× RENDER_SCALE via off-screen Canvas2D), `TextWebGLRenderer.ts` (owns a `<canvas>` at z-index 3; instanced TRIANGLE_STRIP quads; two-phase `beginMainFrame`/`beginOverlayFrame`/`flush` lifecycle; per-renderer atlas cache keyed by fontSize+family), `DrawWidget.ts` (creates renderer, wraps canvas listeners, exposes `getTextRenderer()`/`queueText()`, resizes and destroys on teardown), `AxisView.ts` (routes tick-label `TextAttrs` through `tr.queue()` when GL is available; Canvas2D fallback otherwise).
 
-### [ ] 8. WebGPU path
+### [IMPL] 8. WebGPU path
 **Impact:** ★★★☆☆ (browser support ~75 % as of 2026)  
 WebGPU eliminates the implicit draw-state tracking overhead of the WebGL driver. WGSL shaders compile faster; the explicit command-buffer model reduces CPU time by 2–3× vs WebGL2 at equal draw-call count.  
-**Rough plan:**
-1. `navigator.gpu.requestAdapter()` capability gate with WebGL2 fallback
-2. WGSL port of all three vertex+fragment shader pairs
-3. Replace `bufferSubData` with `GPUQueue.writeBuffer`
-4. Compute shaders for LOD aggregation (move CPU bucket loop to GPU)
+**Implemented:** `CandleWebGPURenderer.ts` — WGSL port of all vertex/fragment logic (18-vert instanced draw, candle + OHLC modes, pan-offset uniform, same LOD/fingerprint/dirty-gate as WebGL path); `GPUQueue.writeBuffer` replaces `gl.bufferSubData`; async `create()` factory + `isSupported()` probe; same external API (`setData`, `updateLastBar`, `resize`, `draw`, `destroy`). `CandleBarView.ts` updated to try WebGPU first (fire-and-forget async init, falls through to Worker/WebGL2 on the first frame). `CandleWidget.ts` calls `destroyWebGPURenderer` on teardown.
 
 ---
 
