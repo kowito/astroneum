@@ -278,7 +278,17 @@ export default class EventHandlerImp {
       return
     }
 
-    this._processEvent(this._makeCompatEvent(moveEvent), this._handler.mouseMoveEvent)
+    // P1-C: getCoalescedEvents() — consume all coalesced pointer positions so
+    // the browser can suppress redundant synthetic moves on 120 Hz displays.
+    // We process only the last (most-recent) coalesced event position, which
+    // gives maximum fidelity with no extra crosshair renders.
+    const pointerEv = moveEvent as PointerEvent
+    const coalesced = pointerEv.getCoalescedEvents?.()
+    const lastEv: MouseEvent = (coalesced !== undefined && coalesced.length > 0)
+      ? coalesced[coalesced.length - 1] as unknown as MouseEvent
+      : moveEvent
+
+    this._processEvent(this._makeCompatEvent(lastEv), this._handler.mouseMoveEvent)
     this._acceptMouseLeave = true
   }
 

@@ -18,6 +18,39 @@ import {
   getOrCreateWebGPURenderer
 } from '../common/CandleWebGPURenderer'
 
+// ---------------------------------------------------------------------------
+// P1-D: Object pool for BarRenderData — avoids 50K+ heap allocations per frame.
+//
+// Pre-allocated ring of BarRenderData slots.  Each _drawWithWebGL call calls
+// pool.reset() at the start; subsequent alloc() calls return the same pre-
+// existing objects.  GC minor-collection pressure drops to near-zero on the
+// candle hot path.
+// ---------------------------------------------------------------------------
+const _BAR_POOL_MAX = 131072   // 128 K slots — covers 50K bars + overscan
+
+class BarPool {
+  private readonly _pool: BarRenderData[]
+  private _cursor = 0
+
+  constructor () {
+    this._pool = []
+    for (let i = 0; i < _BAR_POOL_MAX; i++) {
+      this._pool.push({ dataIndex: 0, centerX: 0, open: 0, high: 0, low: 0, close: 0, wickColor: '', bodyColor: '', borderColor: '' })
+    }
+  }
+
+  reset (): void { this._cursor = 0 }
+
+  alloc (): BarRenderData {
+    if (this._cursor >= this._pool.length) {
+      // Safety: grow pool beyond the pre-allocated limit (shouldn't happen in practice)
+      this._pool.push({ dataIndex: 0, centerX: 0, open: 0, high: 0, low: 0, close: 0, wickColor: '', bodyColor: '', borderColor: '' })
+    }
+    return this._pool[this._cursor++]
+  }
+}
+
+// One pool per CandleBarView instance (pools don't need to be shared).
 export interface CandleBarOptions {
   type: Exclude<CandleType, 'area'>
   styles: CandleBarColor
@@ -28,6 +61,9 @@ export default class CandleBarView extends ChildrenView {
     this.getWidget().getPane().getChart().getChartStore().executeAction('onCandleBarClick', data)
     return false
   }
+
+  // P1-D: Per-view bar pool — reset on each draw, zero heap allocation on hot path.
+  private readonly _barPool = new BarPool()
 
   // Track whether a WebGPU async-init has been started for this view's widget.
   private _webGPUInitStarted = false
@@ -95,6 +131,10 @@ export default class CandleBarView extends ChildrenView {
     // Collect per-bar instance data
     const visibleData = chartStore.getVisibleRangeDataList()
     const barSpace    = chartStore.getBarSpace()
+
+    // P1-D: Reset bar pool — reuse pre-allocated BarRenderData slots this frame.
+    const pool = this._barPool
+    pool.reset()
     const barRenderData: BarRenderData[] = []
 
     // ── Bar color helper ──────────────────────────────────────────────────────
@@ -125,7 +165,18 @@ export default class CandleBarView extends ChildrenView {
         (type === 'candle_up_stroke'   && close > open) ||
         (type === 'candle_down_stroke' && open  > close)
       if (isHollow) bodyColor = TRANSPARENT
-      return { dataIndex, centerX: x, open, high, low, close, wickColor, bodyColor, borderColor }
+      // P1-D: Allocate from pool instead of creating a new object
+      const slot = pool.alloc()
+      slot.dataIndex   = dataIndex
+      slot.centerX     = x
+      slot.open        = open
+      slot.high        = high
+      slot.low         = low
+      slot.close       = close
+      slot.wickColor   = wickColor
+      slot.bodyColor   = bodyColor
+      slot.borderColor = borderColor
+      return slot
     }
 
     // ── VBO overscan (Item 15) ────────────────────────────────────────────────

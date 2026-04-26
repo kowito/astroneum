@@ -113,12 +113,103 @@ export default class ChartImp implements Chart {
 
   private readonly _cacheYAxisWidth = { left: 0, right: 0 }
 
+  // P5-B: IntersectionObserver — pause GPU/canvas work when off-screen.
+  private _visible = true
+  private _intersectionObserver: IntersectionObserver | null = null
+
+  // P5-C: PerformanceObserver adaptive quality tier.
+  // Switches to 'low' when ≥ 3 long tasks hit within a 1-second window.
+  private _qualityTier: 'high' | 'low' = 'high'
+  private _longTaskCount = 0
+  private _longTaskWindowStart = 0
+  private _perfObserver: PerformanceObserver | null = null
+
+  // P5-E: ResizeObserver debounce — coalesce rapid resize events (e.g., split-
+  // pane drag) into a single layout pass 150 ms after the last event.
+  private _resizeTimer: ReturnType<typeof setTimeout> | null = null
+  private _resizeObserver: ResizeObserver | null = null
+
+  // P6-A: PerformanceMark accumulated frame timing.
+  private _frameCount = 0
+  private _frameTotalMs = 0
+
   constructor (container: HTMLElement, options?: Options) {
     this._initContainer(container)
     this._chartEvent = new Event(this._chartContainer, this)
     this._chartStore = new ChartStore(this, options)
     this._initPanes(options)
     this._layout()
+    this._initObservers()
+  }
+
+  /** P5-B / P5-C / P5-E: Set up visibility, quality, and resize observers. */
+  private _initObservers (): void {
+    // P5-B: IntersectionObserver
+    if (typeof IntersectionObserver !== 'undefined') {
+      this._intersectionObserver = new IntersectionObserver(
+        ([entry]) => { this._visible = entry.isIntersecting },
+        { threshold: 0 }
+      )
+      this._intersectionObserver.observe(this._chartContainer)
+    }
+
+    // P5-C: PerformanceObserver for long tasks → adaptive quality
+    if (typeof PerformanceObserver !== 'undefined') {
+      try {
+        this._perfObserver = new PerformanceObserver((list) => {
+          const now = performance.now()
+          if (now - this._longTaskWindowStart > 1000) {
+            this._longTaskWindowStart = now
+            this._longTaskCount = 0
+          }
+          this._longTaskCount += list.getEntries().length
+          if (this._longTaskCount >= 3) {
+            this._qualityTier = 'low'
+          } else if (this._qualityTier === 'low' && this._longTaskCount === 0) {
+            this._qualityTier = 'high'
+          }
+        })
+        this._perfObserver.observe({ entryTypes: ['longtask'] })
+      } catch {
+        // longtask observer not supported on this UA
+      }
+    }
+
+    // P5-E: ResizeObserver — debounce 150ms
+    if (typeof ResizeObserver !== 'undefined') {
+      this._resizeObserver = new ResizeObserver(() => {
+        if (this._resizeTimer !== null) clearTimeout(this._resizeTimer)
+        this._resizeTimer = setTimeout(() => {
+          this._resizeTimer = null
+          this._applyResize()
+        }, 150)
+      })
+      this._resizeObserver.observe(this._chartContainer)
+    }
+  }
+
+  /** P5-C: Expose current quality tier to renderers / consumers. */
+  setQualityTier (tier: 'high' | 'low'): void {
+    this._qualityTier = tier
+  }
+
+  getQualityTier (): 'high' | 'low' {
+    return this._qualityTier
+  }
+
+  /**
+   * P6-A: Returns accumulated PerformanceMark frame timing entries.
+   * Each frame records astroneum:frame-start and astroneum:frame-end marks.
+   */
+  getPerformanceMetrics (): { frameCount: number; avgFrameMs: number; entries: PerformanceEntry[] } {
+    const entries = typeof performance !== 'undefined'
+      ? [
+          ...performance.getEntriesByName('astroneum:frame-start'),
+          ...performance.getEntriesByName('astroneum:frame-end')
+        ]
+      : []
+    const avgFrameMs = this._frameCount > 0 ? this._frameTotalMs / this._frameCount : 0
+    return { frameCount: this._frameCount, avgFrameMs, entries }
   }
 
   private _initContainer (container: HTMLElement): void {
@@ -330,6 +421,15 @@ export default class ChartImp implements Chart {
   }
 
   private _layout (): void {
+    // P5-B: Skip layout entirely when the chart is off-screen.
+    if (!this._visible) return
+
+    // P6-A: Record frame start mark for performance profiling.
+    const frameStart = typeof performance !== 'undefined' ? performance.now() : 0
+    if (typeof performance !== 'undefined') {
+      performance.mark('astroneum:frame-start')
+    }
+
     const { sort, measureHeight, measureWidth, update, buildYAxisTick, cacheYAxisWidth, forceBuildYAxisTick } = this._layoutOptions
     if (sort) {
       while (isValid(this._chartContainer.firstChild)) {
@@ -477,6 +577,13 @@ export default class ChartImp implements Chart {
       buildYAxisTick: false,
       cacheYAxisWidth: false,
       forceBuildYAxisTick: false
+    }
+
+    // P6-A: Record frame end mark and accumulate frame timing.
+    if (typeof performance !== 'undefined') {
+      performance.mark('astroneum:frame-end')
+      this._frameTotalMs += performance.now() - frameStart
+      this._frameCount++
     }
   }
 
@@ -1156,7 +1263,8 @@ export default class ChartImp implements Chart {
     return canvas.toDataURL(`image/${type ?? 'jpeg'}`)
   }
 
-  resize (): void {
+  // P5-E: Internal resize logic (debounced via ResizeObserver + _resizeTimer).
+  private _applyResize (): void {
     this._cacheChartBounding()
     this.layout({
       measureHeight: true,
@@ -1164,8 +1272,12 @@ export default class ChartImp implements Chart {
       update: true,
       buildYAxisTick: true,
       forceBuildYAxisTick: true
-
     })
+  }
+
+  resize (): void {
+    // P5-E: External resize() call is immediate (caller controls timing).
+    this._applyResize()
   }
 
   destroy (): void {
@@ -1173,6 +1285,15 @@ export default class ChartImp implements Chart {
       cancelAnimationFrame(this._layoutRafId)
       this._layoutRafId = 0
     }
+    // P5-E: clean up debounce timer
+    if (this._resizeTimer !== null) {
+      clearTimeout(this._resizeTimer)
+      this._resizeTimer = null
+    }
+    // P5-B / P5-C / P5-E: disconnect observers
+    this._intersectionObserver?.disconnect()
+    this._perfObserver?.disconnect()
+    this._resizeObserver?.disconnect()
     this._chartEvent.destroy()
     this._drawPanes.forEach(pane => {
       pane.destroy()

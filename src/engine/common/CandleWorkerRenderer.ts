@@ -51,6 +51,9 @@ const VERTS_PER_BAR  = ${VERTS_PER_BAR};
 const VERT_SRC = ${JSON.stringify(VERT_SRC)};
 const FRAG_SRC = ${JSON.stringify(FRAG_SRC)};
 
+// P1-A: SharedArrayBuffer zero-copy VBO — set when main thread sends SAB at init
+let sabU8 = null;
+
 let gl, program, vao, vbo, capacity = 0;
 let uPriceFrom, uPriceRange, uResolution, uPixelRatio,
     uBarHalfWidth, uRenderMode, uOhlcHalfSize, uPanOffset;
@@ -67,7 +70,8 @@ function compile(type, src) {
   return s;
 }
 
-function init(canvas) {
+function init(canvas, sab) {
+  if (sab) sabU8 = new Uint8Array(sab);
   gl = canvas.getContext('webgl2', {
     antialias: false,
     premultipliedAlpha: false,
@@ -145,7 +149,7 @@ self.onmessage = function(e) {
   const msg = e.data;
   switch (msg.type) {
     case 'init':
-      try { init(msg.canvas); }
+      try { init(msg.canvas, msg.sab); }
       catch (err) { self.postMessage({ type: 'error', msg: String(err) }); }
       break;
 
@@ -161,6 +165,24 @@ self.onmessage = function(e) {
       }
       gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, bytes, 0, byteLen);
+      break;
+    }
+
+    case 'uploadSAB': {
+      // P1-A: Zero-copy path — read directly from SharedArrayBuffer.
+      // Main thread already packed data into sabU8; we just upload it.
+      const { count } = msg;
+      if (!sabU8 || count === 0) break;
+      const byteLen = count * BYTES_PER_BAR;
+      if (count > capacity) {
+        const newCap = Math.max(count, capacity * 2, 512);
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, newCap * BYTES_PER_BAR, gl.DYNAMIC_DRAW);
+        capacity = newCap;
+      }
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+      // Create a view over the SAB slice — no copy
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, sabU8, 0, byteLen);
       break;
     }
 
@@ -239,6 +261,13 @@ export class CandleWorkerRenderer {
   private readonly _worker: Worker
   private _workerReady = false
 
+  // P1-A: SharedArrayBuffer zero-copy VBO.
+  // Allocated when crossOriginIsolated === true (COOP/COEP headers set).
+  // Falls back to structured-clone transfer when not available.
+  private readonly _sab: SharedArrayBuffer | null
+  private readonly _sabF32: Float32Array | null
+  private readonly _sabU8: Uint8Array | null
+
   // ── Staging buffer (same as CandleWebGLRenderer — all data prep stays here)
   private _capacity = 0
   private _stagingBuf: ArrayBuffer = new ArrayBuffer(0)
@@ -295,6 +324,20 @@ export class CandleWorkerRenderer {
     container.appendChild(canvas)
     this._canvas = canvas
 
+    // P1-A: Allocate SharedArrayBuffer when the page is cross-origin-isolated.
+    // Capacity: 64 K bars × 32 B/bar = 2 MB.  Never reallocated — setData will
+    // fall back to the structured-clone path for oversized datasets.
+    const SAB_MAX_BARS = 65536
+    if (typeof SharedArrayBuffer !== 'undefined' && (globalThis as { crossOriginIsolated?: boolean }).crossOriginIsolated === true) {
+      this._sab   = new SharedArrayBuffer(SAB_MAX_BARS * BYTES_PER_BAR)
+      this._sabF32 = new Float32Array(this._sab)
+      this._sabU8  = new Uint8Array(this._sab)
+    } else {
+      this._sab    = null
+      this._sabF32 = null
+      this._sabU8  = null
+    }
+
     // Spawn the worker from a Blob URL — safe for library bundles (no import path)
     const blob    = new Blob([_getWorkerSrc()], { type: 'application/javascript' })
     const blobUrl = URL.createObjectURL(blob)
@@ -317,7 +360,8 @@ export class CandleWorkerRenderer {
     // Transfer canvas control to the worker (zero-copy — the OffscreenCanvas
     // is a Transferable, so no pixel data is copied across the thread boundary)
     const offscreen = canvas.transferControlToOffscreen()
-    worker.postMessage({ type: 'init', canvas: offscreen }, [offscreen])
+    // P1-A: Include SAB in init so worker can read VBO data without copying.
+    worker.postMessage({ type: 'init', canvas: offscreen, sab: this._sab }, [offscreen])
   }
 
   // ---------------------------------------------------------------------------
@@ -484,11 +528,19 @@ export class CandleWorkerRenderer {
       this._writeBarIntoViews(bars[i], f32, u8, i << 3, i * BYTES_PER_BAR)
     }
 
-    // Structured-clone the staging slice — worker receives its own copy; main
-    // thread keeps the original buffer intact for subsequent frames.
-    const byteLen = visibleBarCount * BYTES_PER_BAR
-    const uploadBytes = this._stagingU8.slice(0, byteLen)   // O(N) copy, ~16 KB max
-    this._worker.postMessage({ type: 'upload', bytes: uploadBytes, count: visibleBarCount })
+    // P1-A: SharedArrayBuffer zero-copy path — pack into SAB; worker reads directly.
+    // Fallback: structured-clone when SAB is unavailable or dataset exceeds SAB capacity.
+    if (this._sabU8 !== null && visibleBarCount * BYTES_PER_BAR <= this._sab!.byteLength) {
+      // Copy from staging into SAB (SAB can't alias staging — separate typed-array views)
+      this._sabU8.set(u8.subarray(0, visibleBarCount * BYTES_PER_BAR))
+      this._worker.postMessage({ type: 'uploadSAB', count: visibleBarCount })
+    } else {
+      // Structured-clone the staging slice — worker receives its own copy; main
+      // thread keeps the original buffer intact for subsequent frames.
+      const byteLen = visibleBarCount * BYTES_PER_BAR
+      const uploadBytes = this._stagingU8.slice(0, byteLen)   // O(N) copy, ~16 KB max
+      this._worker.postMessage({ type: 'upload', bytes: uploadBytes, count: visibleBarCount })
+    }
     this._vboVersion++
   }
 

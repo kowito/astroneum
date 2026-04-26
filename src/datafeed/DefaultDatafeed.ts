@@ -74,6 +74,37 @@ export default class DefaultDatafeed implements Datafeed {
   private _currentSymbol?: SymbolInfo
   private _currentCallback?: DatafeedSubscribeCallback
 
+  // P4-D: Delta tick encoding — track the previous bar values so we can skip
+  // postMessage / re-allocation when a tick only updates `close` (the common
+  // case on real feeds).  Only publish a new CandleData object when at least
+  // one field has changed beyond floating-point epsilon.
+  private _prevTickTimestamp = 0
+  private _prevTickOpen = NaN
+  private _prevTickHigh = NaN
+  private _prevTickLow = NaN
+  private _prevTickClose = NaN
+
+  /** Returns true when the incoming tick carries new information. */
+  private _isDeltaTick (bar: CandleData): boolean {
+    if (bar.timestamp !== this._prevTickTimestamp) return true
+    // Use strict comparison — prices are already rounded via asPrice()
+    return (
+      bar.open  !== this._prevTickOpen  ||
+      bar.high  !== this._prevTickHigh  ||
+      bar.low   !== this._prevTickLow   ||
+      bar.close !== this._prevTickClose
+    )
+  }
+
+  /** Update the rolling reference point for delta comparison. */
+  private _updateDeltaRef (bar: CandleData): void {
+    this._prevTickTimestamp = bar.timestamp
+    this._prevTickOpen  = bar.open
+    this._prevTickHigh  = bar.high
+    this._prevTickLow   = bar.low
+    this._prevTickClose = bar.close
+  }
+
   /**
    * OHLCV-aware coalescer: merges ticks arriving within the same rAF frame
    * into one financially accurate bar (high=max, low=min, close=last, volume=sum).
@@ -170,7 +201,7 @@ export default class DefaultDatafeed implements Datafeed {
             this._ws?.send(JSON.stringify({ action: 'subscribe', params: `T.${this._currentSymbol.ticker}` }))
           }
         } else {
-          this._mergeTick({
+          const tick: CandleData = {
             timestamp: asTimestamp(msg.s),
             open: asPrice(msg.o),
             high: asPrice(msg.h),
@@ -178,7 +209,12 @@ export default class DefaultDatafeed implements Datafeed {
             close: asPrice(msg.c),
             volume: asVolume(msg.v),
             turnover: asVolume(msg.vw)
-          })
+          }
+          // P4-D: Skip identical ticks — the WS sometimes re-delivers the same
+          // bar during low-liquidity periods (e.g., pre-market duplicates).
+          if (!this._isDeltaTick(tick)) continue
+          this._updateDeltaRef(tick)
+          this._mergeTick(tick)
         }
       }
     }

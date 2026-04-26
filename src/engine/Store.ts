@@ -1246,15 +1246,21 @@ export default class StoreImp implements Store {
       })
       this._pendingCalcMap.clear()
 
-      // Batch-14: for large datasets, defer the task batch to an idle callback
-      // so the chart can paint its first frame before indicators are computed.
-      if (this._dataList.length >= StoreImp._IDLE_CALC_THRESHOLD && typeof requestIdleCallback === 'function') {
-        requestIdleCallback(() => { this._taskScheduler.add(tasks) })
+      // P5-A: Use scheduler.postTask with 'background' priority when available.
+      // This yields to user-visible work (paints, input) before running indicator maths.
+      // Falls back to requestIdleCallback / setTimeout for broader compatibility.
+      type TaskSchedulerAPI = { postTask: (fn: () => void, opts: { priority: string }) => void }
+      const sched = (globalThis as unknown as { scheduler?: TaskSchedulerAPI }).scheduler
+      const runTasks = (): void => { this._taskScheduler.add(tasks) }
+
+      if (sched !== undefined) {
+        sched.postTask(runTasks, { priority: 'background' })
+      } else if (this._dataList.length >= StoreImp._IDLE_CALC_THRESHOLD && typeof requestIdleCallback === 'function') {
+        requestIdleCallback(runTasks)
       } else if (this._dataList.length >= StoreImp._IDLE_CALC_THRESHOLD) {
-        // Safari fallback: yield with a 0 ms timeout
-        setTimeout(() => { this._taskScheduler.add(tasks) }, 0)
+        setTimeout(runTasks, 0)
       } else {
-        this._taskScheduler.add(tasks)
+        runTasks()
       }
     })
   }
