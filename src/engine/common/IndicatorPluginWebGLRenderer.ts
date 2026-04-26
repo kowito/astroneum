@@ -1,4 +1,5 @@
 import { getPixelRatio } from './utils/canvas'
+import { WebGLCanvas } from './WebGLCanvas'
 
 export class IndicatorPluginWebGLRenderer {
   private readonly _canvas: HTMLCanvasElement
@@ -27,6 +28,8 @@ export class IndicatorPluginWebGLRenderer {
 
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+    gl.disable(gl.DEPTH_TEST)     // 2D rendering only — no depth reads/writes
+    gl.enable(gl.SCISSOR_TEST)    // reject fragments outside the pane canvas
   }
 
   getContext (): WebGL2RenderingContext {
@@ -58,7 +61,10 @@ export class IndicatorPluginWebGLRenderer {
 
   beginFrame (): void {
     const gl = this._gl
-    gl.viewport(0, 0, this._canvas.width, this._canvas.height)
+    const w  = this._canvas.width
+    const h  = this._canvas.height
+    gl.viewport(0, 0, w, h)
+    gl.scissor(0, 0, w, h)
     gl.clearColor(0, 0, 0, 0)
     gl.clear(gl.COLOR_BUFFER_BIT)
   }
@@ -74,18 +80,6 @@ export class IndicatorPluginWebGLRenderer {
   }
 }
 
-const _pluginGL2Supported: boolean = (() => {
-  try {
-    const c = document.createElement('canvas')
-    const gl = c.getContext('webgl2')
-    if (gl === null) return false
-    gl.getExtension('WEBGL_lose_context')?.loseContext()
-    return true
-  } catch {
-    return false
-  }
-})()
-
 const _pluginRendererCache = new WeakMap<object, IndicatorPluginWebGLRenderer>()
 
 export function getIndicatorPluginRenderer (widgetKey: object): IndicatorPluginWebGLRenderer | null {
@@ -96,7 +90,7 @@ export function getOrCreateIndicatorPluginRenderer (
   widgetKey: object,
   container: HTMLElement
 ): IndicatorPluginWebGLRenderer | null {
-  if (!_pluginGL2Supported) return null
+  if (!WebGLCanvas.isSupported()) return null
   let renderer = _pluginRendererCache.get(widgetKey)
   if (renderer === undefined) {
     try {

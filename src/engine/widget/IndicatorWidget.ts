@@ -13,6 +13,7 @@ import OverlayView from '../view/OverlayView'
 import { destroyLineRenderer } from '../common/IndicatorLineWebGLRenderer'
 import { destroyIndicatorPluginRenderer } from '../common/IndicatorPluginWebGLRenderer'
 import { destroyRectRenderer } from '../common/IndicatorRectWebGLRenderer'
+import { destroySharedIndicatorGLCanvas } from '../common/SharedIndicatorGLCanvas'
 
 export default class IndicatorWidget extends DrawWidget<DrawPane<YAxis>> {
   private readonly _gridView = new GridView(this)
@@ -64,6 +65,7 @@ export default class IndicatorWidget extends DrawWidget<DrawPane<YAxis>> {
     destroyLineRenderer(this)
     destroyRectRenderer(this)
     destroyIndicatorPluginRenderer(this)
+    destroySharedIndicatorGLCanvas(this)  // must come after renderer destroys
     super.destroy()
   }
 }

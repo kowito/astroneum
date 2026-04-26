@@ -9,7 +9,7 @@ import type Coordinate from '../common/Coordinate'
 import { INDICATOR_PLUGIN_RUNTIME_KEY } from '../../constants'
 
 import { eachFigures, type IndicatorFigure, type IndicatorFigureAttrs, type IndicatorFigureStyle } from '../component/Indicator'
-import { getLineRenderer, getOrCreateLineRenderer, type LineSegmentData } from '../common/IndicatorLineWebGLRenderer'
+import { getLineRenderer, getOrCreateLineRenderer, type LineSegmentData, getOrCreateSharedIndicatorGLCanvas, getSharedIndicatorGLCanvas } from '../common/IndicatorLineWebGLRenderer'
 import { getIndicatorPluginRenderer, getOrCreateIndicatorPluginRenderer } from '../common/IndicatorPluginWebGLRenderer'
 import { getOrCreateRectRenderer, getRectRenderer, isGpuRectEligible, type RectInstanceData } from '../common/IndicatorRectWebGLRenderer'
 
@@ -465,40 +465,51 @@ export default class IndicatorView extends CandleBarView {
     }
 
     // -------------------------------------------------------------------------
-    // GPU rect flush — single instanced draw call for all accumulated fill-rects
+    // GPU rect + line flush — shared WebGL canvas, single-clear-per-frame,
+    // two-pass dirty detection: setData first, then beginFrame only if needed.
+    // This ensures both renderers always draw together (rect under lines) and
+    // the canvas is never cleared unless actual content has changed.
     // -------------------------------------------------------------------------
-    const activeRectRenderer = gpuRects.length > 0
-      ? getOrCreateRectRenderer(widget, widget.getContainer())
-      : getRectRenderer(widget)
-    if (activeRectRenderer !== null) {
-      const { width, height } = bounding
-      activeRectRenderer.resize(width, height)
-      activeRectRenderer.setData(gpuRects)
-      activeRectRenderer.draw()
-    } else if (gpuRects.length > 0) {
-      // WebGL2 unavailable — render as Canvas2D fillRect calls
+    const { width, height } = bounding
+    const hasGpuIndicators = gpuRects.length > 0 || gpuLineSegs.length > 0
+    const activeShared = hasGpuIndicators
+      ? getOrCreateSharedIndicatorGLCanvas(widget, widget.getContainer())
+      : getSharedIndicatorGLCanvas(widget)
+
+    if (activeShared !== null) {
+      // Resize shared canvas once — idempotent, increments sizeVersion if changed.
+      activeShared.resize(width, height)
+
+      // Obtain renderers — create only when there is actual GPU work to do;
+      // otherwise use cached instances so clean frames can still skip the draw.
+      const activeRectRenderer = gpuRects.length > 0
+        ? getOrCreateRectRenderer(widget, activeShared)
+        : getRectRenderer(widget)
+
+      const activeLineRenderer = gpuLineSegs.length > 0
+        ? getOrCreateLineRenderer(widget, activeShared)
+        : getLineRenderer(widget)
+
+      // Upload staged data — fingerprint check prevents bufferSubData when unchanged.
+      activeRectRenderer?.setData(gpuRects)
+      activeLineRenderer?.setData(gpuLineSegs)
+
+      // Dirty detection: any stale VBO or canvas-resize triggers a full redraw.
+      const anyDirty = (activeRectRenderer?.isDirty() ?? false) ||
+                       (activeLineRenderer?.isDirty() ?? false)
+      if (anyDirty) {
+        // Clear once, then draw rects first (below lines for correct compositing).
+        activeShared.beginFrame()
+        activeRectRenderer?.draw()
+        activeLineRenderer?.draw()
+      }
+    } else if (hasGpuIndicators) {
+      // WebGL2 unavailable — Canvas2D fallback for rects and lines.
       ctx.save()
       for (const rect of gpuRects) {
         ctx.fillStyle = rect.color
         ctx.fillRect(rect.x, rect.y, rect.width, rect.height)
       }
-      ctx.restore()
-    }
-
-    // -------------------------------------------------------------------------
-    // GPU line flush — single instanced draw call for all accumulated segments
-    // -------------------------------------------------------------------------
-    const activeLineRenderer = gpuLineSegs.length > 0
-      ? getOrCreateLineRenderer(widget, widget.getContainer())
-      : getLineRenderer(widget)
-    if (activeLineRenderer !== null) {
-      const { width, height } = bounding
-      activeLineRenderer.resize(width, height)
-      activeLineRenderer.setData(gpuLineSegs)
-      activeLineRenderer.draw()
-    } else if (gpuLineSegs.length > 0) {
-      // WebGL2 unavailable — render segments as Canvas2D strokes (grouped by style)
-      ctx.save()
       for (const seg of gpuLineSegs) {
         ctx.beginPath()
         ctx.strokeStyle = seg.color

@@ -30,9 +30,21 @@ Items marked **[DONE]** are committed. Items marked **[IMPL]** are implemented i
 
 ## Batch 2 — Next implementation targets
 
-### [ ] 5. Scissor + viewport per pane on a shared WebGL canvas (multi-pane refactor)
-**Impact:** ★★★★☆  
-Currently each renderer creates its **own** `<canvas>` element, so there is one WebGL context per pane. Browsers cap WebGL contexts at ~16 per page. With many open panes the fallback to Canvas2D is silent. Migrating to a single shared `WebGL2RenderingContext` and isolating each pane with `gl.viewport` + `gl.scissor` removes the context-count ceiling entirely.
+### [IMPL] 5. Shared WebGL canvas per indicator pane (`SharedIndicatorGLCanvas`)
+**Files:** new `SharedIndicatorGLCanvas.ts`, `IndicatorLineWebGLRenderer`, `IndicatorRectWebGLRenderer`, `IndicatorView`, `IndicatorWidget`  
+**Why:** Previously each renderer created its own `<canvas>` + `WebGL2RenderingContext`. A chart with N panes × 3 indicator renderers = 3N contexts, quickly approaching the browser cap of ~16. Indicator sub-panes now share ONE context.
+**How:**
+- `SharedIndicatorGLCanvas` owns the single `<canvas>` + `WebGL2RenderingContext` per widget. Sets global GL state once (blend, depth, scissor).
+- `beginFrame()` clears the canvas and sets viewport/scissor — called once per dirty frame, before any renderer draws.
+- `resize()` is idempotent; increments `sizeVersion` when dimensions change.
+- Both renderers hold only a VAO / VBO / program. `isDirty()` = VBO version stale OR canvas resized since last draw.
+- `IndicatorView` two-pass protocol: `setData()` → check `anyDirty` → if dirty: `beginFrame()` then both `draw()` in rect-under-lines order. Clean frames skip all GL calls and preserve the canvas content from the prior frame.
+- Destruction order: line/rect `destroy()` (free GPU objects) → `destroySharedIndicatorGLCanvas()` (lose context + remove canvas).
+
+### [IMPL] 5a. Apply batch-1 fixes to `IndicatorPluginWebGLRenderer` (previously missed)
+**Files:** `IndicatorPluginWebGLRenderer`  
+**Why:** The plugin renderer was skipped in batch 1. It still had its own `_pluginGL2Supported` IIFE, was missing `gl.disable(gl.DEPTH_TEST)` and `gl.enable(gl.SCISSOR_TEST)`, and `beginFrame()` was missing the `gl.scissor()` call.
+**How:** Add depth-disable + scissor-enable in constructor; add `gl.scissor(0, 0, w, h)` in `beginFrame()`; replace IIFE with `WebGLCanvas.isSupported()`.
 
 ### [ ] 6. OffscreenCanvas + Web Worker
 **Impact:** ★★★★★  

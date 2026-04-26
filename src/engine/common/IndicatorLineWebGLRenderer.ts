@@ -1,5 +1,5 @@
 import { getPixelRatio } from './utils/canvas'
-import { WebGLCanvas } from './WebGLCanvas'
+import { type SharedIndicatorGLCanvas, getOrCreateSharedIndicatorGLCanvas, getSharedIndicatorGLCanvas } from './SharedIndicatorGLCanvas'
 
 // ---------------------------------------------------------------------------
 // GPU line renderer for indicator figure lines (Priority 3).
@@ -177,8 +177,8 @@ export interface LineSegmentData {
 }
 
 export class IndicatorLineWebGLRenderer {
+  private readonly _sharedCanvas: SharedIndicatorGLCanvas
   private readonly _gl: WebGL2RenderingContext
-  private readonly _canvas: HTMLCanvasElement
   private readonly _program: WebGLProgram
   private readonly _vao: WebGLVertexArrayObject
   private readonly _vbo: WebGLBuffer
@@ -213,34 +213,18 @@ export class IndicatorLineWebGLRenderer {
 
   // ── Incremental dirty tracking ───────────────────────────────────────────────
   //  _vboVersion increments whenever the VBO is actually written.
-  //  draw() skips the GL pipeline entirely when _drawnVersion matches.
-  private _vboVersion   = 0
-  private _drawnVersion = -1
+  //  isDirty() compares _drawnVersion and _lastSizeVersion against the shared
+  //  canvas state so the view can skip beginFrame() + draw() on clean frames.
+  private _vboVersion      = 0
+  private _drawnVersion    = -1
+  private _lastSizeVersion = -1
 
-  constructor (container: HTMLElement) {
-    const canvas = document.createElement('canvas')
-    canvas.style.position  = 'absolute'
-    canvas.style.top       = '0'
-    canvas.style.left      = '0'
-    canvas.style.zIndex    = '1'    // below Canvas2D layer (z-index 2)
-    canvas.style.pointerEvents = 'none'
-    container.appendChild(canvas)
-    this._canvas = canvas
-
-    const gl = canvas.getContext('webgl2', {
-      antialias: false,
-      premultipliedAlpha: false,
-      preserveDrawingBuffer: false,
-      powerPreference: 'high-performance',
-      alpha: true
-    })
-    if (gl === null) throw new Error('[IndicatorLineWebGLRenderer] WebGL2 unavailable')
+  constructor (sharedCanvas: SharedIndicatorGLCanvas) {
+    this._sharedCanvas = sharedCanvas
+    const gl = sharedCanvas.gl
     this._gl = gl
 
-    gl.enable(gl.BLEND)
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-    gl.disable(gl.DEPTH_TEST)     // 2D only — no depth reads/writes
-    gl.enable(gl.SCISSOR_TEST)    // reject fragments outside the pane canvas
+    // Note: BLEND, DEPTH_TEST, SCISSOR_TEST are set once in SharedIndicatorGLCanvas.
 
     this._program = createProgram(gl)
     gl.useProgram(this._program)
@@ -289,19 +273,24 @@ export class IndicatorLineWebGLRenderer {
   }
 
   // ---------------------------------------------------------------------------
-  // Resize
+  // Dirty tracking
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns true when the renderer's output is stale and must be redrawn.
+   * Stale when the VBO contents changed OR the shared canvas was resized.
+   */
+  isDirty (): boolean {
+    return this._vboVersion !== this._drawnVersion ||
+           this._lastSizeVersion !== this._sharedCanvas.sizeVersion
+  }
+
+  // ---------------------------------------------------------------------------
+  // Resize — delegates to the shared canvas (idempotent).
   // ---------------------------------------------------------------------------
 
   resize (width: number, height: number): void {
-    const pixelRatio = getPixelRatio(this._canvas)
-    const newCanvasWidth = Math.round(width  * pixelRatio)
-    const newCanvasHeight = Math.round(height * pixelRatio)
-    if (this._canvas.width === newCanvasWidth && this._canvas.height === newCanvasHeight) return
-    this._canvas.style.width  = `${width}px`
-    this._canvas.style.height = `${height}px`
-    this._canvas.width  = newCanvasWidth
-    this._canvas.height = newCanvasHeight
-    this._vboVersion++  // canvas reset — force redraw
+    this._sharedCanvas.resize(width, height)
   }
 
   // ---------------------------------------------------------------------------
@@ -401,21 +390,20 @@ export class IndicatorLineWebGLRenderer {
 
   /**
    * Draw all uploaded line segments in a single instanced draw call.
+   * Caller MUST call sharedCanvas.beginFrame() before this and check isDirty()
+   * first — this method always draws (dirty tracking is done by the view).
    */
   draw (): void {
-    const gl = this._gl
-    const pr = getPixelRatio(this._canvas)
-    const w  = this._canvas.width
-    const h  = this._canvas.height
+    const shared = this._sharedCanvas
+    const canvas = shared.canvas
+    const gl     = this._gl
+    const pr = getPixelRatio(canvas)
+    const w  = canvas.width
+    const h  = canvas.height
 
-    // Incremental dirty: skip the GL pipeline when the canvas is already current.
-    if (this._vboVersion === this._drawnVersion) return
-    this._drawnVersion = this._vboVersion
-
-    gl.viewport(0, 0, w, h)
-    gl.scissor(0, 0, w, h)
-    gl.clearColor(0, 0, 0, 0)
-    gl.clear(gl.COLOR_BUFFER_BIT)
+    // Mark as current — viewport/scissor/clear already handled by beginFrame().
+    this._drawnVersion    = this._vboVersion
+    this._lastSizeVersion = shared.sizeVersion
 
     if (this._segCount === 0) return
 
@@ -437,9 +425,8 @@ export class IndicatorLineWebGLRenderer {
     gl.deleteVertexArray(this._vao)
     gl.deleteBuffer(this._vbo)
     gl.deleteProgram(this._program)
-    const ext = gl.getExtension('WEBGL_lose_context')
-    ext?.loseContext()
-    this._canvas.remove()
+    // The GL context and canvas are owned by SharedIndicatorGLCanvas — do not
+    // lose the context here; destroySharedIndicatorGLCanvas() handles that.
   }
 }
 
@@ -452,17 +439,12 @@ export function getLineRenderer (widgetKey: object): IndicatorLineWebGLRenderer 
 
 export function getOrCreateLineRenderer (
   widgetKey: object,
-  container: HTMLElement
-): IndicatorLineWebGLRenderer | null {
-  if (!WebGLCanvas.isSupported()) return null
+  sharedCanvas: SharedIndicatorGLCanvas
+): IndicatorLineWebGLRenderer {
   let r = _lineRendererCache.get(widgetKey)
   if (r === undefined) {
-    try {
-      r = new IndicatorLineWebGLRenderer(container)
-      _lineRendererCache.set(widgetKey, r)
-    } catch {
-      return null
-    }
+    r = new IndicatorLineWebGLRenderer(sharedCanvas)
+    _lineRendererCache.set(widgetKey, r)
   }
   return r
 }
@@ -474,3 +456,5 @@ export function destroyLineRenderer (widgetKey: object): void {
     _lineRendererCache.delete(widgetKey)
   }
 }
+
+export { getOrCreateSharedIndicatorGLCanvas, getSharedIndicatorGLCanvas } from './SharedIndicatorGLCanvas'
