@@ -375,32 +375,14 @@ export default class IndicatorView extends CandleBarView {
               }
               mergeLines.forEach(({ coordinates, styles }) => {
                 const lineStyle = styles as SmoothLineStyle
-                // GPU path: solid, non-smooth lines from non-behind indicators
-                if (
-                  indicator.zLevel >= 0 &&
-                  lineStyle.style !== 'dashed' &&
-                  lineStyle.smooth !== true &&
-                  typeof lineStyle.color === 'string'
-                ) {
-                  const hw = ((lineStyle.size as number) ?? 1) / 2
-                  for (let i = 0; i < coordinates.length - 1; i++) {
-                    gpuLineSegs.push({
-                      x0: coordinates[i].x,
-                      y0: coordinates[i].y,
-                      x1: coordinates[i + 1].x,
-                      y1: coordinates[i + 1].y,
-                      halfWidth: hw,
-                      color: lineStyle.color as string
-                    })
-                  }
-                } else {
-                  // Canvas2D fallback: dashed / smooth / destination-over indicators
-                  this.createFigure({
-                    name: 'line',
-                    attrs: { coordinates },
-                    styles
-                  })?.draw(ctx)
-                }
+                // Keep indicator lines on the stable Canvas2D path.
+                // The WebGL line path can render sporadic large diagonal artifacts
+                // on some GPU/browser combinations during live chart updates.
+                this.createFigure({
+                  name: 'line',
+                  attrs: { coordinates },
+                  styles
+                })?.draw(ctx)
               })
             }
           })

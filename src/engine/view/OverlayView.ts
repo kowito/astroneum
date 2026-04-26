@@ -430,20 +430,22 @@ export default class OverlayView<C extends Axis = YAxis> extends View<C> {
     const chartStore = chart.getChartStore()
     const yAxis = pane.getAxisComponent() as unknown as Nullable<YAxis>
     const xAxis = chart.getXAxisPane().getAxisComponent()
-    const coordinates = points.map(point => {
-      let dataIndex: Nullable<number> = null
-      if (isNumber(point.timestamp)) {
+    const coordinates = points.reduce<Coordinate[]>((result, point) => {
+      let dataIndex: Nullable<number> = (point as { dataIndex?: number }).dataIndex ?? null
+      if (!isNumber(dataIndex) && isNumber(point.timestamp)) {
         dataIndex = chartStore.timestampToDataIndex(point.timestamp)
       }
-      const coordinate = { x: 0, y: 0 }
-      if (isNumber(dataIndex)) {
-        coordinate.x = xAxis.convertToPixel(dataIndex)
+      if (!isNumber(dataIndex) || !isNumber(point.value)) {
+        return result
       }
-      if (isNumber(point.value)) {
-        coordinate.y = yAxis?.convertToPixel(point.value) ?? 0
+      const x = xAxis.convertToPixel(dataIndex)
+      const y = yAxis?.convertToPixel(point.value)
+      if (!isNumber(x) || !isNumber(y)) {
+        return result
       }
-      return coordinate
-    })
+      result.push({ x, y })
+      return result
+    }, [])
     if (coordinates.length > 0) {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment -- ignore
       // @ts-expect-error

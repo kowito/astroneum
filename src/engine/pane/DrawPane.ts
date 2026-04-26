@@ -42,10 +42,6 @@ export default abstract class DrawPane<C extends Axis = Axis> extends Pane {
     const container = this.getContainer()
     this._mainWidget = this.createMainWidget(container)
     this._yAxisWidget = this.createYAxisWidget(container)
-    // P5-D: Promote each pane container to its own compositor layer.
-    // This eliminates per-frame repaints when only the canvas texture changes
-    // (pan/zoom) by telling the browser the element will translate.
-    container.style.willChange = 'transform'
     this.setOptions(options)
   }
 

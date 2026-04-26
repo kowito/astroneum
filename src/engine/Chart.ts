@@ -225,6 +225,7 @@ export default class ChartImp implements Chart {
       userSelect: 'none',
       webkitUserSelect: 'none',
       overflow: 'hidden',
+      backgroundColor: 'inherit',
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment -- ignore
       // @ts-expect-error
       msUserSelect: 'none',

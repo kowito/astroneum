@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import type { Nullable, Chart } from '@/types'
+import { DRAWING_GROUP_ID } from '@/constants'
 
 // ---------------------------------------------------------------------------
 // useClockTick
@@ -54,8 +55,8 @@ export function useKeyboardShortcuts (widgetRef: React.RefObject<Nullable<Chart>
       if (keyboardEvent.key === 'Delete' || keyboardEvent.key === 'Backspace') {
         widget.removeOverlay()
       } else if (keyboardEvent.key === 'Escape') {
-        widget.overrideOverlay({ isDrawEnd: true } as never)
-        widget.removeOverlay({ id: '' })
+        // Escape should cancel/remove drawing-tool overlays reliably.
+        widget.removeOverlay({ groupId: DRAWING_GROUP_ID })
       }
     }
     document.addEventListener('keydown', handleKeyDown)

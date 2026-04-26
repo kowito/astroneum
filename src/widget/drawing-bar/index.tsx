@@ -29,7 +29,7 @@ const DrawingBar: Component<DrawingBarProps> = props => {
   const [moreLineIcon, setMoreLineIcon] = useState('priceChannelLine')
   const [polygonIcon, setPolygonIcon] = useState('circle')
   const [fibonacciIcon, setFibonacciIcon] = useState('fibonacciLine')
-  const [waveIcon, setWaveIcon] = useState('xabcd')
+  const [waveIcon, setWaveIcon] = useState('abcd')
 
   const [modeIcon, setModeIcon] = useState('weak_magnet')
   const [mode, setMode] = useState('normal')

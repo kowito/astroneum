@@ -38,7 +38,7 @@ export function getRayLine (coordinates: Coordinate[], bounding: Bounding): Line
   return []
 }
 
-export const OVERLAY_FILL_COLOR = 'rgba(22, 119, 255, 0.15)'
+export const OVERLAY_FILL_COLOR = 'rgba(22, 119, 255, 0.08)'
 
 export function getOffsetAngle (c0: Coordinate, c1: Coordinate): number {
   const flag = c1.x > c0.x ? 0 : 1

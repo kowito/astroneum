@@ -27,7 +27,8 @@ export default abstract class Pane implements Updater {
       padding: '0',
       position: 'relative',
       overflow: 'hidden',
-      boxSizing: 'border-box'
+      boxSizing: 'border-box',
+      backgroundColor: 'inherit'
     })
   }
 
