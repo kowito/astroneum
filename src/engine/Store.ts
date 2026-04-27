@@ -332,6 +332,12 @@ export default class StoreImp implements Store {
   private _fullLayoutNeeded = false
 
   /**
+   * Ensure we run one post-data forced layout so axis text/ticks are built from
+   * a fully measured pane state on initial load.
+   */
+  private _didInitialForcedLayout = false
+
+  /**
    * Overlay
    */
   private readonly _overlays = new Map<string, OverlayImp[]>()
@@ -403,6 +409,18 @@ export default class StoreImp implements Store {
     }
 
     this._taskScheduler = new TaskScheduler(() => {
+      if (!this._didInitialForcedLayout && this._dataList.length > 0) {
+        this._didInitialForcedLayout = true
+        this._chart.layout({
+          measureHeight: true,
+          measureWidth: true,
+          update: true,
+          buildYAxisTick: true,
+          forceBuildYAxisTick: true
+        })
+        return
+      }
+
       // Consume the flag atomically (JS is single-threaded; no race risk here).
       // A full layout rebuilds y-axis ticks and remeasures panel widths — needed
       // when a new bar is added or on the initial load.
@@ -414,9 +432,11 @@ export default class StoreImp implements Store {
       this._fullLayoutNeeded = false
       if (needsFull) {
         this._chart.layout({
+          measureHeight: true,
           measureWidth: true,
           update: true,
-          buildYAxisTick: true
+          buildYAxisTick: true,
+          forceBuildYAxisTick: true
         })
       } else {
         this._chart.layout({ buildYAxisTick: true, cacheYAxisWidth: true, update: true })
@@ -605,11 +625,20 @@ export default class StoreImp implements Store {
       success = true
     } else {
       const dataCount = this._dataList.length
+      const copyTick = (): CandleData => ({
+        timestamp: data.timestamp,
+        open: data.open,
+        high: data.high,
+        low: data.low,
+        close: data.close,
+        volume: data.volume,
+        turnover: data.turnover
+      })
       // Determine where individual data should be added
       const timestamp = data.timestamp
       const lastDataTimestamp = formatValue(this._dataList[dataCount - 1], 'timestamp', 0) as number
       if (timestamp > lastDataTimestamp) {
-        this._dataList.push(data)
+        this._dataList.push(copyTick())
         let lastBarRightSideDiffBarCount = this.getLastBarRightSideDiffBarCount()
         if (lastBarRightSideDiffBarCount < 0) {
           this.setLastBarRightSideDiffBarCount(--lastBarRightSideDiffBarCount)
@@ -618,7 +647,17 @@ export default class StoreImp implements Store {
         success = true
         adjustFlag = true
       } else if (timestamp === lastDataTimestamp) {
-        this._dataList[dataCount - 1] = data
+        const prev = this._dataList[dataCount - 1]
+        if (isValid(prev)) {
+          prev.open = data.open
+          prev.high = data.high
+          prev.low = data.low
+          prev.close = data.close
+          prev.volume = data.volume
+          prev.turnover = data.turnover
+        } else {
+          this._dataList[dataCount - 1] = copyTick()
+        }
         success = true
         adjustFlag = true
       }

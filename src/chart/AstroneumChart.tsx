@@ -176,6 +176,53 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
   const [alertModalVisible, setAlertModalVisible] = useState(false)
   const [scriptEditorModalVisible, setScriptEditorModalVisible] = useState(false)
 
+  // Sync controlled props from parent into internal chart store.
+  useEffect(() => {
+    const current = chart.period()
+    if (
+      current.multiplier !== props.period.multiplier ||
+      current.timespan !== props.period.timespan ||
+      current.text !== props.period.text
+    ) {
+      chart.setPeriod(props.period)
+    }
+  }, [props.period])
+
+  useEffect(() => {
+    const current = chart.symbol()
+    if (
+      current.ticker !== props.symbol.ticker ||
+      current.pricePrecision !== props.symbol.pricePrecision ||
+      current.volumePrecision !== props.symbol.volumePrecision
+    ) {
+      chart.setSymbol(props.symbol)
+    }
+  }, [props.symbol])
+
+  useEffect(() => {
+    if (props.theme !== undefined && chart.theme() !== props.theme) {
+      chart.setTheme(props.theme)
+    }
+  }, [props.theme])
+
+  useEffect(() => {
+    if (props.locale !== undefined && chart.locale() !== props.locale) {
+      chart.setLocale(props.locale)
+    }
+  }, [props.locale])
+
+  useEffect(() => {
+    if (props.timezone !== undefined && chart.timezone().key !== props.timezone) {
+      chart.setTimezone({ key: props.timezone, text: translateTimezone(props.timezone, chart.locale()) })
+    }
+  }, [props.timezone])
+
+  useEffect(() => {
+    if (props.styles !== undefined) {
+      chart.setStyles(props.styles)
+    }
+  }, [props.styles])
+
   const clockTime = useClockTick()
   useKeyboardShortcuts(widgetRef)
 
@@ -192,7 +239,12 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
     setSymbol: chart.setSymbol,
     getSymbol: () => chart.symbol(),
     setPeriod: chart.setPeriod,
-    getPeriod: () => chart.period()
+    getPeriod: () => chart.period(),
+    getDataListLength: () => widgetRef.current?.getDataList().length ?? 0,
+    getLastDataTimestamp: () => {
+      const dataList = widgetRef.current?.getDataList() ?? []
+      return dataList.length > 0 ? (dataList[dataList.length - 1].timestamp as number) : null
+    }
   }), [])
 
   const resizeFrameRef = useRef<number | null>(null)
@@ -286,9 +338,7 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
     indicators.setSubIndicators(subIndicatorMap)
 
     const dataLoader: DataLoader = {
-      getBars: async ({ type, timestamp, callback }) => {
-        const sym = chart.symbol()
-        const per = chart.period()
+      getBars: async ({ type, timestamp, symbol: sym, period: per, callback }) => {
         ui.setLoadingVisible(true)
         try {
           if (type === 'init') {
@@ -305,11 +355,11 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
           ui.setLoadingVisible(false)
         }
       },
-      subscribeBar: ({ callback }) => {
-        props.datafeed.subscribe(chart.symbol(), chart.period(), callback)
+      subscribeBar: ({ symbol, period, callback }) => {
+        props.datafeed.subscribe(symbol, period, callback)
       },
-      unsubscribeBar: () => {
-        props.datafeed.unsubscribe(chart.symbol(), chart.period())
+      unsubscribeBar: ({ symbol, period }) => {
+        props.datafeed.unsubscribe(symbol, period)
       }
     }
     widget?.setDataLoader(dataLoader)

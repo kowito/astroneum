@@ -5,9 +5,9 @@ import { TickAnimator } from 'astroneum'
 // Mock symbol catalogue
 // ---------------------------------------------------------------------------
 export const MOCK_SYMBOLS: SymbolInfo[] = [
-  { ticker: 'BTCUSDT', name: 'Bitcoin / Tether', shortName: 'BTC', exchange: 'BINANCE', market: 'crypto', pricePrecision: 2, volumePrecision: 6, priceCurrency: 'USDT', type: 'crypto' },
-  { ticker: 'ETHUSDT', name: 'Ethereum / Tether', shortName: 'ETH', exchange: 'BINANCE', market: 'crypto', pricePrecision: 2, volumePrecision: 4, priceCurrency: 'USDT', type: 'crypto' },
-  { ticker: 'SOLUSDT', name: 'Solana / Tether', shortName: 'SOL', exchange: 'BINANCE', market: 'crypto', pricePrecision: 2, volumePrecision: 2, priceCurrency: 'USDT', type: 'crypto' },
+  { ticker: 'BTCUSDT', name: 'Bitcoin Perpetual / USDT', shortName: 'BTC PERP', exchange: 'BINANCE', market: 'crypto', pricePrecision: 2, volumePrecision: 6, priceCurrency: 'USDT', type: 'crypto' },
+  { ticker: 'ETHUSDT', name: 'Ethereum Perpetual / USDT', shortName: 'ETH PERP', exchange: 'BINANCE', market: 'crypto', pricePrecision: 2, volumePrecision: 4, priceCurrency: 'USDT', type: 'crypto' },
+  { ticker: 'SOLUSDT', name: 'Solana Perpetual / USDT', shortName: 'SOL PERP', exchange: 'BINANCE', market: 'crypto', pricePrecision: 2, volumePrecision: 2, priceCurrency: 'USDT', type: 'crypto' },
   { ticker: 'AAPL', name: 'Apple Inc.', shortName: 'AAPL', exchange: 'NASDAQ', market: 'stocks', pricePrecision: 2, volumePrecision: 0, priceCurrency: 'USD', type: 'stock' },
   { ticker: 'TSLA', name: 'Tesla Inc.', shortName: 'TSLA', exchange: 'NASDAQ', market: 'stocks', pricePrecision: 2, volumePrecision: 0, priceCurrency: 'USD', type: 'stock' },
   { ticker: 'NVDA', name: 'NVIDIA Corp.', shortName: 'NVDA', exchange: 'NASDAQ', market: 'stocks', pricePrecision: 2, volumePrecision: 0, priceCurrency: 'USD', type: 'stock' },
@@ -31,6 +31,100 @@ const SYMBOL_SEEDS: Record<string, number> = {
 
 const SYMBOL_BASE: Record<string, number> = {
   BTCUSDT: 60000, ETHUSDT: 3000, SOLUSDT: 170, AAPL: 185, TSLA: 250, NVDA: 900
+}
+
+const BINANCE_WS_BASE_URL = 'wss://fstream.binance.com/ws'
+const BINANCE_REST_BASE_URL = 'https://fapi.binance.com/fapi/v1'
+const BINANCE_CRYPTO_TICKERS = new Set(
+  MOCK_SYMBOLS
+    .filter(symbol => symbol.exchange === 'BINANCE' && symbol.type === 'crypto')
+    .map(symbol => symbol.ticker.toUpperCase())
+)
+
+type BinanceTimespan = Extract<Period['timespan'], 'minute' | 'hour' | 'day' | 'week' | 'month'>
+
+const BINANCE_INTERVAL_MULTIPLIERS: Record<BinanceTimespan, ReadonlySet<number>> = {
+  minute: new Set([1, 3, 5, 15, 30]),
+  hour: new Set([1, 2, 4, 6, 8, 12]),
+  day: new Set([1, 3]),
+  week: new Set([1]),
+  month: new Set([1]),
+}
+
+function isBinanceSupportedSymbol(symbol: SymbolInfo): boolean {
+  return BINANCE_CRYPTO_TICKERS.has(symbol.ticker.toUpperCase())
+}
+
+function toBinanceInterval(period: Period): string | null {
+  const timespan = period.timespan as BinanceTimespan
+  const supportedMultipliers = BINANCE_INTERVAL_MULTIPLIERS[timespan]
+  if (!supportedMultipliers?.has(period.multiplier)) return null
+
+  const suffixMap: Record<BinanceTimespan, string> = {
+    minute: 'm',
+    hour: 'h',
+    day: 'd',
+    week: 'w',
+    month: 'M',
+  }
+  return `${period.multiplier}${suffixMap[timespan]}`
+}
+
+function toNumber(value: unknown, fallback = 0): number {
+  const n = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(n) ? n : fallback
+}
+
+type BinanceRestKline = [
+  openTime: number,
+  open: string,
+  high: string,
+  low: string,
+  close: string,
+  volume: string,
+  closeTime: number,
+  quoteAssetVolume: string,
+  numberOfTrades: number,
+  takerBuyBaseVolume: string,
+  takerBuyQuoteVolume: string,
+  ignore: string
+]
+
+interface BinanceWsKlineEvent {
+  e: string
+  k: {
+    t: number
+    o: string
+    h: string
+    l: string
+    c: string
+    v: string
+    q: string
+  }
+}
+
+function toCandleFromBinanceRest(kline: BinanceRestKline): CandleData {
+  return {
+    timestamp: toNumber(kline[0]),
+    open: toNumber(kline[1]),
+    high: toNumber(kline[2]),
+    low: toNumber(kline[3]),
+    close: toNumber(kline[4]),
+    volume: toNumber(kline[5]),
+    turnover: toNumber(kline[7]),
+  }
+}
+
+function toCandleFromBinanceWs(event: BinanceWsKlineEvent): CandleData {
+  return {
+    timestamp: toNumber(event.k.t),
+    open: toNumber(event.k.o),
+    high: toNumber(event.k.h),
+    low: toNumber(event.k.l),
+    close: toNumber(event.k.c),
+    volume: toNumber(event.k.v),
+    turnover: toNumber(event.k.q),
+  }
 }
 
 function periodMs(period: Period): number {
@@ -84,6 +178,14 @@ function generateBars(ticker: string, period: Period, from: number, to: number):
 const _timers = new Map<string, ReturnType<typeof setInterval>>()
 const _lastHistoryClose = new Map<string, number>()
 const _animators = new Map<string, TickAnimator>()
+const _sockets = new Map<string, WebSocket>()
+const _manualSocketClose = new Set<string>()
+const _socketReconnectTimers = new Map<string, ReturnType<typeof setTimeout>>()
+const _socketReconnectDelayMs = new Map<string, number>()
+
+const BINANCE_RECONNECT_BASE_MS = 1_000
+const BINANCE_RECONNECT_MAX_MS = 30_000
+const MIN_MAIN_INDICATOR_WARMUP_BARS = 120
 
 // Use a chart-like real-time cadence (~8 Hz) instead of ultra-high frequency.
 const TARGET_TICK_INTERVAL_MS = 125
@@ -114,16 +216,103 @@ const MockDatafeed: Datafeed = {
   },
 
   getHistoryData(symbol, period, from, to) {
+    const key = tickKey(symbol, period)
+    const interval = toBinanceInterval(period)
+
+    if (isBinanceSupportedSymbol(symbol) && interval !== null) {
+      const symbolCode = symbol.ticker.toUpperCase()
+      const primaryUrl = new URL(`${BINANCE_REST_BASE_URL}/klines`)
+      primaryUrl.searchParams.set('symbol', symbolCode)
+      primaryUrl.searchParams.set('interval', interval)
+      primaryUrl.searchParams.set('startTime', `${Math.max(0, Math.floor(from))}`)
+      primaryUrl.searchParams.set('endTime', `${Math.max(0, Math.floor(to))}`)
+      primaryUrl.searchParams.set('limit', '1000')
+
+      const backfillUrl = new URL(`${BINANCE_REST_BASE_URL}/klines`)
+      backfillUrl.searchParams.set('symbol', symbolCode)
+      backfillUrl.searchParams.set('interval', interval)
+      backfillUrl.searchParams.set('endTime', `${Math.max(0, Math.floor(to))}`)
+      backfillUrl.searchParams.set('limit', '1000')
+
+      const fetchBars = async (url: URL): Promise<CandleData[]> => {
+        const response = await fetch(url.toString())
+        if (!response.ok) {
+          throw new Error(`Binance history failed: ${response.status}`)
+        }
+        const rows = await response.json() as BinanceRestKline[]
+        return rows
+          .map(toCandleFromBinanceRest)
+          .sort((a, b) => a.timestamp - b.timestamp)
+      }
+
+      return fetchBars(primaryUrl)
+        .then(async primaryBars => {
+          let bars = primaryBars.filter(bar => bar.timestamp >= from && bar.timestamp <= to)
+
+          // Ensure enough warm-up bars for longer EMAs (e.g. EMA99)
+          // while keeping data source strictly on Binance perpetual futures.
+          if (bars.length < MIN_MAIN_INDICATOR_WARMUP_BARS) {
+            try {
+              const backfillBars = await fetchBars(backfillUrl)
+              if (backfillBars.length > bars.length) {
+                bars = backfillBars.filter(bar => bar.timestamp <= to)
+              }
+            } catch {
+              // Keep primary result when backfill fails.
+            }
+          }
+
+          if (bars.length > 0) {
+            _lastHistoryClose.set(key, bars[bars.length - 1].close)
+          }
+          return bars
+        })
+        .catch(async () => {
+          // Keep this path strict to perpetual futures data.
+          // If range fetch fails, do one Binance-only backfill attempt.
+          try {
+            const fallbackBars = await fetchBars(backfillUrl)
+            if (fallbackBars.length > 0) {
+              _lastHistoryClose.set(key, fallbackBars[fallbackBars.length - 1].close)
+            }
+            return fallbackBars
+          } catch {
+            return []
+          }
+        })
+    }
+
     const bars = generateBars(symbol.ticker, period, from, to)
     if (bars.length > 0) {
-      _lastHistoryClose.set(tickKey(symbol, period), bars[bars.length - 1].close)
+      _lastHistoryClose.set(key, bars[bars.length - 1].close)
     }
     return Promise.resolve(bars)
   },
 
   subscribe(symbol, period, callback: DatafeedSubscribeCallback) {
     const key = tickKey(symbol, period)
-    if (_timers.has(key)) return
+    const existingTimer = _timers.get(key)
+    if (existingTimer !== undefined) {
+      clearInterval(existingTimer)
+      _timers.delete(key)
+    }
+    const existingAnimator = _animators.get(key)
+    if (existingAnimator !== undefined) {
+      existingAnimator.cancel()
+      _animators.delete(key)
+    }
+    const existingSocket = _sockets.get(key)
+    if (existingSocket !== undefined) {
+      _manualSocketClose.add(key)
+      existingSocket.close()
+      _sockets.delete(key)
+    }
+    const reconnectTimer = _socketReconnectTimers.get(key)
+    if (reconnectTimer !== undefined) {
+      clearTimeout(reconnectTimer)
+      _socketReconnectTimers.delete(key)
+    }
+    _socketReconnectDelayMs.delete(key)
 
     // Interpolate each incoming tick to rAF frames so motion stays continuous.
     const animator = new TickAnimator(callback, {
@@ -147,64 +336,164 @@ const MockDatafeed: Datafeed = {
       turnover: 0,
     })
 
-    const timer = setInterval(() => {
-      const now = Date.now()
-      const barTs = Math.floor(now / step) * step
-      let state = _streamState.get(key)
+    const startLocalSimulation = (): void => {
+      const timer = setInterval(() => {
+        const now = Date.now()
+        const barTs = Math.floor(now / step) * step
+        let state = _streamState.get(key)
+        let startedNewBar = false
 
-      if (state === undefined) {
-        const seedPrice = _lastHistoryClose.get(key) ?? base
-        state = { barTs, bar: createBar(barTs, seedPrice) }
-        _streamState.set(key, state)
+        if (state === undefined) {
+          const seedPrice = _lastHistoryClose.get(key) ?? base
+          state = { barTs, bar: createBar(barTs, seedPrice) }
+          _streamState.set(key, state)
+        }
+
+        if (state.barTs !== barTs) {
+          const nextOpen = state.bar.close
+          state = { barTs, bar: createBar(barTs, nextOpen) }
+          _streamState.set(key, state)
+          startedNewBar = true
+        }
+
+        // Keep intra-bar ticks realistic: gentle mean reversion toward bar open
+        // plus bounded micro-noise, instead of hard pull to a static base price.
+        const priceScale = Math.max(state.bar.open, base, 1)
+        const pullToOpen = (state.bar.open - state.bar.close) * 0.01 * tickScale
+        const noise = (Math.random() - 0.5) * priceScale * 0.0006 * Math.sqrt(tickScale)
+        const rawDelta = pullToOpen + noise
+        const maxStep = priceScale * 0.0015 * tickScale
+        let boundedDelta = Math.max(-maxStep, Math.min(maxStep, rawDelta))
+        // Avoid emitting a perfectly flat first print on a new bar in the demo feed.
+        // This keeps the bar shape realistic when the boundary tick is appended immediately.
+        if (startedNewBar && Math.abs(boundedDelta) < priceScale * 1e-8) {
+          boundedDelta = (Math.random() < 0.5 ? -1 : 1) * priceScale * 0.00005
+        }
+        const nextClose = Math.max(priceScale * 0.02, state.bar.close + boundedDelta)
+        const tradeVolume = base * (0.005 + Math.random() * 0.015) * tickScale
+
+        const tick: CandleData = {
+          timestamp: state.barTs,
+          open: state.bar.open,
+          high: Math.max(state.bar.high, nextClose),
+          low: Math.min(state.bar.low, nextClose),
+          close: nextClose,
+          volume: (state.bar.volume ?? 0) + tradeVolume,
+          turnover: (state.bar.turnover ?? 0) + tradeVolume * nextClose,
+        }
+
+        if (startedNewBar) {
+          // Emit the first trade tick of the new bar immediately so append happens
+          // without creating a synthetic flat O=H=L=C placeholder bar.
+          callback(tick)
+        }
+
+        state.bar = tick
+        _lastHistoryClose.set(key, tick.close)
+        animator.feed(tick)
+      }, intervalMs)
+
+      _timers.set(key, timer)
+    }
+
+    const interval = toBinanceInterval(period)
+    if (isBinanceSupportedSymbol(symbol) && interval !== null) {
+      const scheduleReconnect = (): void => {
+        if (_socketReconnectTimers.has(key) || _manualSocketClose.has(key)) return
+        const delay = _socketReconnectDelayMs.get(key) ?? BINANCE_RECONNECT_BASE_MS
+        _socketReconnectDelayMs.set(key, Math.min(delay * 2, BINANCE_RECONNECT_MAX_MS))
+
+        const timer = setTimeout(() => {
+          _socketReconnectTimers.delete(key)
+          if (_manualSocketClose.has(key)) return
+          openBinanceSocket()
+        }, delay)
+        _socketReconnectTimers.set(key, timer)
       }
 
-      if (state.barTs !== barTs) {
-        const nextOpen = state.bar.close
-        state = { barTs, bar: createBar(barTs, nextOpen) }
-        _streamState.set(key, state)
+      const openBinanceSocket = (): void => {
+        const socket = new WebSocket(`${BINANCE_WS_BASE_URL}/${symbol.ticker.toLowerCase()}@kline_${interval}`)
+        _sockets.set(key, socket)
+
+        socket.onopen = (): void => {
+          _socketReconnectDelayMs.set(key, BINANCE_RECONNECT_BASE_MS)
+        }
+
+        socket.onmessage = (event): void => {
+          try {
+            const payload = JSON.parse(event.data as string) as BinanceWsKlineEvent
+            if (payload.e !== 'kline') return
+
+            const tick = toCandleFromBinanceWs(payload)
+            const prevState = _streamState.get(key)
+            const startedNewBar = prevState !== undefined && prevState.barTs !== tick.timestamp
+            _streamState.set(key, { barTs: tick.timestamp, bar: tick })
+            _lastHistoryClose.set(key, tick.close)
+
+            if (startedNewBar) {
+              callback(tick)
+            }
+            animator.feed(tick)
+          } catch {
+            // Ignore malformed messages and keep stream alive.
+          }
+        }
+
+        socket.onerror = (): void => {
+          socket.close()
+        }
+
+        socket.onclose = (): void => {
+          _sockets.delete(key)
+          if (_manualSocketClose.has(key)) {
+            _manualSocketClose.delete(key)
+            return
+          }
+          scheduleReconnect()
+        }
       }
 
-      // Keep intra-bar ticks realistic: gentle mean reversion toward bar open
-      // plus bounded micro-noise, instead of hard pull to a static base price.
-      const priceScale = Math.max(state.bar.open, base, 1)
-      const pullToOpen = (state.bar.open - state.bar.close) * 0.01 * tickScale
-      const noise = (Math.random() - 0.5) * priceScale * 0.0006 * Math.sqrt(tickScale)
-      const rawDelta = pullToOpen + noise
-      const maxStep = priceScale * 0.0015 * tickScale
-      const boundedDelta = Math.max(-maxStep, Math.min(maxStep, rawDelta))
-      const nextClose = Math.max(priceScale * 0.02, state.bar.close + boundedDelta)
-      const tradeVolume = base * (0.005 + Math.random() * 0.015) * tickScale
+      _socketReconnectDelayMs.set(key, BINANCE_RECONNECT_BASE_MS)
+      openBinanceSocket()
 
-      const tick: CandleData = {
-        timestamp: state.barTs,
-        open: state.bar.open,
-        high: Math.max(state.bar.high, nextClose),
-        low: Math.min(state.bar.low, nextClose),
-        close: nextClose,
-        volume: (state.bar.volume ?? 0) + tradeVolume,
-        turnover: (state.bar.turnover ?? 0) + tradeVolume * nextClose,
-      }
+      return
+    }
 
-      state.bar = tick
-      animator.feed(tick)
-    }, intervalMs)
-
-    _timers.set(key, timer)
+    startLocalSimulation()
   },
 
   unsubscribe(symbol, period) {
     const key = tickKey(symbol, period)
-    const timer = _timers.get(key)
-    if (timer !== undefined) {
-      clearInterval(timer)
-      _timers.delete(key)
-    }
-    const animator = _animators.get(key)
-    if (animator !== undefined) {
-      animator.cancel()
-      _animators.delete(key)
-    }
-    _streamState.delete(key)
+    const symbolPrefix = `${symbol.ticker}::`
+    const keys = _timers.has(key)
+      ? [key]
+      : [..._timers.keys()].filter(k => k.startsWith(symbolPrefix))
+
+    keys.forEach(k => {
+      const timer = _timers.get(k)
+      if (timer !== undefined) {
+        clearInterval(timer)
+        _timers.delete(k)
+      }
+      const animator = _animators.get(k)
+      if (animator !== undefined) {
+        animator.cancel()
+        _animators.delete(k)
+      }
+      const socket = _sockets.get(k)
+      if (socket !== undefined) {
+        _manualSocketClose.add(k)
+        socket.close()
+        _sockets.delete(k)
+      }
+      const reconnectTimer = _socketReconnectTimers.get(k)
+      if (reconnectTimer !== undefined) {
+        clearTimeout(reconnectTimer)
+        _socketReconnectTimers.delete(k)
+      }
+      _socketReconnectDelayMs.delete(k)
+      _streamState.delete(k)
+    })
   },
 }
 

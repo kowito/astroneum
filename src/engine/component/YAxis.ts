@@ -70,6 +70,10 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
   // Ignore tiny range target changes to avoid jittery breathing on live ticks.
   scaleDeadbandPx = 2
 
+  // Rebuild ticks when y-axis drawable height changes (e.g. initial 0px mount
+  // to measured size), otherwise labels can remain empty until a forced layout.
+  private _lastTickBuildHeight = -1
+
   createRange: AxisCreateRangeCallback = params => params.defaultRange
   minSpan: AxisMinSpanCallback = precision => index10(-precision)
   valueToRealValue: AxisValueToValueCallback = value => value
@@ -279,12 +283,20 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
    */
   tickCoord (tick: AxisTick): number {
     const range = this.getRange()
-    return this.convertToPixel(
-      this.realValueToValue(
-        this.displayValueToRealValue(+(tick.value as string), { range }),
-        { range }
-      )
+    const height = this.getParent().getYAxisWidget()?.getBounding().height ?? 0
+    const value = this.realValueToValue(
+      this.displayValueToRealValue(+(tick.value as string), { range }),
+      { range }
     )
+
+    const animatedY = this.convertToPixel(value)
+    // During initial bootstrap, animated range can be far from target range and
+    // temporarily place all ticks outside the viewport. Fall back to target-range
+    // mapping so labels remain visible.
+    if (Number.isFinite(animatedY) && animatedY >= -height && animatedY <= height * 2) {
+      return animatedY
+    }
+    return this._convertToPixelByRange(value, range, height)
   }
 
   protected override createTicksImp (): AxisTick[] {
@@ -330,16 +342,15 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
     const formatter = chartStore.getInnerFormatter()
     const thousandsSeparator = chartStore.getThousandsSeparator()
     const decimalFold = chartStore.getDecimalFold()
-    const textHeight = styles.xAxis.tickText.size
+    const textHeight = styles.yAxis.tickText.size
     let validY = NaN
     ticks.forEach(({ value }) => {
       let tickText = this.displayValueToText(+value, precision)
-      const y = this.convertToPixel(
-        this.realValueToValue(
-          this.displayValueToRealValue(+value, { range }),
-          { range }
-        )
+      const yAxisValue = this.realValueToValue(
+        this.displayValueToRealValue(+value, { range }),
+        { range }
       )
+      const y = this._convertToPixelByRange(yAxisValue, range, height)
       if (shouldFormatBigNumber) {
         tickText = formatter.formatBigNumber(value)
       }
@@ -353,6 +364,33 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
         validY = y
       }
     })
+
+    // Fallback: if the strict spacing/edge filter drops all ticks, keep a
+    // relaxed visible set so right-axis labels never disappear.
+    if (optimalTicks.length === 0 && ticks.length > 0) {
+      let relaxedY = NaN
+      ticks.forEach(({ value }) => {
+        let tickText = this.displayValueToText(+value, precision)
+        const yAxisValue = this.realValueToValue(
+          this.displayValueToRealValue(+value, { range }),
+          { range }
+        )
+        const y = this._convertToPixelByRange(yAxisValue, range, height)
+        if (!Number.isFinite(y) || y < 0 || y > height) {
+          return
+        }
+        if (shouldFormatBigNumber) {
+          tickText = formatter.formatBigNumber(value)
+        }
+        tickText = decimalFold.format(thousandsSeparator.format(tickText))
+        const relaxedYNumber = isNumber(relaxedY)
+        if (!relaxedYNumber || Math.abs(relaxedY - y) > textHeight) {
+          optimalTicks.push({ text: tickText, coord: y, value })
+          relaxedY = y
+        }
+      })
+    }
+
     if (isFunction(this.createTicks)) {
       return this.createTicks({
         range: this.getRange(),
@@ -476,8 +514,12 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
   }
 
   override buildTicks (force: boolean): boolean {
+    const axisHeight = this.getParent().getYAxisWidget()?.getBounding().height ?? 0
+    const sizeChanged = axisHeight !== this._lastTickBuildHeight
+    const hasNoTicks = this.getTicks().length === 0
     const wasAutoCalc = this.getAutoCalcTickFlag()
-    const result = super.buildTicks(force)
+    const result = super.buildTicks(force || sizeChanged || hasNoTicks)
+    this._lastTickBuildHeight = axisHeight
     if (wasAutoCalc) {
       const { realFrom, realTo } = this.getRange()
       if (this._prevRealFrom === null) {
@@ -595,6 +637,16 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
     const height = this.getParent().getYAxisWidget()?.getBounding().height ?? 0
     const pixel = this.convertToPixel(value)
     return Math.max(height * 0.05, Math.min(pixel, height * 0.98))
+  }
+
+  private _convertToPixelByRange (value: number, range: AxisRange, height: number): number {
+    const realValue = this.valueToRealValue(value, { range })
+    const realRange = range.realRange
+    if (realRange === 0) {
+      return 0
+    }
+    const rate = (realValue - range.realFrom) / realRange
+    return this.reverse ? rate * height : (1 - rate) * height
   }
 
   static extend (template: YAxisTemplate): YAxisConstructor {

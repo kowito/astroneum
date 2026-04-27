@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       astroneum:
-        specifier: file:..
-        version: file:..(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+        specifier: link:..
+        version: link:..
       next:
         specifier: ^15.3.1
         version: 15.5.15(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -261,13 +261,6 @@ packages:
   '@types/react@19.2.14':
     resolution: {integrity: sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w==}
 
-  astroneum@file:..:
-    resolution: {directory: .., type: directory}
-    engines: {node: '>=18'}
-    peerDependencies:
-      react: ^18.0.0 || ^19.0.0
-      react-dom: ^18.0.0 || ^19.0.0
-
   caniuse-lite@1.0.30001791:
     resolution: {integrity: sha512-yk0l/YSrOnFZk3UROpDLQD9+kC1l4meK/wed583AXrzoarMGJcbRi2Q4RaUYbKxYAsZ8sWmaSa/DsLmdBeI1vQ==}
 
@@ -508,11 +501,6 @@ snapshots:
   '@types/react@19.2.14':
     dependencies:
       csstype: 3.2.3
-
-  astroneum@file:..(react-dom@19.2.5(react@19.2.5))(react@19.2.5):
-    dependencies:
-      react: 19.2.5
-      react-dom: 19.2.5(react@19.2.5)
 
   caniuse-lite@1.0.30001791: {}
 

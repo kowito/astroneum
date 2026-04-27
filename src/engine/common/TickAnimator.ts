@@ -103,8 +103,18 @@ export class TickAnimator {
    * by updating the target (`_to*`) without resetting the start time.
    */
   feed(next: CandleData): void {
-    // If already animating, use the current interpolated position as the new `from`
-    if (this._running) {
+    const nextTimestamp = next.timestamp as number
+    const newBar = this._timestamp !== 0 && nextTimestamp !== this._timestamp
+
+    // Never blend high/low across different bars: reset interpolation origin
+    // when timestamp changes, otherwise previous bar extremes leak into new bar.
+    if (newBar) {
+      const open = next.open as number
+      this._fromClose = open
+      this._fromHigh = open
+      this._fromLow = open
+    } else if (this._running) {
+      // If already animating, use the current interpolated position as the new `from`
       const t = this._elapsed()
       this._fromClose = lerp(this._fromClose, this._toClose, t)
       this._fromHigh  = lerp(this._fromHigh,  this._toHigh,  t)
@@ -116,13 +126,13 @@ export class TickAnimator {
       this._fromLow   = this._toLow   || (next.low   as number)
     }
 
-    // Update target — always use the latest incoming tick
+    // Update target — always use the latest incoming tick.
     this._toClose = next.close as number
-    this._toHigh  = Math.max(this._fromHigh, next.high  as number)  // high can only grow
-    this._toLow   = Math.min(this._fromLow,  next.low   as number)  // low can only shrink
+    this._toHigh  = newBar ? (next.high as number) : Math.max(this._fromHigh, next.high as number)
+    this._toLow   = newBar ? (next.low as number) : Math.min(this._fromLow, next.low as number)
 
     // Stable fields — these don't animate, just copy
-    this._timestamp = next.timestamp as number
+    this._timestamp = nextTimestamp
     this._open      = next.open      as number
     this._volume    = (next.volume  ?? 0) as number
     this._turnover  = (next.turnover ?? 0) as number

@@ -113,6 +113,8 @@ export interface AstroneumHandle {
   getSymbol(): SymbolInfo
   setPeriod(period: Period): void
   getPeriod(): Period
+  getDataListLength(): number
+  getLastDataTimestamp(): number | null
 }
 
 // ---------------------------------------------------------------------------

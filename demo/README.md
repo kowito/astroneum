@@ -18,29 +18,21 @@ pnpm install
 pnpm dev        # http://localhost:5556
 ```
 
-## Online Data Mode (Polygon)
+## Data Source
 
-The demo now supports two data sources:
+The demo uses Binance USD-M perpetual futures for crypto symbols.
 
-- `Online` (Polygon delayed market data)
-- `Local Generated` (deterministic mock candles, no network needed)
-
-To enable `Online`, create `demo/.env.local` with:
-
-```bash
-NEXT_PUBLIC_POLYGON_API_KEY=your_polygon_api_key
-```
-
-If no key is set, `Online` is disabled and the demo uses `Local Generated`.
+- Crypto symbols (`BTCUSDT`, `ETHUSDT`, `SOLUSDT`) use Binance futures REST + WebSocket.
+- Non-crypto sample symbols (`AAPL`, `TSLA`, `NVDA`) use local generated data.
 
 ## Features
 
-- Data source selector: Online / Local Generated
+- Data source badge: Binance Perps
 - Symbol selector (crypto + stocks)
 - Period buttons: 1m / 5m / 15m / 1H / 4H / D / W
 - Sub-indicator toggles: VOL, MACD, RSI, KDJ, BOLL
 - Dark / Light theme toggle
-- Simulated live ticks in local mode (no API key required)
+- Simulated live ticks for non-crypto symbols
 
 ## Next.js notes
 
