@@ -231,7 +231,9 @@ export default class CandleBarView extends ChildrenView {
 
     // Phase 4.3 — pass Y-axis range as uniforms (O(1) on pan/zoom)
     const yAxis = pane.getAxisComponent()
-    const range = yAxis.getRange()
+    const displayRange = yAxis.getDisplayRange()
+    const animRealFrom = displayRange.realFrom
+    const animRealRange = displayRange.realTo - displayRange.realFrom
 
     // OHLC render mode: compute tick half-size (matches Canvas2D formula)
     let renderMode  = 0
@@ -252,7 +254,7 @@ export default class CandleBarView extends ChildrenView {
     } else {
       activeRenderer!.setData(barRenderData)
     }
-    activeRenderer!.draw(range.realFrom, range.realRange, barSpace.halfGapBar, renderMode, ohlcHalfSize)
+    activeRenderer!.draw(animRealFrom, animRealRange, barSpace.halfGapBar, renderMode, ohlcHalfSize)
     return true
   }
 

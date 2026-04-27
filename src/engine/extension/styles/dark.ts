@@ -13,10 +13,10 @@ const dark: DeepPartial<Styles> = {
   candle: {
     priceMark: {
       high: {
-        color: '#929AA5'
+        color: '#C9D1D9'
       },
       low: {
-        color: '#929AA5'
+        color: '#C9D1D9'
       }
     },
     tooltip: {

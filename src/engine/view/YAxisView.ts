@@ -6,6 +6,7 @@ import type { TextAttrs } from '../extension/figure/text'
 
 import type { AxisTick } from '../component/Axis'
 import type { YAxis } from '../component/YAxis'
+import YAxisImp from '../component/YAxis'
 
 import AxisView from './AxisView'
 
@@ -51,12 +52,16 @@ export default class YAxisView extends AxisView<YAxis> {
       }
       endX = startX - tickLineStyles.length
     }
-    return ticks.map(tick => ({
-      coordinates: [
-        { x: startX, y: tick.coord },
-        { x: endX, y: tick.coord }
-      ]
-    }))
+    return ticks.map(tick => {
+      // Recompute Y every render frame so labels track the spring animation.
+      const y = (yAxis instanceof YAxisImp) ? yAxis.tickCoord(tick) : tick.coord
+      return {
+        coordinates: [
+          { x: startX, y },
+          { x: endX, y }
+        ]
+      }
+    })
   }
 
   override createTickTexts (ticks: AxisTick[], bounding: Bounding, styles: AxisStyle): TextAttrs[] {
@@ -84,12 +89,16 @@ export default class YAxisView extends AxisView<YAxis> {
       }
     }
     const textAlign = this.getWidget().getPane().getAxisComponent().isFromZero() ? 'left' : 'right'
-    return ticks.map(tick => ({
-      x,
-      y: tick.coord,
-      text: tick.text,
-      align: textAlign,
-      baseline: 'middle'
-    }))
+    return ticks.map(tick => {
+      // Recompute Y every render frame so labels track the spring animation.
+      const y = (yAxis instanceof YAxisImp) ? yAxis.tickCoord(tick) : tick.coord
+      return {
+        x,
+        y,
+        text: tick.text,
+        align: textAlign,
+        baseline: 'middle'
+      }
+    })
   }
 }

@@ -2,6 +2,7 @@ import type Coordinate from '../../common/Coordinate'
 import type { TextStyle } from '../../common/Styles'
 
 import { createFont, calcTextWidth } from '../../common/utils/canvas'
+import { getPixelRatio } from '../../common/utils/canvas'
 
 import type { FigureTemplate } from '../../component/Figure'
 
@@ -87,9 +88,15 @@ export function drawText (ctx: CanvasRenderingContext2D, attrs: TextAttrs | Text
   ctx.font = createFont(size, weight, family)
   ctx.fillStyle = color
 
+  const pixelRatio = Math.max(getPixelRatio(ctx.canvas), 1)
+  const snap = (value: number): number => Math.round(value * pixelRatio) / pixelRatio
+
   texts.forEach((text, index) => {
     const rect = rects[index]
-    ctx.fillText(text.text, rect.x + paddingLeft, rect.y + paddingTop, rect.width - paddingLeft - paddingRight)
+    const drawX = snap(rect.x + paddingLeft)
+    const drawY = snap(rect.y + paddingTop)
+    const maxWidth = Math.max(0, snap(rect.width - paddingLeft - paddingRight))
+    ctx.fillText(text.text, drawX, drawY, maxWidth)
   })
 }
 

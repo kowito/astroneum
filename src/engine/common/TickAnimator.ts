@@ -46,11 +46,19 @@ export interface TickAnimatorOptions {
    * Default: 120ms (≈7 frames at 60fps, ≈12 frames at 100fps).
    */
   duration?: number
+
+  /**
+   * Interpolation easing profile.
+   * - 'easeOut' (default): snappy response that settles smoothly.
+   * - 'linear': constant-speed interpolation, better for video-like motion.
+   */
+  easing?: 'easeOut' | 'linear'
 }
 
 export class TickAnimator {
   private readonly _onFrame: (tick: CandleData) => void
   private readonly _duration: number
+  private readonly _easing: 'easeOut' | 'linear'
 
   // ─── Animation state — all pre-allocated, zero rAF-loop allocation ───────
 
@@ -82,6 +90,7 @@ export class TickAnimator {
   constructor(onFrame: (tick: CandleData) => void, options?: TickAnimatorOptions) {
     this._onFrame = onFrame
     this._duration = options?.duration ?? 120
+    this._easing = options?.easing ?? 'easeOut'
     this._tick = this._tick.bind(this)
   }
 
@@ -150,7 +159,8 @@ export class TickAnimator {
 
   private _elapsed(): number {
     const raw = (performance.now() - this._startTime) / this._duration
-    return easeOut(clamp01(raw))
+    const t = clamp01(raw)
+    return this._easing === 'linear' ? t : easeOut(t)
   }
 
   private _tick(): void {

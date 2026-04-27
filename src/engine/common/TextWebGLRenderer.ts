@@ -147,6 +147,8 @@ export class TextWebGLRenderer {
   // Canvas dimensions in CSS pixels
   private _cssW = 0
   private _cssH = 0
+  // Text canvas DPR (rounded up to avoid fractional-pixel blur)
+  private _pixelRatio = 1
 
   // Pre-allocated instance data buffer
   private readonly _buf = new Float32Array(MAX_GLYPHS * FLOATS_PER)
@@ -303,6 +305,7 @@ export class TextWebGLRenderer {
   private _packInstances (atlas: GlyphAtlas, items: TextItem[]): number {
     const buf = this._buf
     let idx = 0
+    const snap = (value: number): number => Math.round(value * this._pixelRatio) / this._pixelRatio
 
     for (const item of items) {
       const scale = item.fontSize / atlas.fontSize
@@ -341,6 +344,8 @@ export class TextWebGLRenderer {
         startY = item.y + pt
       }
 
+      startX = snap(startX)
+      startY = snap(startY)
       let curX = startX
       for (const ch of item.text) {
         if (idx >= MAX_GLYPHS) break
@@ -350,12 +355,16 @@ export class TextWebGLRenderer {
           continue
         }
         const glyphW = glyph.cellW * scale
+        const snappedX = snap(curX)
+        const snappedY = startY
+        const snappedW = Math.max(1 / this._pixelRatio, snap(glyphW))
+        const snappedH = Math.max(1 / this._pixelRatio, snap(glyphH))
         const base = idx * FLOATS_PER
         // a_rect
-        buf[base]     = curX
-        buf[base + 1] = startY
-        buf[base + 2] = glyphW
-        buf[base + 3] = glyphH
+        buf[base]     = snappedX
+        buf[base + 1] = snappedY
+        buf[base + 2] = snappedW
+        buf[base + 3] = snappedH
         // a_uv
         buf[base + 4] = glyph.u0
         buf[base + 5] = glyph.v0
@@ -393,9 +402,10 @@ export class TextWebGLRenderer {
     if (this._cssW === width && this._cssH === height) return
     this._cssW = width
     this._cssH = height
-    const pr = getPixelRatio(this._canvas)
-    this._canvas.width = Math.round(width * pr)
-    this._canvas.height = Math.round(height * pr)
+    const pr = Math.max(Math.ceil(getPixelRatio(this._canvas)), 1)
+    this._pixelRatio = pr
+    this._canvas.width = Math.round(width * this._pixelRatio)
+    this._canvas.height = Math.round(height * this._pixelRatio)
     this._canvas.style.width  = `${width}px`
     this._canvas.style.height = `${height}px`
     this._gl.viewport(0, 0, this._canvas.width, this._canvas.height)

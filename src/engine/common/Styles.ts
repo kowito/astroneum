@@ -376,9 +376,9 @@ function getDefaultCandleStyle (): CandleStyle {
     show: true,
     color: Color.GREY,
     textOffset: 5,
-    textSize: 10,
+    textSize: 12,
     textFamily: 'Helvetica Neue',
-    textWeight: 'normal'
+    textWeight: '500'
   }
   return {
     type: 'candle_solid',

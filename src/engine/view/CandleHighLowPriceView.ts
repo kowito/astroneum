@@ -1,6 +1,7 @@
 import type Coordinate from '../common/Coordinate'
 import type { CandleHighLowPriceMarkStyle } from '../common/Styles'
 import { formatPrecision } from '../common/utils/format'
+import { createFont } from '../common/utils/canvas'
 import { SymbolDefaultPrecisionConstants } from '../common/SymbolInfo'
 
 import View from './View'
@@ -70,7 +71,7 @@ export default class CandleHighLowPriceView extends View<YAxis> {
 
     let lineEndX = 0
     let textStartX = 0
-    let textAlign = 'left'
+    let textAlign: CanvasTextAlign = 'left'
     const { width } = this.getWidget().getBounding()
     if (startX > width / 2) {
       lineEndX = startX - 5
@@ -94,36 +95,26 @@ export default class CandleHighLowPriceView extends View<YAxis> {
       },
       styles: { color: styles.color }
     })?.draw(ctx)
-    const textStyle = {
-      color: styles.color,
-      size: styles.textSize,
-      family: styles.textFamily,
-      weight: styles.textWeight
-    }
-    const tr = this.getWidget().getTextRenderer()
-    if (tr !== null) {
-      tr.queue({
-        text,
-        x: textStartX,
-        y,
-        fontSize: styles.textSize,
-        fontFamily: styles.textFamily,
-        color: styles.color,
-        align: textAlign as CanvasTextAlign,
-        baseline: 'middle'
-      })
-    } else {
-      this.createFigure({
-        name: 'text',
-        attrs: {
-          x: textStartX,
-          y,
-          text,
-          align: textAlign,
-          baseline: 'middle'
-        },
-        styles: textStyle
-      })?.draw(ctx)
-    }
+
+    const fontSize = Math.max(styles.textSize, 11)
+
+    ctx.save()
+    ctx.font = createFont(fontSize, '400', styles.textFamily)
+    ctx.textAlign = textAlign as CanvasTextAlign
+    ctx.textBaseline = 'middle'
+
+    // Shadow pass for readability on any background
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.9)'
+    ctx.shadowBlur = 4
+    ctx.shadowOffsetX = 0
+    ctx.shadowOffsetY = 0
+    ctx.fillStyle = styles.color
+    ctx.fillText(text, textStartX, y)
+
+    // Second pass — clean fill over the shadow
+    ctx.shadowBlur = 0
+    ctx.fillText(text, textStartX, y)
+
+    ctx.restore()
   }
 }

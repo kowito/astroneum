@@ -1,4 +1,5 @@
 import type { Datafeed, SymbolInfo, Period, DatafeedSubscribeCallback, CandleData } from 'astroneum'
+import { TickAnimator } from 'astroneum'
 
 // ---------------------------------------------------------------------------
 // Mock symbol catalogue
@@ -82,6 +83,12 @@ function generateBars(ticker: string, period: Period, from: number, to: number):
 
 const _timers = new Map<string, ReturnType<typeof setInterval>>()
 const _lastHistoryClose = new Map<string, number>()
+const _animators = new Map<string, TickAnimator>()
+
+// Use a chart-like real-time cadence (~8 Hz) instead of ultra-high frequency.
+const TARGET_TICK_INTERVAL_MS = 125
+const BASELINE_TICK_INTERVAL_MS = 125
+const VISUAL_INTERPOLATION_MS = 140
 
 interface StreamState {
   barTs: number
@@ -118,8 +125,16 @@ const MockDatafeed: Datafeed = {
     const key = tickKey(symbol, period)
     if (_timers.has(key)) return
 
+    // Interpolate each incoming tick to rAF frames so motion stays continuous.
+    const animator = new TickAnimator(callback, {
+      duration: VISUAL_INTERPOLATION_MS,
+      easing: 'linear'
+    })
+    _animators.set(key, animator)
+
     const step = periodMs(period)
-    const intervalMs = Math.min(step, 200)
+    const intervalMs = Math.min(step, TARGET_TICK_INTERVAL_MS)
+    const tickScale = Math.max(intervalMs / BASELINE_TICK_INTERVAL_MS, 0.001)
     const base = SYMBOL_BASE[symbol.ticker] ?? 100
 
     const createBar = (barTs: number, open: number): CandleData => ({
@@ -152,13 +167,13 @@ const MockDatafeed: Datafeed = {
       // Keep intra-bar ticks realistic: gentle mean reversion toward bar open
       // plus bounded micro-noise, instead of hard pull to a static base price.
       const priceScale = Math.max(state.bar.open, base, 1)
-      const pullToOpen = (state.bar.open - state.bar.close) * 0.01
-      const noise = (Math.random() - 0.5) * priceScale * 0.0006
+      const pullToOpen = (state.bar.open - state.bar.close) * 0.01 * tickScale
+      const noise = (Math.random() - 0.5) * priceScale * 0.0006 * Math.sqrt(tickScale)
       const rawDelta = pullToOpen + noise
-      const maxStep = priceScale * 0.0015
+      const maxStep = priceScale * 0.0015 * tickScale
       const boundedDelta = Math.max(-maxStep, Math.min(maxStep, rawDelta))
       const nextClose = Math.max(priceScale * 0.02, state.bar.close + boundedDelta)
-      const tradeVolume = base * (0.005 + Math.random() * 0.015)
+      const tradeVolume = base * (0.005 + Math.random() * 0.015) * tickScale
 
       const tick: CandleData = {
         timestamp: state.barTs,
@@ -171,7 +186,7 @@ const MockDatafeed: Datafeed = {
       }
 
       state.bar = tick
-      callback(tick)
+      animator.feed(tick)
     }, intervalMs)
 
     _timers.set(key, timer)
@@ -183,6 +198,11 @@ const MockDatafeed: Datafeed = {
     if (timer !== undefined) {
       clearInterval(timer)
       _timers.delete(key)
+    }
+    const animator = _animators.get(key)
+    if (animator !== undefined) {
+      animator.cancel()
+      _animators.delete(key)
     }
     _streamState.delete(key)
   },

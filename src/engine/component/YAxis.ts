@@ -2,6 +2,7 @@
 
 import type Bounding from '../common/Bounding'
 import { isFunction, isNumber, isString, isValid, merge } from '../common/utils/typeChecks'
+import { requestAnimationFrame } from '../common/utils/compatible'
 import { index10, getPrecision, nice, round } from '../common/utils/number'
 import { calcTextWidth } from '../common/utils/canvas'
 import { formatPrecision } from '../common/utils/format'
@@ -17,8 +18,21 @@ import AxisImp, {
 import type DrawPane from '../pane/DrawPane'
 
 import { PaneIdConstants } from '../pane/types'
+import { UpdateLevel } from '../common/Updater'
 
-export type YAxisTemplate = AxisTemplate
+export interface YAxisTemplate extends AxisTemplate {
+  /**
+   * Y-axis scale smoothing time in seconds.
+   * Larger value = longer/softer scaling, smaller value = shorter/tighter scaling.
+   */
+  scaleSmoothTime?: number
+
+  /**
+   * MT4-style scale stabilization deadband in pixels.
+   * Tiny auto-range shifts under this threshold are ignored.
+   */
+  scaleDeadbandPx?: number
+}
 
 const TICK_COUNT = 8
 
@@ -26,6 +40,7 @@ export interface YAxis extends Axis, Required<YAxisTemplate> {
   isFromZero: () => boolean
   isInCandle: () => boolean
   convertToNicePixel: (value: number) => number
+  getDisplayRange: () => { realFrom: number; realTo: number }
 }
 
 export type YAxisConstructor = new (parent: DrawPane) => YAxis
@@ -38,6 +53,22 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
     top: 0.2,
     bottom: 0.1
   }
+
+  // Y-axis range animation state — critically damped smooth spring.
+  private _animRealFrom = 0
+  private _animRealTo = 0
+  private _animVelocityFrom = 0
+  private _animVelocityTo = 0
+  private _animating = false
+  private _prevRealFrom: number | null = null
+  private _prevRealTo: number | null = null
+  private _lastFrameTime = 0
+
+  // Increase for longer/softer scaling. Decrease for shorter/tighter scaling.
+  scaleSmoothTime = 0.34
+
+  // Ignore tiny range target changes to avoid jittery breathing on live ticks.
+  scaleDeadbandPx = 2
 
   createRange: AxisCreateRangeCallback = params => params.defaultRange
   minSpan: AxisMinSpanCallback = precision => index10(-precision)
@@ -189,6 +220,23 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
     realFrom = realFrom - realRange * bottomRate
     realTo = realTo + realRange * topRate
 
+    // MT4-like stabilization: hold scale when incoming range changes are
+    // below a small pixel threshold.
+    if (isNumber(this._prevRealFrom) && isNumber(this._prevRealTo)) {
+      const heightPx = Math.max(height, 1)
+      const prevSpan = Math.max(Math.abs(this._prevRealTo - this._prevRealFrom), Number.EPSILON)
+      const valuePerPixel = prevSpan / heightPx
+      const deadband = Math.max(this.scaleDeadbandPx, 0) * valuePerPixel
+
+      if (Math.abs(realFrom - this._prevRealFrom) < deadband) {
+        realFrom = this._prevRealFrom
+      }
+      if (Math.abs(realTo - this._prevRealTo) < deadband) {
+        realTo = this._prevRealTo
+      }
+      realRange = realTo - realFrom
+    }
+
     const from = this.realValueToValue(realFrom, { range })
     const to = this.realValueToValue(realTo, { range })
     const displayFrom = this.realValueToDisplayValue(realFrom, { range })
@@ -222,6 +270,20 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
     return (
       (this.position === 'left' && this.inside) ||
       (this.position === 'right' && !this.inside)
+    )
+  }
+
+  /**
+   * Recomputes the pixel Y for a stored tick at the current animated range.
+   * Called by YAxisView every render frame so labels track the spring position.
+   */
+  tickCoord (tick: AxisTick): number {
+    const range = this.getRange()
+    return this.convertToPixel(
+      this.realValueToValue(
+        this.displayValueToRealValue(+(tick.value as string), { range }),
+        { range }
+      )
     )
   }
 
@@ -413,19 +475,126 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
     return this.realValueToValue(realValue, { range })
   }
 
+  override buildTicks (force: boolean): boolean {
+    const wasAutoCalc = this.getAutoCalcTickFlag()
+    const result = super.buildTicks(force)
+    if (wasAutoCalc) {
+      const { realFrom, realTo } = this.getRange()
+      if (this._prevRealFrom === null) {
+        // First call — seed the spring position at target so no initial animation
+        this._animRealFrom = realFrom
+        this._animRealTo = realTo
+        this._animVelocityFrom = 0
+        this._animVelocityTo = 0
+      } else {
+        // New target — spring will chase it each frame
+        if (!this._animating) {
+          this._animating = true
+          this._lastFrameTime = performance.now()
+          this._driveSpring()
+        }
+      }
+      this._prevRealFrom = realFrom
+      this._prevRealTo = realTo
+    }
+    return result
+  }
+
+  private _smoothDamp (
+    current: number,
+    target: number,
+    velocity: number,
+    deltaTime: number
+  ): { value: number, velocity: number } {
+    // Critically-damped smoothing (Unity SmoothDamp variant) to avoid jerk.
+    const configured = Number.isFinite(this.scaleSmoothTime) ? this.scaleSmoothTime : 0.28
+    const smoothTime = Math.max(0.08, Math.min(configured, 1.2))
+    const omega = 2 / smoothTime
+    const x = omega * deltaTime
+    const exp = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x)
+    const change = current - target
+    const temp = (velocity + omega * change) * deltaTime
+    const nextVelocity = (velocity - omega * temp) * exp
+    const nextValue = target + (change + temp) * exp
+    return { value: nextValue, velocity: nextVelocity }
+  }
+
+  private _driveSpring (): void {
+    const pane = this.getParent()
+    const chart = pane.getChart()
+    const paneId = pane.getId()
+    const step = (): void => {
+      if (!this._animating) return
+      const now = performance.now()
+      // Cap wall-clock delta and integrate in small fixed chunks.
+      // This removes visible stepping after long frames / GC pauses.
+      let dt = Math.min((now - this._lastFrameTime) / 1000, 0.12)
+      this._lastFrameTime = now
+      const targetFrom = this._prevRealFrom ?? this._animRealFrom
+      const targetTo = this._prevRealTo ?? this._animRealTo
+
+      const fixedStep = 1 / 120
+      while (dt > 0) {
+        const stepDt = Math.min(fixedStep, dt)
+        const nextFrom = this._smoothDamp(this._animRealFrom, targetFrom, this._animVelocityFrom, stepDt)
+        const nextTo = this._smoothDamp(this._animRealTo, targetTo, this._animVelocityTo, stepDt)
+        this._animRealFrom = nextFrom.value
+        this._animRealTo = nextTo.value
+        this._animVelocityFrom = nextFrom.velocity
+        this._animVelocityTo = nextTo.velocity
+        dt -= stepDt
+      }
+
+      const span = Math.max(Math.abs(targetTo - targetFrom), 1)
+      const posEps = span * 1e-5
+      const velEps = span * 1e-4
+      const settled =
+        Math.abs(this._animRealFrom - targetFrom) < posEps &&
+        Math.abs(this._animRealTo - targetTo) < posEps &&
+        Math.abs(this._animVelocityFrom) < velEps &&
+        Math.abs(this._animVelocityTo) < velEps
+      if (settled) {
+        this._animRealFrom = targetFrom
+        this._animRealTo = targetTo
+        this._animVelocityFrom = 0
+        this._animVelocityTo = 0
+        this._animating = false
+        chart.updatePane(UpdateLevel.Main, paneId)
+      } else {
+        chart.updatePane(UpdateLevel.Main, paneId)
+        requestAnimationFrame(step)
+      }
+    }
+    requestAnimationFrame(step)
+  }
+
+  /**
+   * Returns the current animated realFrom/realTo for rendering.
+   * Other code (WebGL renderers etc.) should call this instead of getRange().
+   */
+  getDisplayRange (): { realFrom: number; realTo: number } {
+    if (this._animating || this._prevRealFrom !== null) {
+      return { realFrom: this._animRealFrom, realTo: this._animRealTo }
+    }
+    const r = this.getRange()
+    return { realFrom: r.realFrom, realTo: r.realTo }
+  }
+
   convertToPixel (value: number): number {
     const range = this.getRange()
     const realValue = this.valueToRealValue(value, { range })
     const height = this.getParent().getYAxisWidget()?.getBounding().height ?? 0
-    const { realFrom, realRange } = range
+    const { realFrom, realTo } = this.getDisplayRange()
+    const realRange = realTo - realFrom
+    if (realRange === 0) return 0
     const rate = (realValue - realFrom) / realRange
-    return this.reverse ? Math.round(rate * height) : Math.round((1 - rate) * height)
+    return this.reverse ? rate * height : (1 - rate) * height
   }
 
   convertToNicePixel (value: number): number {
     const height = this.getParent().getYAxisWidget()?.getBounding().height ?? 0
     const pixel = this.convertToPixel(value)
-    return Math.round(Math.max(height * 0.05, Math.min(pixel, height * 0.98)))
+    return Math.max(height * 0.05, Math.min(pixel, height * 0.98))
   }
 
   static extend (template: YAxisTemplate): YAxisConstructor {
