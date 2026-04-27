@@ -243,7 +243,7 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
     getDataListLength: () => widgetRef.current?.getDataList().length ?? 0,
     getLastDataTimestamp: () => {
       const dataList = widgetRef.current?.getDataList() ?? []
-      return dataList.length > 0 ? (dataList[dataList.length - 1].timestamp as number) : null
+      return dataList.length > 0 ? (dataList[dataList.length - 1].timestamp ?? null) : null
     }
   }), [])
 
