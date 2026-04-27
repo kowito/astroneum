@@ -82,6 +82,16 @@ function isLiveExchange(value: unknown): value is LiveExchange {
   return typeof value === 'string' && LIVE_EXCHANGES.has(value as LiveExchange)
 }
 
+function inferLiveExchange(symbol: SymbolInfo): LiveExchange | null {
+  if (isLiveExchange(symbol.exchange)) return symbol.exchange
+  const prefix = symbol.ticker.split(':', 1)[0]?.toUpperCase()
+  return isLiveExchange(prefix) ? prefix : null
+}
+
+function normalizeLiveSymbol(symbol: SymbolInfo, exchange: LiveExchange): DemoSymbolInfo {
+  return { ...symbol, exchange }
+}
+
 function tickKey(symbol: SymbolInfo, period: Period): string {
   return `${symbol.ticker}::${period.text}`
 }
@@ -209,7 +219,7 @@ function emitDatafeedError(
   _lastErrorAt.set(key, now)
 
   const detail: DatafeedErrorDetail = {
-    exchange: symbol.exchange,
+    exchange: symbol.exchange ?? inferLiveExchange(symbol) ?? undefined,
     ticker: symbol.ticker,
     period: period.text,
     type,
@@ -319,7 +329,7 @@ const BinanceAdapter: ExchangeAdapter = {
   id: 'BINANCE',
 
   supportsSymbol(symbol): symbol is DemoSymbolInfo {
-    return symbol.exchange === 'BINANCE'
+    return inferLiveExchange(symbol) === 'BINANCE'
   },
 
   async getHistoryBars(symbol, period, from, to) {
@@ -406,7 +416,7 @@ const BitgetAdapter: ExchangeAdapter = {
   id: 'BITGET',
 
   supportsSymbol(symbol): symbol is DemoSymbolInfo {
-    return symbol.exchange === 'BITGET'
+    return inferLiveExchange(symbol) === 'BITGET'
   },
 
   async getHistoryBars(symbol, period, from, to) {
@@ -492,7 +502,7 @@ const OkxAdapter: ExchangeAdapter = {
   id: 'OKX',
 
   supportsSymbol(symbol): symbol is DemoSymbolInfo {
-    return symbol.exchange === 'OKX'
+    return inferLiveExchange(symbol) === 'OKX'
   },
 
   async getHistoryBars(symbol, period, from, to) {
@@ -596,7 +606,14 @@ class ExchangeAdapterDatafeed extends WebSocketDatafeed {
       emitDatafeedError(symbol, period, 'unsupported-symbol', `No adapter for symbol ${symbol.ticker}`)
       return []
     }
-    return this.adapter.getHistoryBars(symbol, period, from, to)
+
+    const exchange = inferLiveExchange(symbol)
+    if (exchange === null) {
+      emitDatafeedError(symbol, period, 'unsupported-symbol', `No exchange mapping for symbol ${symbol.ticker}`)
+      return []
+    }
+
+    return this.adapter.getHistoryBars(normalizeLiveSymbol(symbol, exchange), period, from, to)
   }
 
   override subscribe(symbol: SymbolInfo, period: Period, callback: DatafeedSubscribeCallback): void {
@@ -605,28 +622,42 @@ class ExchangeAdapterDatafeed extends WebSocketDatafeed {
       return
     }
 
-    const url = this.adapter.getWebSocketUrl(symbol, period)
+    const exchange = inferLiveExchange(symbol)
+    if (exchange === null) {
+      emitDatafeedError(symbol, period, 'unsupported-symbol', `No exchange mapping for symbol ${symbol.ticker}`)
+      return
+    }
+
+    const liveSymbol = normalizeLiveSymbol(symbol, exchange)
+
+    const url = this.adapter.getWebSocketUrl(liveSymbol, period)
     if (!url || url === 'wss://invalid') {
       emitDatafeedError(symbol, period, 'subscription-failed', `No WebSocket stream available for period ${period.text}`)
       return
     }
 
-    super.subscribe(symbol, period, callback)
+    super.subscribe(liveSymbol, period, callback)
   }
 
   override getWebSocketUrl(symbol: SymbolInfo, period: Period): string {
     if (!this.adapter.supportsSymbol(symbol)) return 'wss://invalid'
-    return this.adapter.getWebSocketUrl(symbol, period)
+    const exchange = inferLiveExchange(symbol)
+    if (exchange === null) return 'wss://invalid'
+    return this.adapter.getWebSocketUrl(normalizeLiveSymbol(symbol, exchange), period)
   }
 
   override parseMessage(event: MessageEvent, symbol: SymbolInfo, period: Period): CandleData | null {
     if (!this.adapter.supportsSymbol(symbol)) return null
-    return this.adapter.parseMessage(event, symbol, period)
+    const exchange = inferLiveExchange(symbol)
+    if (exchange === null) return null
+    return this.adapter.parseMessage(event, normalizeLiveSymbol(symbol, exchange), period)
   }
 
   override onOpen(ws: WebSocket, symbol: SymbolInfo, period: Period): void {
     if (!this.adapter.supportsSymbol(symbol)) return
-    this.adapter.onOpen?.(ws, symbol, period)
+    const exchange = inferLiveExchange(symbol)
+    if (exchange === null) return
+    this.adapter.onOpen?.(ws, normalizeLiveSymbol(symbol, exchange), period)
   }
 }
 
@@ -702,7 +733,8 @@ class CompositeDatafeed implements Datafeed {
   }
 
   private resolveFeed(symbol: SymbolInfo): Datafeed {
-    if (isLiveExchange(symbol.exchange)) return this.liveFeeds[symbol.exchange]
+    const exchange = inferLiveExchange(symbol)
+    if (exchange !== null) return this.liveFeeds[exchange]
     return this.noDataFeed
   }
 }
