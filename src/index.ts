@@ -10,6 +10,7 @@ import {
 import overlays from './extension'
 
 import DefaultDatafeed from './datafeed'
+import { WebSocketDatafeed } from './datafeed/WebSocketDatafeed'
 import AstroneumChart from './chart'
 import MultiChartLayout from './chart/MultiChartLayout'
 import BarReplay from './chart/BarReplay'
@@ -57,6 +58,7 @@ overlays.forEach(o => { registerOverlay(o) })
 
 export {
   DefaultDatafeed,
+  WebSocketDatafeed,
   AstroneumChart,
   MultiChartLayout,
   BarReplay,
@@ -98,6 +100,7 @@ export type {
 }
 export type { Viewport, IndicatorPlugin, ChartEventMap, Price, Volume, Timestamp } from './types'
 export type { TickAnimatorOptions } from './engine/common/TickAnimator'
+export type { WebSocketDatafeedOptions } from './datafeed/WebSocketDatafeed'
 
 export type { MultiChartCount, MultiChartSlot, MultiChartLayoutOptions } from './chart/MultiChartLayout'
 export type { BarReplayOptions, BarReplayState } from './chart/BarReplay'
