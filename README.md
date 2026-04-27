@@ -172,6 +172,11 @@ const myDatafeed: Datafeed = {
 }
 ```
 
+**See [docs/datafeed-guide.md](docs/datafeed-guide.md) for:**
+- 3 complete patterns: minimal mock → REST API → WebSocket
+- Real-world examples (Binance, custom REST API)
+- Tips on error handling, caching, and smooth real-time streaming
+
 `DefaultDatafeed` (exported from `astroneum`) is a Polygon.io REST + WebSocket implementation and requires a Polygon API key.
 
 ---

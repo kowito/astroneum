@@ -1,5 +1,23 @@
+/**
+ * MOCK DATAFEED FOR ASTRONEUM DEMO
+ *
+ * This is a **feature-rich demo datafeed** for testing the chart with:
+ * - Real Binance perpetual futures data (REST + WebSocket)
+ * - Local synthetic fallback (for offline testing)
+ * - Smooth tick interpolation (TickAnimator)
+ * - Realistic intra-bar price action
+ *
+ * ⚠️ **For your own implementation**, see docs/datafeed-guide.md for patterns.
+ * Start with Pattern 1 (minimal mock) or Pattern 2 (REST API polling).
+ * Only add complexity like WebSockets and TickAnimator when you need real-time smoothness.
+ */
+
 import type { Datafeed, SymbolInfo, Period, DatafeedSubscribeCallback, CandleData } from 'astroneum'
 import { TickAnimator } from 'astroneum'
+
+// ============================================================================
+// SYMBOL & PRICE GENERATION HELPERS (skip if you're reading from a live feed)
+// ============================================================================
 
 // ---------------------------------------------------------------------------
 // Mock symbol catalogue
@@ -182,6 +200,12 @@ const _sockets = new Map<string, WebSocket>()
 const _manualSocketClose = new Set<string>()
 const _socketReconnectTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const _socketReconnectDelayMs = new Map<string, number>()
+
+// ============================================================================
+// DATAFEED IMPLEMENTATION
+// The core interface: searchSymbols, getHistoryData, subscribe, unsubscribe
+// For a simpler example, see docs/datafeed-guide.md Pattern 1–3
+// ============================================================================
 
 const BINANCE_RECONNECT_BASE_MS = 1_000
 const BINANCE_RECONNECT_MAX_MS = 30_000
