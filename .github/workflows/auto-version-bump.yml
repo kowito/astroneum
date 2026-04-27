@@ -1,0 +1,71 @@
+name: Auto Version Bump
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: Version increment type
+        required: false
+        default: prerelease
+        type: choice
+        options:
+          - prerelease
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    if: github.actor != 'github-actions[bot]' && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip ci]'))
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Determine bump type
+        id: bump
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "type=${{ inputs.bump_type }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=prerelease" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump version
+        id: version
+        run: |
+          BUMP_TYPE="${{ steps.bump.outputs.type }}"
+          if [ "$BUMP_TYPE" = "prerelease" ]; then
+            npm version prerelease --preid beta --no-git-tag-version
+          else
+            npm version "$BUMP_TYPE" --no-git-tag-version
+          fi
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "new=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and tag
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.new }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          if [ -f pnpm-lock.yaml ]; then
+            git add pnpm-lock.yaml
+          fi
+          git commit -m "chore(release): bump version to v${NEW_VERSION} [skip ci]"
+          git tag "v${NEW_VERSION}"
+          git push origin HEAD:${{ github.ref_name }} --follow-tags
