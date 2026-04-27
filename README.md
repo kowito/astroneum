@@ -2,10 +2,12 @@
 
 Professional financial charting library for React applications.
 
-[![npm version](https://img.shields.io/npm/v/astroneum)](https://www.npmjs.com/package/astroneum)
-[![bundle size](https://img.shields.io/bundlephobia/minzip/astroneum)](https://bundlephobia.com/package/astroneum)
-[![types](https://img.shields.io/npm/types/astroneum)](https://www.npmjs.com/package/astroneum)
-[![license: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+[![npm version](https://img.shields.io/npm/v/astroneum?label=npm)](https://www.npmjs.com/package/astroneum)
+[![npm downloads](https://img.shields.io/npm/dm/astroneum)](https://www.npmjs.com/package/astroneum)
+[![React 18-19](https://img.shields.io/badge/react-18%20%7C%2019-149eca)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/typescript-ready-3178c6)](https://www.typescriptlang.org/)
+[![Node >=18](https://img.shields.io/badge/node-%3E%3D18-339933)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
 ## Features
 
