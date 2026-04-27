@@ -1,6 +1,236 @@
 # Astroneum
 
-Financial charting toolkit for browser applications.
+Professional financial charting library for React applications.
+
+[![npm version](https://img.shields.io/npm/v/astroneum)](https://www.npmjs.com/package/astroneum)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/astroneum)](https://bundlephobia.com/package/astroneum)
+[![types](https://img.shields.io/npm/types/astroneum)](https://www.npmjs.com/package/astroneum)
+[![license: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+
+## Features
+
+- **Candlestick, bar, area, and line** chart types rendered via Canvas2D / WebGL2
+- **20+ built-in indicators** — MA, EMA, BOLL, MACD, RSI, KDJ, and more
+- **Custom indicator plugins** via `registerIndicatorPlugin` with optional WebGL2 render path
+- **Drawing tools** — trend lines, Fibonacci, Gann, pitchfork, Elliott waves, and more; with snap, templates, and undo/redo
+- **Off-main-thread indicator calculations** using a Web Worker pool and TypedArray column store
+- **OPFS historical cache** — persists fetched bar data in the Origin Private File System for instant repeat loads
+- **FlatBuffers binary codec** (`BarsCodec`) for efficient bar serialisation
+- **Bar replay** mode with controllable playback speed
+- **Multi-chart layout** for side-by-side symbol comparison
+- **Alert manager**, **watchlist**, **portfolio tracker**
+- **Script editor** — write custom indicators in a sandboxed JS environment
+- **19 built-in locales**; fully customisable dark/light theme and styles
+- Tree-shakeable ESM, fully typed TypeScript
+
+---
+
+## Install
+
+```bash
+npm install astroneum
+```
+
+`react` and `react-dom` ≥ 18 are peer dependencies.
+
+## Runtime Requirements
+
+- Browser (uses `window`, `document`, Canvas, WebSocket, `localStorage`)
+- React 18+ or 19
+- ESM-compatible bundler
+- Import styles from `astroneum/style.css`
+
+---
+
+## Quick Start
+
+```tsx
+import { useRef } from 'react'
+import { AstroneumChart, type AstroneumHandle } from 'astroneum'
+import 'astroneum/style.css'
+
+export default function App() {
+  const chartRef = useRef<AstroneumHandle>(null)
+
+  return (
+    <AstroneumChart
+      ref={chartRef}
+      symbol={{ ticker: 'AAPL', shortName: 'AAPL', market: 'stocks' }}
+      period={{ multiplier: 1, timespan: 'day', text: '1D' }}
+      datafeed={myDatafeed}
+      theme="dark"
+      style={{ width: '100%', height: 560 }}
+    />
+  )
+}
+```
+
+## Next.js Usage
+
+Add `'use client'` and import the component:
+
+```tsx
+'use client'
+
+import { useRef } from 'react'
+import { AstroneumChart, type AstroneumHandle } from 'astroneum'
+import 'astroneum/style.css'
+
+export default function ChartView() {
+  const chartRef = useRef<AstroneumHandle>(null)
+
+  return (
+    <AstroneumChart
+      ref={chartRef}
+      symbol={{ ticker: 'AAPL', shortName: 'AAPL', market: 'stocks' }}
+      period={{ multiplier: 1, timespan: 'day', text: '1D' }}
+      datafeed={myDatafeed}
+      locale="en-US"
+      style={{ width: '100%', height: 560 }}
+    />
+  )
+}
+```
+
+---
+
+## Datafeed Interface
+
+Implement the `Datafeed` interface to connect any data source:
+
+```ts
+import type {
+  Datafeed,
+  SymbolInfo,
+  Period,
+  CandleData,
+  DatafeedSubscribeCallback
+} from 'astroneum'
+
+const myDatafeed: Datafeed = {
+  async searchSymbols(search?: string): Promise<SymbolInfo[]> {
+    return []
+  },
+  async getHistoryData(
+    symbol: SymbolInfo,
+    period: Period,
+    from: number,
+    to: number
+  ): Promise<CandleData[]> {
+    // fetch and return OHLCV bars
+    return []
+  },
+  subscribe(symbol: SymbolInfo, period: Period, callback: DatafeedSubscribeCallback): void {
+    // stream realtime ticks
+  },
+  unsubscribe(symbol: SymbolInfo, period: Period): void {
+    // stop stream
+  }
+}
+```
+
+`DefaultDatafeed` (exported from `astroneum`) is a Polygon.io REST + WebSocket implementation and requires a Polygon API key.
+
+---
+
+## Custom Indicator Plugins
+
+```ts
+import { registerIndicatorPlugin, type IndicatorPlugin, type CandleData } from 'astroneum'
+
+const spread: IndicatorPlugin<number> = {
+  name: 'SPREAD',
+  shortName: 'Spread',
+  calcParams: [],
+  calc(data: CandleData[]) {
+    return data.map(c => c.high - c.low)
+  }
+}
+
+registerIndicatorPlugin(spread)
+// then: chartRef.current?.createIndicator('SPREAD')
+```
+
+Plugins that define `renderGL` run on a dedicated WebGL2 layer with a per-indicator VBO.  
+`render2D` is used as Canvas2D fallback when WebGL2 is unavailable.
+
+### Per-chart plugin mounting
+
+```ts
+import { type ChartPlugin } from 'astroneum'
+
+const plugin: ChartPlugin = {
+  name: 'my-plugin',
+  indicators: [{ name: 'SPREAD', calc(data) { return data.map(c => c.high - c.low) } }],
+  onInit({ chart }) {
+    chart.createIndicator('SPREAD', true)
+    return () => { chart.removeIndicator({ name: 'SPREAD' }) }
+  }
+}
+
+<AstroneumChart plugins={[plugin]} ... />
+```
+
+---
+
+## AstroneumHandle (ref API)
+
+```ts
+interface AstroneumHandle {
+  setSymbol(symbol: SymbolInfo): void
+  setPeriod(period: Period): void
+  setTheme(theme: 'dark' | 'light'): void
+  setLocale(locale: string): void
+  createIndicator(name: string, isStack?: boolean): void
+  removeIndicator(filter: { name: string }): void
+  getDataListLength(): number
+  getLastDataTimestamp(): number | null
+  takeScreenshot(): HTMLCanvasElement | null
+}
+```
+
+---
+
+## Locale Support
+
+19 built-in locales: `en-US`, `zh-CN`, `ja-JP`, `ko-KR`, `de-DE`, `fr-FR`, `es-ES`, `pt-BR`, `ru-RU`, `ar-SA`, `hi-IN`, `tr-TR`, `nl-NL`, `pl-PL`, `it-IT`, `vi-VN`, `th-TH`, `id-ID`.
+
+Override or add locales with `loadLocales(key, dictionary)`.
+
+---
+
+## Main Exports
+
+| Export | Description |
+|--------|-------------|
+| `AstroneumChart` | Main React chart component |
+| `DefaultDatafeed` | Polygon.io REST + WebSocket datafeed |
+| `MultiChartLayout` | Side-by-side multi-symbol layout |
+| `BarReplay` | Bar replay controller |
+| `DrawingTemplates` | Save/load drawing templates |
+| `AlertManager` | Price alert management |
+| `ScriptEngine` | Sandboxed indicator scripting |
+| `WatchlistManager` | Symbol watchlist |
+| `PortfolioTracker` | Portfolio P&L tracker |
+| `PerformanceMode` | Adaptive quality / performance controls |
+| `loadLocales` | Register locale dictionaries |
+| `registerIndicatorPlugin` | Register custom indicator plugin |
+| `registerIndicator` | Register engine-level indicator template |
+| `EventBus` | Cross-chart event bus |
+| `TickAnimator` | Smooth real-time tick animation helper |
+| `RingBuffer` | Circular OHLCV ring buffer |
+| `formatPrice`, `formatVolume`, `formatPercent`, … | Formatting utilities |
+
+---
+
+## API Docs
+
+Full API reference: [docs/api.md](docs/api.md)
+
+## License
+
+MIT © kowito
+
 
 [![npm version](https://img.shields.io/npm/v/astroneum)](https://www.npmjs.com/package/astroneum)
 [![bundle size](https://img.shields.io/bundlephobia/minzip/astroneum)](https://bundlephobia.com/package/astroneum)

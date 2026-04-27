@@ -21,6 +21,7 @@
   "files": [
     "LICENSE",
     "README.md",
+    "docs",
     "dist/*.js",
     "dist/*.css",
     "dist/*.d.ts"
@@ -39,10 +40,18 @@
   "keywords": [
     "astroneum",
     "candlestick",
+    "candlestick-chart",
     "finance",
+    "financial-chart",
     "stock",
+    "trading",
+    "technical-analysis",
+    "indicators",
     "chart",
-    "canvas"
+    "canvas",
+    "webgl",
+    "react",
+    "typescript"
   ],
   "author": "kowito",
   "license": "MIT",
