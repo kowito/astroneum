@@ -1,6 +1,6 @@
 {
   "name": "astroneum",
-  "version": "0.1.1-beta.2",
+  "version": "0.1.1-beta.3",
   "description": "Astroneum - Professional financial charting library, ready out of the box.",
   "type": "module",
   "main": "./dist/index.js",
