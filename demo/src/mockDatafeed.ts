@@ -69,7 +69,8 @@ export const DATAFEED_ERROR_EVENT = 'astroneum:datafeed-error'
 
 const LIVE_EXCHANGES = new Set<LiveExchange>(['BINANCE', 'BITGET', 'OKX'])
 
-const BINANCE_WS_BASE_URL = 'wss://fstream.binance.com/ws'
+// Binance USD-M market streams were moved under the routed /market endpoint.
+const BINANCE_WS_BASE_URL = 'wss://fstream.binance.com/market/ws'
 const BINANCE_REST_BASE_URL = 'https://fapi.binance.com/fapi/v1'
 const BITGET_WS_BASE_URL = 'wss://ws.bitget.com/v2/ws/public'
 const BITGET_REST_BASE_URL = 'https://api.bitget.com/api/v2/mix/market'
@@ -205,6 +206,13 @@ async function fetchJson(url: string): Promise<unknown | null> {
 }
 
 const _lastErrorAt = new Map<string, number>()
+
+function unwrapStreamPayload(payload: unknown): unknown {
+  if (payload && typeof payload === 'object' && 'data' in payload) {
+    return (payload as { data?: unknown }).data ?? payload
+  }
+  return payload
+}
 
 function emitDatafeedError(
   symbol: SymbolInfo,
@@ -383,7 +391,7 @@ const BinanceAdapter: ExchangeAdapter = {
   },
 
   parseMessage(event) {
-    const payload = parseJson(event.data)
+    const payload = unwrapStreamPayload(parseJson(event.data))
     if (!payload || typeof payload !== 'object') return null
     const data = payload as {
       e?: unknown
