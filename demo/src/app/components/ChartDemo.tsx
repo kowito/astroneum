@@ -8,7 +8,11 @@ import {
   type SymbolInfo,
   type Period
 } from 'astroneum'
-import MockDatafeed, { MOCK_SYMBOLS } from '@/mockDatafeed'
+import MockDatafeed, {
+  MOCK_SYMBOLS,
+  DATAFEED_ERROR_EVENT,
+  type DatafeedErrorDetail,
+} from '@/mockDatafeed'
 
 const PERIODS: Period[] = [
   { multiplier: 1, timespan: 'minute', text: '1m' },
@@ -19,6 +23,8 @@ const PERIODS: Period[] = [
   { multiplier: 1, timespan: 'day', text: 'D' },
   { multiplier: 1, timespan: 'week', text: 'W' },
 ]
+
+const LIVE_EXCHANGES = new Set(['BINANCE', 'BITGET', 'OKX'])
 
 const css = {
   app: {
@@ -114,6 +120,20 @@ const css = {
     fontWeight: 600,
     lineHeight: 1.4,
   },
+  errorBadge: {
+    padding: '4px 10px',
+    borderRadius: 6,
+    border: '1px solid #f85149',
+    background: '#4a1d1d',
+    color: '#ffb4af',
+    fontSize: 12,
+    fontWeight: 600,
+    lineHeight: 1.4,
+    maxWidth: 460,
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
 }
 
 export default function ChartDemo() {
@@ -124,6 +144,11 @@ export default function ChartDemo() {
   const [period, setPeriod] = useState<Period>(PERIODS[0]) // Default: 1m
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [activeSubIndicators, setActiveSubIndicators] = useState<string[]>(['VOL'])
+  const [datafeedError, setDatafeedError] = useState<string | null>(null)
+
+  const sourceBadgeText = LIVE_EXCHANGES.has(String(symbol.exchange))
+    ? `${String(symbol.exchange)} live feed`
+    : 'Unsupported symbol'
 
   const SUB_INDICATORS = ['VOL', 'MACD', 'RSI', 'KDJ', 'BOLL']
 
@@ -152,15 +177,38 @@ export default function ChartDemo() {
     }
   }, [])
 
+  useEffect(() => {
+    const onDatafeedError = (event: Event): void => {
+      const detail = (event as CustomEvent<DatafeedErrorDetail>).detail
+      if (!detail || detail.ticker !== symbol.ticker) return
+      setDatafeedError(`[${detail.exchange ?? 'DATA'} ${detail.period}] ${detail.message}`)
+    }
+
+    window.addEventListener(DATAFEED_ERROR_EVENT, onDatafeedError)
+    return () => {
+      window.removeEventListener(DATAFEED_ERROR_EVENT, onDatafeedError)
+    }
+  }, [symbol.ticker])
+
+  useEffect(() => {
+    setDatafeedError(null)
+  }, [symbol.ticker, period.text])
+
   return (
     <div style={{ ...css.app, background: theme === 'dark' ? '#0d0e12' : '#f6f8fa', color: theme === 'dark' ? '#d1d4dc' : '#24292f' }}>
       {/* Toolbar */}
       <div style={{ ...css.toolbar, background: theme === 'dark' ? '#161b22' : '#ffffff', borderColor: theme === 'dark' ? '#30363d' : '#d0d7de' }}>
         <span style={css.logo}>Astroneum</span>
 
-        <span style={css.sourceBadge} title="Using Binance USD-M perpetual futures feed">
-          Binance Perps
+        <span style={css.sourceBadge} title="Current source for selected symbol">
+          {sourceBadgeText}
         </span>
+
+        {datafeedError && (
+          <span style={css.errorBadge} title={datafeedError}>
+            {datafeedError}
+          </span>
+        )}
 
         <div style={css.divider} />
 

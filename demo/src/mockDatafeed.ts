@@ -1,335 +1,712 @@
 /**
  * MOCK DATAFEED FOR ASTRONEUM DEMO
  *
- * This demonstrates how to use WebSocketDatafeed from `astroneum`:
- * - Real Binance perpetual futures data (REST + WebSocket)
- * - Local synthetic fallback for non-crypto or offline
- * - Smooth tick interpolation (handled by WebSocketDatafeed base)
+ * Strict live-data, multi-exchange pattern:
+ * - Binance USD-M futures
+ * - Bitget USDT futures
+ * - OKX USDT swap
  *
- * ⚠️ For your own implementation, see docs/datafeed-guide.md
- * The WebSocketDatafeed base class removes the boilerplate — you only
- * implement getHistoryBars(), getWebSocketUrl(), and parseMessage().
+ * To add a new exchange in the future, add one more adapter object that
+ * implements the ExchangeAdapter interface.
  */
 
-import type { SymbolInfo, Period, DatafeedSubscribeCallback, CandleData } from 'astroneum'
+import type {
+  Datafeed,
+  SymbolInfo,
+  Period,
+  DatafeedSubscribeCallback,
+  CandleData,
+} from 'astroneum'
 import { WebSocketDatafeed } from 'astroneum'
+
+type LiveExchange = 'BINANCE' | 'BITGET' | 'OKX'
+
+interface DemoSymbolInfo extends SymbolInfo {
+  exchange: string
+  venueSymbol?: string
+  instId?: string
+  productType?: string
+}
 
 // ---------------------------------------------------------------------------
 // Symbol catalogue
 // ---------------------------------------------------------------------------
 
-export const MOCK_SYMBOLS: SymbolInfo[] = [
-  { ticker: 'BTCUSDT', name: 'Bitcoin Perpetual / USDT', shortName: 'BTC PERP', exchange: 'BINANCE', market: 'crypto', pricePrecision: 2, volumePrecision: 6, priceCurrency: 'USDT', type: 'crypto' },
-  { ticker: 'ETHUSDT', name: 'Ethereum Perpetual / USDT', shortName: 'ETH PERP', exchange: 'BINANCE', market: 'crypto', pricePrecision: 2, volumePrecision: 4, priceCurrency: 'USDT', type: 'crypto' },
-  { ticker: 'SOLUSDT', name: 'Solana Perpetual / USDT', shortName: 'SOL PERP', exchange: 'BINANCE', market: 'crypto', pricePrecision: 2, volumePrecision: 2, priceCurrency: 'USDT', type: 'crypto' },
-  { ticker: 'AAPL', name: 'Apple Inc.', shortName: 'AAPL', exchange: 'NASDAQ', market: 'stocks', pricePrecision: 2, volumePrecision: 0, priceCurrency: 'USD', type: 'stock' },
-  { ticker: 'TSLA', name: 'Tesla Inc.', shortName: 'TSLA', exchange: 'NASDAQ', market: 'stocks', pricePrecision: 2, volumePrecision: 0, priceCurrency: 'USD', type: 'stock' },
-  { ticker: 'NVDA', name: 'NVIDIA Corp.', shortName: 'NVDA', exchange: 'NASDAQ', market: 'stocks', pricePrecision: 2, volumePrecision: 0, priceCurrency: 'USD', type: 'stock' },
+const LIVE_SYMBOLS: DemoSymbolInfo[] = [
+  { ticker: 'BINANCE:BTCUSDT', name: 'Bitcoin Perpetual / USDT', shortName: 'BTC PERP', exchange: 'BINANCE', market: 'crypto', pricePrecision: 2, volumePrecision: 6, priceCurrency: 'USDT', type: 'crypto', venueSymbol: 'BTCUSDT' },
+  { ticker: 'BINANCE:ETHUSDT', name: 'Ethereum Perpetual / USDT', shortName: 'ETH PERP', exchange: 'BINANCE', market: 'crypto', pricePrecision: 2, volumePrecision: 4, priceCurrency: 'USDT', type: 'crypto', venueSymbol: 'ETHUSDT' },
+  { ticker: 'BINANCE:SOLUSDT', name: 'Solana Perpetual / USDT', shortName: 'SOL PERP', exchange: 'BINANCE', market: 'crypto', pricePrecision: 3, volumePrecision: 2, priceCurrency: 'USDT', type: 'crypto', venueSymbol: 'SOLUSDT' },
+
+  { ticker: 'BITGET:BTCUSDT', name: 'Bitcoin USDT Futures', shortName: 'BTC PERP', exchange: 'BITGET', market: 'crypto', pricePrecision: 2, volumePrecision: 6, priceCurrency: 'USDT', type: 'crypto', venueSymbol: 'BTCUSDT', productType: 'USDT-FUTURES' },
+  { ticker: 'BITGET:ETHUSDT', name: 'Ethereum USDT Futures', shortName: 'ETH PERP', exchange: 'BITGET', market: 'crypto', pricePrecision: 2, volumePrecision: 4, priceCurrency: 'USDT', type: 'crypto', venueSymbol: 'ETHUSDT', productType: 'USDT-FUTURES' },
+
+  { ticker: 'OKX:BTC-USDT-SWAP', name: 'Bitcoin USDT Swap', shortName: 'BTC SWAP', exchange: 'OKX', market: 'crypto', pricePrecision: 2, volumePrecision: 6, priceCurrency: 'USDT', type: 'crypto', instId: 'BTC-USDT-SWAP' },
+  { ticker: 'OKX:ETH-USDT-SWAP', name: 'Ethereum USDT Swap', shortName: 'ETH SWAP', exchange: 'OKX', market: 'crypto', pricePrecision: 2, volumePrecision: 4, priceCurrency: 'USDT', type: 'crypto', instId: 'ETH-USDT-SWAP' },
 ]
 
+export const MOCK_SYMBOLS: SymbolInfo[] = [...LIVE_SYMBOLS]
+
+export type DatafeedErrorType =
+  | 'history-empty'
+  | 'history-request-failed'
+  | 'unsupported-period'
+  | 'unsupported-symbol'
+  | 'subscription-failed'
+
+export interface DatafeedErrorDetail {
+  exchange?: string
+  ticker: string
+  period: string
+  type: DatafeedErrorType
+  message: string
+}
+
+export const DATAFEED_ERROR_EVENT = 'astroneum:datafeed-error'
+
 // ---------------------------------------------------------------------------
-// Binance interval mapping
+// Shared helpers
 // ---------------------------------------------------------------------------
+
+const LIVE_EXCHANGES = new Set<LiveExchange>(['BINANCE', 'BITGET', 'OKX'])
 
 const BINANCE_WS_BASE_URL = 'wss://fstream.binance.com/ws'
 const BINANCE_REST_BASE_URL = 'https://fapi.binance.com/fapi/v1'
+const BITGET_WS_BASE_URL = 'wss://ws.bitget.com/v2/ws/public'
+const BITGET_REST_BASE_URL = 'https://api.bitget.com/api/v2/mix/market'
+const OKX_WS_BASE_URL = 'wss://ws.okx.com:8443/ws/v5/public'
+const OKX_REST_BASE_URL = 'https://www.okx.com/api/v5/market'
 
-type BinanceTimespan = Extract<Period['timespan'], 'minute' | 'hour' | 'day' | 'week' | 'month'>
+const MIN_WARMUP_BARS = 120
 
-const BINANCE_SUPPORTED_INTERVALS: Record<BinanceTimespan, ReadonlySet<number>> = {
-  minute: new Set([1, 3, 5, 15, 30]),
-  hour: new Set([1, 2, 4, 6, 8, 12]),
-  day: new Set([1, 3]),
-  week: new Set([1]),
-  month: new Set([1]),
+function isLiveExchange(value: unknown): value is LiveExchange {
+  return typeof value === 'string' && LIVE_EXCHANGES.has(value as LiveExchange)
 }
 
-const BINANCE_CRYPTO_TICKERS = new Set(
-  MOCK_SYMBOLS.filter(s => s.exchange === 'BINANCE').map(s => s.ticker.toUpperCase())
-)
-
-function toBinanceInterval(period: Period): string | null {
-  const ts = period.timespan as BinanceTimespan
-  if (!BINANCE_SUPPORTED_INTERVALS[ts]?.has(period.multiplier)) return null
-  const suffix: Record<BinanceTimespan, string> = {
-    minute: 'm', hour: 'h', day: 'd', week: 'w', month: 'M',
-  }
-  return `${period.multiplier}${suffix[ts]}`
+function tickKey(symbol: SymbolInfo, period: Period): string {
+  return `${symbol.ticker}::${period.text}`
 }
 
-function isBinanceSymbol(symbol: SymbolInfo): boolean {
-  return BINANCE_CRYPTO_TICKERS.has(symbol.ticker.toUpperCase())
+function matchesSearch(search: string, symbol: SymbolInfo): boolean {
+  if (!search) return true
+  const q = search.toLowerCase()
+  return symbol.ticker.toLowerCase().includes(q) || (symbol.name ?? '').toLowerCase().includes(q)
 }
 
-// ---------------------------------------------------------------------------
-// Binance response types (minimal)
-// ---------------------------------------------------------------------------
-
-type BinanceRestKline = [
-  openTime: number, open: string, high: string, low: string, close: string,
-  volume: string, closeTime: number, quoteVolume: string,
-  trades: number, takerBase: string, takerQuote: string, ignore: string
-]
-
-interface BinanceWsKlineEvent {
-  e: string
-  k: { t: number; o: string; h: string; l: string; c: string; v: string; q: string }
-}
-
-// ---------------------------------------------------------------------------
-// Synthetic fallback (for non-Binance symbols / offline)
-// ---------------------------------------------------------------------------
-
-function makeRng(seed: number) {
-  return () => {
-    seed |= 0
-    seed = seed + 0x6D2B79F5 | 0
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
-    t = t + Math.imul(t ^ (t >>> 7), 61 | t) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+function parseJson(data: MessageEvent['data']): unknown | null {
+  if (typeof data !== 'string') return null
+  try {
+    return JSON.parse(data)
+  } catch {
+    return null
   }
 }
 
-const SYMBOL_SEEDS: Record<string, number> = { BTCUSDT: 42, ETHUSDT: 99, SOLUSDT: 7, AAPL: 123, TSLA: 55, NVDA: 88 }
-const SYMBOL_BASE: Record<string, number> = { BTCUSDT: 60000, ETHUSDT: 3000, SOLUSDT: 170, AAPL: 185, TSLA: 250, NVDA: 900 }
+function toNumber(value: unknown): number | null {
+  const n = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+function sortBarsAsc(bars: CandleData[]): CandleData[] {
+  return bars.slice().sort((a, b) => a.timestamp - b.timestamp)
+}
+
+function filterBarsRange(bars: CandleData[], from: number, to: number): CandleData[] {
+  return bars.filter(bar => bar.timestamp >= from && bar.timestamp <= to)
+}
 
 function periodMs(period: Period): number {
   const map: Record<string, number> = {
-    second: 1_000, minute: 60_000, hour: 3_600_000,
-    day: 86_400_000, week: 604_800_000, month: 2_592_000_000, year: 31_536_000_000,
+    second: 1_000,
+    minute: 60_000,
+    hour: 3_600_000,
+    day: 86_400_000,
+    week: 604_800_000,
+    month: 2_592_000_000,
+    year: 31_536_000_000,
   }
   return (map[period.timespan] ?? 60_000) * period.multiplier
 }
 
-function generateBars(ticker: string, period: Period, from: number, to: number): CandleData[] {
-  const rng = makeRng(SYMBOL_SEEDS[ticker] ?? 1)
-  const base = SYMBOL_BASE[ticker] ?? 100
+function alignRange(period: Period, from: number, to: number): { from: number; to: number } {
   const step = periodMs(period)
-  const volatility = base * 0.012
-  const historyStart = Math.floor((to - step * 2000) / step) * step
-  const startTs = Math.max(from - step, historyStart)
+  const alignedFrom = Math.floor(from / step) * step
+  const alignedTo = Math.floor(to / step) * step
+  return alignedTo >= alignedFrom
+    ? { from: alignedFrom, to: alignedTo }
+    : { from: alignedFrom, to: alignedFrom }
+}
 
-  let price = base
-  const warmup = Math.max(0, Math.floor((startTs - historyStart) / step))
-  for (let i = 0; i < warmup; i++) {
-    price += (rng() - 0.5) * volatility
-    if (price < base * 0.1) price = base * 0.1
+function toBinanceInterval(period: Period): string | null {
+  if (period.timespan === 'minute' && [1, 3, 5, 15, 30].includes(period.multiplier)) return `${period.multiplier}m`
+  if (period.timespan === 'hour' && [1, 2, 4, 6, 8, 12].includes(period.multiplier)) return `${period.multiplier}h`
+  if (period.timespan === 'day' && [1, 3].includes(period.multiplier)) return `${period.multiplier}d`
+  if (period.timespan === 'week' && period.multiplier === 1) return '1w'
+  if (period.timespan === 'month' && period.multiplier === 1) return '1M'
+  return null
+}
+
+function toBitgetInterval(period: Period): string | null {
+  if (period.timespan === 'minute' && [1, 3, 5, 15, 30].includes(period.multiplier)) return `${period.multiplier}m`
+  if (period.timespan === 'hour' && [1, 2, 4, 6, 12].includes(period.multiplier)) return `${period.multiplier}H`
+  if (period.timespan === 'day' && [1, 3].includes(period.multiplier)) return `${period.multiplier}D`
+  if (period.timespan === 'week' && period.multiplier === 1) return '1W'
+  if (period.timespan === 'month' && period.multiplier === 1) return '1M'
+  return null
+}
+
+function toOkxInterval(period: Period): string | null {
+  if (period.timespan === 'minute' && [1, 3, 5, 15, 30].includes(period.multiplier)) return `${period.multiplier}m`
+  if (period.timespan === 'hour' && [1, 2, 4, 6, 12].includes(period.multiplier)) return `${period.multiplier}H`
+  if (period.timespan === 'day' && [1, 3].includes(period.multiplier)) return `${period.multiplier}D`
+  if (period.timespan === 'week' && period.multiplier === 1) return '1W'
+  if (period.timespan === 'month' && period.multiplier === 1) return '1M'
+  return null
+}
+
+function extractTickerCode(ticker: string): string {
+  const idx = ticker.indexOf(':')
+  return idx >= 0 ? ticker.slice(idx + 1) : ticker
+}
+
+function symbolVenueCode(symbol: DemoSymbolInfo): string {
+  return (symbol.venueSymbol ?? extractTickerCode(symbol.ticker)).toUpperCase()
+}
+
+function symbolInstId(symbol: DemoSymbolInfo): string {
+  return symbol.instId ?? extractTickerCode(symbol.ticker)
+}
+
+function symbolProductTypeWs(symbol: DemoSymbolInfo): string {
+  return (symbol.productType ?? 'USDT-FUTURES').toUpperCase()
+}
+
+function symbolProductTypeRest(symbol: DemoSymbolInfo): string {
+  return (symbol.productType ?? 'USDT-FUTURES').toLowerCase()
+}
+
+async function fetchJson(url: string): Promise<unknown | null> {
+  try {
+    const response = await fetch(url)
+    if (!response.ok) return null
+    return await response.json()
+  } catch {
+    return null
+  }
+}
+
+const _lastErrorAt = new Map<string, number>()
+
+function emitDatafeedError(
+  symbol: SymbolInfo,
+  period: Period,
+  type: DatafeedErrorType,
+  message: string
+): void {
+  const key = `${symbol.ticker}::${period.text}::${type}`
+  const now = Date.now()
+  const prev = _lastErrorAt.get(key) ?? 0
+  if (now - prev < 2_500) return
+  _lastErrorAt.set(key, now)
+
+  const detail: DatafeedErrorDetail = {
+    exchange: symbol.exchange,
+    ticker: symbol.ticker,
+    period: period.text,
+    type,
+    message,
   }
 
+  console.error(`[astroneum:datafeed] ${detail.ticker} ${detail.period} - ${detail.message}`)
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent<DatafeedErrorDetail>(DATAFEED_ERROR_EVENT, { detail }))
+  }
+}
+
+function parseBinanceRows(payload: unknown): CandleData[] {
+  if (!Array.isArray(payload)) return []
   const bars: CandleData[] = []
-  let ts = Math.floor(startTs / step) * step
-  while (ts <= to) {
-    const open = price
-    const c1 = (rng() - 0.5) * volatility
-    const c2 = (rng() - 0.5) * volatility
-    const c3 = (rng() - 0.5) * volatility
-    const close = open + c1
-    const volume = base * (0.5 + rng() * 2) * 10
-    if (ts >= from) {
-      bars.push({
-        timestamp: ts,
-        open,
-        high: Math.max(open, close) + Math.abs(c2),
-        low: Math.min(open, close) - Math.abs(c3),
-        close,
-        volume,
-        turnover: volume * ((open + close) / 2),
-      })
-    }
-    price = Math.max(base * 0.05, close)
-    ts += step
+  for (const row of payload) {
+    if (!Array.isArray(row)) continue
+    const timestamp = toNumber(row[0])
+    const open = toNumber(row[1])
+    const high = toNumber(row[2])
+    const low = toNumber(row[3])
+    const close = toNumber(row[4])
+    const volume = toNumber(row[5])
+    const turnover = toNumber(row[7])
+    if (timestamp === null || open === null || high === null || low === null || close === null || volume === null) continue
+    bars.push({
+      timestamp,
+      open,
+      high,
+      low,
+      close,
+      volume,
+      turnover: turnover ?? volume * close,
+    })
   }
-  return bars
+  return sortBarsAsc(bars)
+}
+
+function parseBitgetRows(payload: unknown): CandleData[] {
+  if (!Array.isArray(payload)) return []
+  const bars: CandleData[] = []
+  for (const row of payload) {
+    if (!Array.isArray(row)) continue
+    const timestamp = toNumber(row[0])
+    const open = toNumber(row[1])
+    const high = toNumber(row[2])
+    const low = toNumber(row[3])
+    const close = toNumber(row[4])
+    const volume = toNumber(row[5])
+    const quoteVolume = toNumber(row[6])
+    const usdtVolume = toNumber(row[7])
+    if (timestamp === null || open === null || high === null || low === null || close === null || volume === null) continue
+    bars.push({
+      timestamp,
+      open,
+      high,
+      low,
+      close,
+      volume,
+      turnover: usdtVolume ?? quoteVolume ?? volume * close,
+    })
+  }
+  return sortBarsAsc(bars)
+}
+
+function parseOkxRows(payload: unknown): CandleData[] {
+  if (!Array.isArray(payload)) return []
+  const bars: CandleData[] = []
+  for (const row of payload) {
+    if (!Array.isArray(row)) continue
+    const timestamp = toNumber(row[0])
+    const open = toNumber(row[1])
+    const high = toNumber(row[2])
+    const low = toNumber(row[3])
+    const close = toNumber(row[4])
+    const volume = toNumber(row[5])
+    const quoteVolume = toNumber(row[7]) ?? toNumber(row[6])
+    if (timestamp === null || open === null || high === null || low === null || close === null || volume === null) continue
+    bars.push({
+      timestamp,
+      open,
+      high,
+      low,
+      close,
+      volume,
+      turnover: quoteVolume ?? volume * close,
+    })
+  }
+  return sortBarsAsc(bars)
 }
 
 // ---------------------------------------------------------------------------
-// MockDatafeed — extends WebSocketDatafeed
-//
-// All WebSocket connection management, reconnection logic, and TickAnimator
-// are handled by the base class. This class only contains business logic
-// specific to Binance + our demo symbols.
+// Exchange adapter contract
 // ---------------------------------------------------------------------------
 
-const MIN_WARMUP_BARS = 120
-const TARGET_TICK_MS = 125
+interface ExchangeAdapter {
+  readonly id: LiveExchange
+  supportsSymbol(symbol: SymbolInfo): symbol is DemoSymbolInfo
+  getHistoryBars(symbol: DemoSymbolInfo, period: Period, from: number, to: number): Promise<CandleData[]>
+  getWebSocketUrl(symbol: DemoSymbolInfo, period: Period): string
+  parseMessage(event: MessageEvent, symbol: DemoSymbolInfo, period: Period): CandleData | null
+  onOpen?(ws: WebSocket, symbol: DemoSymbolInfo, period: Period): void
+}
 
-class MockDatafeedImpl extends WebSocketDatafeed {
-  private readonly _lastClose = new Map<string, number>()
-  private readonly _localTimers = new Map<string, ReturnType<typeof setInterval>>()
+const BinanceAdapter: ExchangeAdapter = {
+  id: 'BINANCE',
 
-  constructor() {
-    super({ smoothingDuration: 140 })
+  supportsSymbol(symbol): symbol is DemoSymbolInfo {
+    return symbol.exchange === 'BINANCE'
+  },
+
+  async getHistoryBars(symbol, period, from, to) {
+    const interval = toBinanceInterval(period)
+    if (interval === null) {
+      emitDatafeedError(symbol, period, 'unsupported-period', `Binance does not support period ${period.text}`)
+      return []
+    }
+
+    const range = alignRange(period, from, to)
+
+    const symbolCode = symbolVenueCode(symbol)
+    const primaryUrl = new URL(`${BINANCE_REST_BASE_URL}/klines`)
+    primaryUrl.searchParams.set('symbol', symbolCode)
+    primaryUrl.searchParams.set('interval', interval)
+    primaryUrl.searchParams.set('startTime', `${range.from}`)
+    primaryUrl.searchParams.set('endTime', `${range.to}`)
+    primaryUrl.searchParams.set('limit', '1000')
+
+    const fallbackUrl = new URL(`${BINANCE_REST_BASE_URL}/klines`)
+    fallbackUrl.searchParams.set('symbol', symbolCode)
+    fallbackUrl.searchParams.set('interval', interval)
+    fallbackUrl.searchParams.set('endTime', `${range.to}`)
+    fallbackUrl.searchParams.set('limit', '1000')
+
+    const primaryPayload = await fetchJson(primaryUrl.toString())
+    if (primaryPayload === null) {
+      emitDatafeedError(symbol, period, 'history-request-failed', 'Binance history request failed')
+    }
+    const primary = parseBinanceRows(primaryPayload)
+    let bars = filterBarsRange(primary, range.from, range.to)
+
+    if (bars.length < MIN_WARMUP_BARS) {
+      const fallbackPayload = await fetchJson(fallbackUrl.toString())
+      const fallback = parseBinanceRows(fallbackPayload)
+      const fallbackWithWarmup = fallback.filter(bar => bar.timestamp <= range.to)
+      if (fallbackWithWarmup.length > bars.length) bars = fallbackWithWarmup
+    }
+
+    if (bars.length === 0) {
+      emitDatafeedError(symbol, period, 'history-empty', 'Binance returned no candle data for this range')
+    }
+
+    return bars
+  },
+
+  getWebSocketUrl(symbol, period) {
+    const interval = toBinanceInterval(period)
+    if (interval === null) return 'wss://invalid'
+    return `${BINANCE_WS_BASE_URL}/${symbolVenueCode(symbol).toLowerCase()}@kline_${interval}`
+  },
+
+  parseMessage(event) {
+    const payload = parseJson(event.data)
+    if (!payload || typeof payload !== 'object') return null
+    const data = payload as {
+      e?: unknown
+      k?: { t?: unknown; o?: unknown; h?: unknown; l?: unknown; c?: unknown; v?: unknown; q?: unknown }
+    }
+    if (data.e !== 'kline' || !data.k) return null
+
+    const timestamp = toNumber(data.k.t)
+    const open = toNumber(data.k.o)
+    const high = toNumber(data.k.h)
+    const low = toNumber(data.k.l)
+    const close = toNumber(data.k.c)
+    const volume = toNumber(data.k.v)
+    const turnover = toNumber(data.k.q)
+    if (timestamp === null || open === null || high === null || low === null || close === null || volume === null) return null
+
+    return {
+      timestamp,
+      open,
+      high,
+      low,
+      close,
+      volume,
+      turnover: turnover ?? volume * close,
+    }
+  },
+}
+
+const BitgetAdapter: ExchangeAdapter = {
+  id: 'BITGET',
+
+  supportsSymbol(symbol): symbol is DemoSymbolInfo {
+    return symbol.exchange === 'BITGET'
+  },
+
+  async getHistoryBars(symbol, period, from, to) {
+    const granularity = toBitgetInterval(period)
+    if (granularity === null) {
+      emitDatafeedError(symbol, period, 'unsupported-period', `Bitget does not support period ${period.text}`)
+      return []
+    }
+
+    const range = alignRange(period, from, to)
+
+    const symbolCode = symbolVenueCode(symbol)
+    const productTypeRest = symbolProductTypeRest(symbol)
+
+    const primaryUrl = new URL(`${BITGET_REST_BASE_URL}/candles`)
+    primaryUrl.searchParams.set('symbol', symbolCode)
+    primaryUrl.searchParams.set('productType', productTypeRest)
+    primaryUrl.searchParams.set('granularity', granularity)
+    primaryUrl.searchParams.set('startTime', `${range.from}`)
+    primaryUrl.searchParams.set('endTime', `${range.to}`)
+    primaryUrl.searchParams.set('limit', '1000')
+
+    const fallbackUrl = new URL(`${BITGET_REST_BASE_URL}/candles`)
+    fallbackUrl.searchParams.set('symbol', symbolCode)
+    fallbackUrl.searchParams.set('productType', productTypeRest)
+    fallbackUrl.searchParams.set('granularity', granularity)
+    fallbackUrl.searchParams.set('limit', '1000')
+
+    const primaryPayload = await fetchJson(primaryUrl.toString())
+    if (primaryPayload === null) {
+      emitDatafeedError(symbol, period, 'history-request-failed', 'Bitget history request failed')
+    }
+    const primary = parseBitgetRows((primaryPayload as { data?: unknown } | null)?.data)
+    let bars = filterBarsRange(primary, range.from, range.to)
+
+    if (bars.length < MIN_WARMUP_BARS) {
+      const fallbackPayload = await fetchJson(fallbackUrl.toString())
+      const fallback = parseBitgetRows((fallbackPayload as { data?: unknown } | null)?.data)
+      const fallbackWithWarmup = fallback.filter(bar => bar.timestamp <= range.to)
+      if (fallbackWithWarmup.length > bars.length) bars = fallbackWithWarmup
+    }
+
+    if (bars.length === 0) {
+      emitDatafeedError(symbol, period, 'history-empty', 'Bitget returned no candle data for this range')
+    }
+
+    return bars
+  },
+
+  getWebSocketUrl() {
+    return BITGET_WS_BASE_URL
+  },
+
+  onOpen(ws, symbol, period) {
+    const granularity = toBitgetInterval(period)
+    if (granularity === null) {
+      emitDatafeedError(symbol, period, 'unsupported-period', `Bitget does not support period ${period.text}`)
+      return
+    }
+    const productTypeWs = symbolProductTypeWs(symbol)
+
+    ws.send(JSON.stringify({
+      op: 'subscribe',
+      args: [{
+        instType: productTypeWs,
+        channel: `candle${granularity}`,
+        instId: symbolVenueCode(symbol),
+      }],
+    }))
+  },
+
+  parseMessage(event) {
+    const payload = parseJson(event.data)
+    if (!payload || typeof payload !== 'object') return null
+    const dataRows = (payload as { data?: unknown }).data
+    if (!Array.isArray(dataRows)) return null
+    const parsed = parseBitgetRows(dataRows)
+    return parsed.length > 0 ? parsed[parsed.length - 1] : null
+  },
+}
+
+const OkxAdapter: ExchangeAdapter = {
+  id: 'OKX',
+
+  supportsSymbol(symbol): symbol is DemoSymbolInfo {
+    return symbol.exchange === 'OKX'
+  },
+
+  async getHistoryBars(symbol, period, from, to) {
+    const bar = toOkxInterval(period)
+    if (bar === null) {
+      emitDatafeedError(symbol, period, 'unsupported-period', `OKX does not support period ${period.text}`)
+      return []
+    }
+
+    const range = alignRange(period, from, to)
+
+    const instId = symbolInstId(symbol)
+
+    const primaryUrl = new URL(`${OKX_REST_BASE_URL}/candles`)
+    primaryUrl.searchParams.set('instId', instId)
+    primaryUrl.searchParams.set('bar', bar)
+    primaryUrl.searchParams.set('limit', '300')
+
+    const fallbackUrl = new URL(`${OKX_REST_BASE_URL}/history-candles`)
+    fallbackUrl.searchParams.set('instId', instId)
+    fallbackUrl.searchParams.set('bar', bar)
+    fallbackUrl.searchParams.set('limit', '300')
+
+    const primaryPayload = await fetchJson(primaryUrl.toString())
+    if (primaryPayload === null) {
+      emitDatafeedError(symbol, period, 'history-request-failed', 'OKX history request failed')
+    }
+    const primary = parseOkxRows((primaryPayload as { data?: unknown } | null)?.data)
+    let bars = filterBarsRange(primary, range.from, range.to)
+
+    if (bars.length < MIN_WARMUP_BARS) {
+      const primaryWithWarmup = primary.filter(barItem => barItem.timestamp <= range.to)
+      if (primaryWithWarmup.length > bars.length) {
+        bars = primaryWithWarmup
+      } else {
+        const fallbackPayload = await fetchJson(fallbackUrl.toString())
+        const fallback = parseOkxRows((fallbackPayload as { data?: unknown } | null)?.data)
+        const fallbackWithWarmup = fallback.filter(barItem => barItem.timestamp <= range.to)
+        if (fallbackWithWarmup.length > bars.length) bars = fallbackWithWarmup
+      }
+    }
+
+    if (bars.length === 0) {
+      emitDatafeedError(symbol, period, 'history-empty', 'OKX returned no candle data for this range')
+    }
+
+    return bars
+  },
+
+  getWebSocketUrl() {
+    return OKX_WS_BASE_URL
+  },
+
+  onOpen(ws, symbol, period) {
+    const bar = toOkxInterval(period)
+    if (bar === null) {
+      emitDatafeedError(symbol, period, 'unsupported-period', `OKX does not support period ${period.text}`)
+      return
+    }
+
+    ws.send(JSON.stringify({
+      op: 'subscribe',
+      args: [{
+        channel: `candle${bar}`,
+        instId: symbolInstId(symbol),
+      }],
+    }))
+  },
+
+  parseMessage(event) {
+    const payload = parseJson(event.data)
+    if (!payload || typeof payload !== 'object') return null
+    const dataRows = (payload as { data?: unknown }).data
+    if (!Array.isArray(dataRows)) return null
+    const parsed = parseOkxRows(dataRows)
+    return parsed.length > 0 ? parsed[parsed.length - 1] : null
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Adapter-backed WebSocket datafeed
+// ---------------------------------------------------------------------------
+
+class ExchangeAdapterDatafeed extends WebSocketDatafeed {
+  private readonly adapter: ExchangeAdapter
+
+  constructor(adapter: ExchangeAdapter) {
+    // Strict real-tick mode: no interpolation between live exchange ticks.
+    super({ smoothingDuration: 0 })
+    this.adapter = adapter
   }
 
   override searchSymbols(search = ''): Promise<SymbolInfo[]> {
-    const q = search.toLowerCase()
     return Promise.resolve(
-      MOCK_SYMBOLS.filter(s =>
-        !q || s.ticker.toLowerCase().includes(q) || (s.name ?? '').toLowerCase().includes(q)
-      )
+      MOCK_SYMBOLS.filter(symbol => this.adapter.supportsSymbol(symbol) && matchesSearch(search, symbol))
     )
   }
 
-  // -------------------------------------------------------------------------
-  // History: real Binance data with synthetic fallback
-  // -------------------------------------------------------------------------
-
   async getHistoryBars(symbol: SymbolInfo, period: Period, from: number, to: number): Promise<CandleData[]> {
-    const key = `${symbol.ticker}::${period.text}`
-    const interval = toBinanceInterval(period)
-
-    if (isBinanceSymbol(symbol) && interval !== null) {
-      const bars = await this._fetchBinanceBars(symbol.ticker, interval, from, to)
-      if (bars.length > 0) this._lastClose.set(key, bars[bars.length - 1].close)
-      return bars
+    if (!this.adapter.supportsSymbol(symbol)) {
+      emitDatafeedError(symbol, period, 'unsupported-symbol', `No adapter for symbol ${symbol.ticker}`)
+      return []
     }
-
-    const bars = generateBars(symbol.ticker, period, from, to)
-    if (bars.length > 0) this._lastClose.set(key, bars[bars.length - 1].close)
-    return bars
-  }
-
-  private async _fetchBinanceBars(ticker: string, interval: string, from: number, to: number): Promise<CandleData[]> {
-    const buildUrl = (startTime?: number): string => {
-      const url = new URL(`${BINANCE_REST_BASE_URL}/klines`)
-      url.searchParams.set('symbol', ticker.toUpperCase())
-      url.searchParams.set('interval', interval)
-      if (startTime !== undefined) url.searchParams.set('startTime', `${Math.floor(startTime)}`)
-      url.searchParams.set('endTime', `${Math.floor(to)}`)
-      url.searchParams.set('limit', '1000')
-      return url.toString()
-    }
-
-    const parse = async (url: string): Promise<CandleData[]> => {
-      const res = await fetch(url)
-      if (!res.ok) throw new Error(`Binance ${res.status}`)
-      const rows = await res.json() as BinanceRestKline[]
-      return rows.map(r => ({
-        timestamp: r[0], open: +r[1], high: +r[2], low: +r[3],
-        close: +r[4], volume: +r[5], turnover: +r[7],
-      }))
-    }
-
-    try {
-      let bars = (await parse(buildUrl(from))).filter(b => b.timestamp >= from && b.timestamp <= to)
-      if (bars.length < MIN_WARMUP_BARS) {
-        try {
-          const full = await parse(buildUrl())
-          if (full.length > bars.length) bars = full.filter(b => b.timestamp <= to)
-        } catch { /* keep primary result */ }
-      }
-      return bars
-    } catch {
-      try { return await parse(buildUrl()) }
-      catch { return [] }
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // WebSocket: Binance perps stream, or local simulation fallback
-  // -------------------------------------------------------------------------
-
-  override getWebSocketUrl(symbol: SymbolInfo, period: Period): string {
-    const interval = toBinanceInterval(period)
-    if (isBinanceSymbol(symbol) && interval !== null) {
-      return `${BINANCE_WS_BASE_URL}/${symbol.ticker.toLowerCase()}@kline_${interval}`
-    }
-    // Non-Binance symbols use local simulation (subscribe is overridden below)
-    return 'wss://invalid'
-  }
-
-  override parseMessage(event: MessageEvent, _symbol: SymbolInfo, _period: Period): CandleData | null {
-    try {
-      const data = JSON.parse(event.data as string) as BinanceWsKlineEvent
-      if (data.e !== 'kline') return null
-      return {
-        timestamp: data.k.t, open: +data.k.o, high: +data.k.h,
-        low: +data.k.l, close: +data.k.c, volume: +data.k.v, turnover: +data.k.q,
-      }
-    } catch {
-      return null
-    }
+    return this.adapter.getHistoryBars(symbol, period, from, to)
   }
 
   override subscribe(symbol: SymbolInfo, period: Period, callback: DatafeedSubscribeCallback): void {
-    const interval = toBinanceInterval(period)
-
-    // Use local simulation for non-Binance symbols (stocks, offline demo)
-    if (!isBinanceSymbol(symbol) || interval === null) {
-      this._startLocalSimulation(symbol, period, callback)
+    if (!this.adapter.supportsSymbol(symbol)) {
+      emitDatafeedError(symbol, period, 'unsupported-symbol', `No adapter for symbol ${symbol.ticker}`)
       return
     }
 
-    // Delegate to WebSocketDatafeed base (handles reconnect + TickAnimator)
+    const url = this.adapter.getWebSocketUrl(symbol, period)
+    if (!url || url === 'wss://invalid') {
+      emitDatafeedError(symbol, period, 'subscription-failed', `No WebSocket stream available for period ${period.text}`)
+      return
+    }
+
     super.subscribe(symbol, period, callback)
   }
 
-  override unsubscribe(symbol: SymbolInfo, period: Period): void {
-    const key = `${symbol.ticker}::${period.text}`
-    const timer = this._localTimers.get(key)
-    if (timer !== undefined) {
-      clearInterval(timer)
-      this._localTimers.delete(key)
-      return
-    }
-    super.unsubscribe(symbol, period)
+  override getWebSocketUrl(symbol: SymbolInfo, period: Period): string {
+    if (!this.adapter.supportsSymbol(symbol)) return 'wss://invalid'
+    return this.adapter.getWebSocketUrl(symbol, period)
   }
 
-  // -------------------------------------------------------------------------
-  // Local simulation for stocks / offline demo
-  // -------------------------------------------------------------------------
+  override parseMessage(event: MessageEvent, symbol: SymbolInfo, period: Period): CandleData | null {
+    if (!this.adapter.supportsSymbol(symbol)) return null
+    return this.adapter.parseMessage(event, symbol, period)
+  }
 
-  private _startLocalSimulation(
-    symbol: SymbolInfo,
-    period: Period,
-    callback: DatafeedSubscribeCallback
-  ): void {
-    const key = `${symbol.ticker}::${period.text}`
-    const existing = this._localTimers.get(key)
-    if (existing !== undefined) clearInterval(existing)
-
-    const step = periodMs(period)
-    const base = SYMBOL_BASE[symbol.ticker] ?? 100
-    const tickScale = Math.max(TARGET_TICK_MS / step, 0.001)
-
-    interface LocalBar { barTs: number; bar: CandleData }
-    let state: LocalBar | null = null
-
-    const timer = setInterval(() => {
-      const now = Date.now()
-      const barTs = Math.floor(now / step) * step
-
-      if (state === null || state.barTs !== barTs) {
-        const open = state?.bar.close ?? (this._lastClose.get(key) ?? base)
-        state = { barTs, bar: { timestamp: barTs, open, high: open, low: open, close: open, volume: 0, turnover: 0 } }
-        callback(state.bar)
-      }
-
-      const priceScale = Math.max(state.bar.open, base, 1)
-      const pull = (state.bar.open - state.bar.close) * 0.01 * tickScale
-      const noise = (Math.random() - 0.5) * priceScale * 0.0006 * Math.sqrt(tickScale)
-      const maxStep = priceScale * 0.0015 * tickScale
-      const delta = Math.max(-maxStep, Math.min(maxStep, pull + noise))
-      const nextClose = Math.max(priceScale * 0.02, state.bar.close + delta)
-      const tradeVolume = base * (0.005 + Math.random() * 0.015) * tickScale
-
-      const tick: CandleData = {
-        timestamp: state.barTs,
-        open: state.bar.open,
-        high: Math.max(state.bar.high, nextClose),
-        low: Math.min(state.bar.low, nextClose),
-        close: nextClose,
-        volume: (state.bar.volume ?? 0) + tradeVolume,
-        turnover: (state.bar.turnover ?? 0) + tradeVolume * nextClose,
-      }
-
-      state.bar = tick
-      this._lastClose.set(key, tick.close)
-      callback(tick)
-    }, TARGET_TICK_MS)
-
-    this._localTimers.set(key, timer)
+  override onOpen(ws: WebSocket, symbol: SymbolInfo, period: Period): void {
+    if (!this.adapter.supportsSymbol(symbol)) return
+    this.adapter.onOpen?.(ws, symbol, period)
   }
 }
 
-export default new MockDatafeedImpl()
+// ---------------------------------------------------------------------------
+// Strict no-data fallback
+// ---------------------------------------------------------------------------
+
+class NoDataDatafeed implements Datafeed {
+  searchSymbols(search = ''): Promise<SymbolInfo[]> {
+    void search
+    return Promise.resolve([])
+  }
+
+  getHistoryData(symbol: SymbolInfo, period: Period, from: number, to: number): Promise<CandleData[]> {
+    void from
+    void to
+    emitDatafeedError(symbol, period, 'unsupported-symbol', `Unsupported symbol ${symbol.ticker}`)
+    return Promise.resolve([])
+  }
+
+  subscribe(symbol: SymbolInfo, period: Period, callback: DatafeedSubscribeCallback): void {
+    void callback
+    emitDatafeedError(symbol, period, 'subscription-failed', `No live feed available for ${symbol.ticker}`)
+  }
+
+  unsubscribe(symbol: SymbolInfo, period: Period): void {
+    void symbol
+    void period
+    // no-op
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Composite datafeed: route by symbol.exchange, strict live-only fallback
+// ---------------------------------------------------------------------------
+
+class CompositeDatafeed implements Datafeed {
+  private readonly liveFeeds: Record<LiveExchange, ExchangeAdapterDatafeed>
+  private readonly noDataFeed = new NoDataDatafeed()
+  private readonly activeFeedByKey = new Map<string, Datafeed>()
+
+  constructor(adapters: readonly ExchangeAdapter[]) {
+    this.liveFeeds = {
+      BINANCE: new ExchangeAdapterDatafeed(adapters.find(adapter => adapter.id === 'BINANCE') ?? BinanceAdapter),
+      BITGET: new ExchangeAdapterDatafeed(adapters.find(adapter => adapter.id === 'BITGET') ?? BitgetAdapter),
+      OKX: new ExchangeAdapterDatafeed(adapters.find(adapter => adapter.id === 'OKX') ?? OkxAdapter),
+    }
+  }
+
+  searchSymbols(search = ''): Promise<SymbolInfo[]> {
+    return Promise.resolve(MOCK_SYMBOLS.filter(symbol => matchesSearch(search, symbol)))
+  }
+
+  async getHistoryData(symbol: SymbolInfo, period: Period, from: number, to: number): Promise<CandleData[]> {
+    const feed = this.resolveFeed(symbol)
+    return feed.getHistoryData(symbol, period, from, to)
+  }
+
+  subscribe(symbol: SymbolInfo, period: Period, callback: DatafeedSubscribeCallback): void {
+    const key = tickKey(symbol, period)
+    this.unsubscribe(symbol, period)
+
+    const feed = this.resolveFeed(symbol)
+    this.activeFeedByKey.set(key, feed)
+    feed.subscribe(symbol, period, callback)
+  }
+
+  unsubscribe(symbol: SymbolInfo, period: Period): void {
+    const key = tickKey(symbol, period)
+    const feed = this.activeFeedByKey.get(key) ?? this.resolveFeed(symbol)
+    feed.unsubscribe(symbol, period)
+    this.activeFeedByKey.delete(key)
+  }
+
+  private resolveFeed(symbol: SymbolInfo): Datafeed {
+    if (isLiveExchange(symbol.exchange)) return this.liveFeeds[symbol.exchange]
+    return this.noDataFeed
+  }
+}
+
+const MockDatafeed = new CompositeDatafeed([BinanceAdapter, BitgetAdapter, OkxAdapter])
+
+export default MockDatafeed
