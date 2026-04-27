@@ -32,6 +32,12 @@ export interface YAxisTemplate extends AxisTemplate {
    * Tiny auto-range shifts under this threshold are ignored.
    */
   scaleDeadbandPx?: number
+
+  /**
+   * Portion of under-deadband movement that still passes through.
+   * 0 = fully hold (step-like), 1 = no hold.
+   */
+  scaleDeadbandLeak?: number
 }
 
 const TICK_COUNT = 8
@@ -65,10 +71,14 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
   private _lastFrameTime = 0
 
   // Increase for longer/softer scaling. Decrease for shorter/tighter scaling.
-  scaleSmoothTime = 0.34
+  // Default is intentionally a bit slower to match MT4-like viewport glide.
+  scaleSmoothTime = 0.56
 
-  // Ignore tiny range target changes to avoid jittery breathing on live ticks.
-  scaleDeadbandPx = 2
+  // Default to continuous scaling; callers can re-enable deadband if needed.
+  scaleDeadbandPx = 0
+
+  // If deadband is enabled, pass a portion of micro-movement through.
+  scaleDeadbandLeak = 0.28
 
   // Rebuild ticks when y-axis drawable height changes (e.g. initial 0px mount
   // to measured size), otherwise labels can remain empty until a forced layout.
@@ -232,11 +242,15 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
       const valuePerPixel = prevSpan / heightPx
       const deadband = Math.max(this.scaleDeadbandPx, 0) * valuePerPixel
 
-      if (Math.abs(realFrom - this._prevRealFrom) < deadband) {
-        realFrom = this._prevRealFrom
+      const leak = Math.max(0, Math.min(this.scaleDeadbandLeak, 1))
+      const fromDelta = realFrom - this._prevRealFrom
+      const toDelta = realTo - this._prevRealTo
+
+      if (Math.abs(fromDelta) < deadband) {
+        realFrom = this._prevRealFrom + fromDelta * leak
       }
-      if (Math.abs(realTo - this._prevRealTo) < deadband) {
-        realTo = this._prevRealTo
+      if (Math.abs(toDelta) < deadband) {
+        realTo = this._prevRealTo + toDelta * leak
       }
       realRange = realTo - realFrom
     }

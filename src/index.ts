@@ -39,6 +39,15 @@ import {
   registerIndicatorPlugin,
   registerIndicatorPlugins
 } from './plugin'
+import {
+  DATAFEED_ERROR_EVENT,
+  STANDARD_CRYPTO_SYMBOLS,
+  BinanceAdapter,
+  BitgetAdapter,
+  OkxAdapter,
+  StandardCryptoDatafeed,
+  createStandardCryptoDatafeed,
+} from './datafeed/StandardCryptoDatafeed'
 
 import {
   type Datafeed,
@@ -86,7 +95,14 @@ export {
   registerYAxis,
   createIndicatorTemplateFromPlugin,
   registerIndicatorPlugin,
-  registerIndicatorPlugins
+  registerIndicatorPlugins,
+  DATAFEED_ERROR_EVENT,
+  STANDARD_CRYPTO_SYMBOLS,
+  BinanceAdapter,
+  BitgetAdapter,
+  OkxAdapter,
+  StandardCryptoDatafeed,
+  createStandardCryptoDatafeed
 }
 
 export { asPrice, asVolume, asTimestamp, rafCoalesce, rafMergeTick } from './utils'
@@ -101,6 +117,13 @@ export type {
 export type { Viewport, IndicatorPlugin, ChartEventMap, Price, Volume, Timestamp } from './types'
 export type { TickAnimatorOptions } from './engine/common/TickAnimator'
 export type { WebSocketDatafeedOptions } from './datafeed/WebSocketDatafeed'
+export type {
+  CryptoSymbolInfo,
+  DatafeedErrorDetail,
+  DatafeedErrorType,
+  ExchangeAdapter,
+  StandardCryptoDatafeedOptions,
+} from './datafeed/StandardCryptoDatafeed'
 
 export type { MultiChartCount, MultiChartSlot, MultiChartLayoutOptions } from './chart/MultiChartLayout'
 export type { BarReplayOptions, BarReplayState } from './chart/BarReplay'

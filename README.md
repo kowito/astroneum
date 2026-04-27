@@ -179,6 +179,8 @@ const myDatafeed: Datafeed = {
 
 `DefaultDatafeed` (exported from `astroneum`) is a Polygon.io REST + WebSocket implementation and requires a Polygon API key.
 
+`createStandardCryptoDatafeed` (exported from `astroneum`) provides a ready-to-use multi-exchange crypto futures feed (Binance, Bitget, OKX) with strict live-only routing and error events via `DATAFEED_ERROR_EVENT`.
+
 ---
 
 ## Custom Indicator Plugins
@@ -253,6 +255,9 @@ Override or add locales with `loadLocales(key, dictionary)`.
 |--------|-------------|
 | `AstroneumChart` | Main React chart component |
 | `DefaultDatafeed` | Polygon.io REST + WebSocket datafeed |
+| `createStandardCryptoDatafeed` | Built-in Binance/Bitget/OKX live crypto datafeed |
+| `STANDARD_CRYPTO_SYMBOLS` | Default symbol list for the standard crypto datafeed |
+| `DATAFEED_ERROR_EVENT` | Browser event name for datafeed errors (`CustomEvent<DatafeedErrorDetail>`) |
 | `MultiChartLayout` | Side-by-side multi-symbol layout |
 | `BarReplay` | Bar replay controller |
 | `DrawingTemplates` | Save/load drawing templates |

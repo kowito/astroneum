@@ -1,18 +1,17 @@
 'use client'
 
 import 'astroneum/style.css'
-import { useRef, useState, useCallback, useEffect } from 'react'
+import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import {
   AstroneumChart,
+  DATAFEED_ERROR_EVENT,
+  STANDARD_CRYPTO_SYMBOLS,
+  createStandardCryptoDatafeed,
   type AstroneumHandle,
+  type DatafeedErrorDetail,
   type SymbolInfo,
   type Period
 } from 'astroneum'
-import MockDatafeed, {
-  MOCK_SYMBOLS,
-  DATAFEED_ERROR_EVENT,
-  type DatafeedErrorDetail,
-} from '@/mockDatafeed'
 
 const PERIODS: Period[] = [
   { multiplier: 1, timespan: 'minute', text: '1m' },
@@ -138,7 +137,7 @@ const css = {
 
 export default function ChartDemo() {
   const chartRef = useRef<AstroneumHandle>(null)
-  const symbols = MOCK_SYMBOLS
+  const symbols = STANDARD_CRYPTO_SYMBOLS
 
   const [symbol, setSymbol] = useState<SymbolInfo>(symbols[0])
   const [period, setPeriod] = useState<Period>(PERIODS[0]) // Default: 1m
@@ -162,7 +161,7 @@ export default function ChartDemo() {
     setTheme(t => (t === 'dark' ? 'light' : 'dark'))
   }, [])
 
-  const datafeed = MockDatafeed
+  const datafeed = useMemo(() => createStandardCryptoDatafeed({ smoothingDuration: 320 }), [])
 
   useEffect(() => {
     const target = window as unknown as { __astroneum?: AstroneumHandle | null }

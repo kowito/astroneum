@@ -20,19 +20,20 @@ pnpm dev        # http://localhost:5556
 
 ## Data Source
 
-The demo uses Binance USD-M perpetual futures for crypto symbols.
+The demo uses astroneum's built-in standard crypto datafeed (`createStandardCryptoDatafeed`).
 
-- Crypto symbols (`BTCUSDT`, `ETHUSDT`, `SOLUSDT`) use Binance futures REST + WebSocket.
-- Non-crypto sample symbols (`AAPL`, `TSLA`, `NVDA`) use local generated data.
+- Binance USD-M futures
+- Bitget USDT futures
+- OKX USDT swap
 
 ## Features
 
-- Data source badge: Binance Perps
-- Symbol selector (crypto + stocks)
+- Data source badge: live exchange route per symbol
+- Symbol selector (multi-exchange crypto)
 - Period buttons: 1m / 5m / 15m / 1H / 4H / D / W
 - Sub-indicator toggles: VOL, MACD, RSI, KDJ, BOLL
 - Dark / Light theme toggle
-- Simulated live ticks for non-crypto symbols
+- Strict live-only behavior with explicit feed errors
 
 ## Next.js notes
 
