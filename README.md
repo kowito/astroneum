@@ -67,16 +67,48 @@ export default function App() {
 
 ## Next.js Usage
 
-Add `'use client'` and import the component:
+### 1. Configure `next.config.ts`
+
+Astroneum is an ESM-only package — add it to `transpilePackages` so Next.js bundles it correctly:
+
+```ts
+// next.config.ts
+import type { NextConfig } from 'next'
+
+const nextConfig: NextConfig = {
+  transpilePackages: ['astroneum'],
+}
+
+export default nextConfig
+```
+
+### 2. Import the CSS globally
+
+Add the stylesheet once in your root layout:
 
 ```tsx
-'use client'
-
-import { useRef } from 'react'
-import { AstroneumChart, type AstroneumHandle } from 'astroneum'
+// app/layout.tsx
 import 'astroneum/style.css'
 
-export default function ChartView() {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <body>{children}</body>
+    </html>
+  )
+}
+```
+
+### 3. Use the chart
+
+The library ships with `'use client'` built in, so you can import it directly in any component file — no extra directive or dynamic import needed:
+
+```tsx
+// app/components/Chart.tsx
+import { useRef } from 'react'
+import { AstroneumChart, type AstroneumHandle } from 'astroneum'
+
+export default function Chart() {
   const chartRef = useRef<AstroneumHandle>(null)
 
   return (
@@ -92,7 +124,18 @@ export default function ChartView() {
 }
 ```
 
----
+Then use it from any Server or Client Component page:
+
+```tsx
+// app/page.tsx
+import Chart from './components/Chart'
+
+export default function Page() {
+  return <Chart />
+}
+```
+
+
 
 ## Datafeed Interface
 
@@ -331,12 +374,14 @@ export default function App() {
 
 ## Next.js Usage
 
-```tsx
-'use client'
+See the [Next.js Usage](#nextjs-usage) section at the top for the full setup steps (`transpilePackages`, CSS in layout, import the component).
 
+With a Polygon datafeed:
+
+```tsx
+// app/components/Chart.tsx
 import { useRef } from 'react'
 import { AstroneumChart, type AstroneumHandle, DefaultDatafeed } from 'astroneum'
-import 'astroneum/style.css'
 
 const datafeed = new DefaultDatafeed(process.env.NEXT_PUBLIC_POLYGON_API_KEY ?? '')
 
@@ -354,6 +399,7 @@ export default function ChartView() {
 		/>
 	)
 }
+```
 ```
 
 ## Datafeed Interface

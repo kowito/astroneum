@@ -1,6 +1,7 @@
 /// <reference types="node" />
 
 import { fileURLToPath } from 'node:url'
+import { readFileSync, writeFileSync } from 'node:fs'
 
 import { defineConfig } from 'tsup'
 
@@ -30,5 +31,14 @@ export default defineConfig({
       '.less': 'empty',
       '.svg': 'text'
     }
-  }
+  },
+  async onSuccess () {
+    // esbuild strips 'use client' during bundling; inject it as a post-build
+    // step so Next.js App Router treats the package as a Client Module.
+    const outFile = 'dist/index.js'
+    const content = readFileSync(outFile, 'utf8')
+    if (!content.startsWith("'use client';")) {
+      writeFileSync(outFile, `'use client';\n${content}`)
+    }
+  },
 })
