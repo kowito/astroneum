@@ -8,6 +8,29 @@ import type DrawPane from '../pane/DrawPane'
 import { calcTextWidth } from '../common/utils/canvas'
 import { PeriodTypeXAxisFormat } from '../common/Period'
 
+const NICE_TIME_INTERVALS_MS = [
+  1_000, 2_000, 5_000, 10_000, 15_000, 30_000,
+  60_000, 2 * 60_000, 5 * 60_000, 10 * 60_000, 15 * 60_000, 30 * 60_000,
+  3_600_000, 2 * 3_600_000, 4 * 3_600_000, 6 * 3_600_000, 12 * 3_600_000,
+  86_400_000
+]
+
+function timespanToMs (timespan: string, multiplier: number): number {
+  switch (timespan) {
+    case 'second': return multiplier * 1_000
+    case 'minute': return multiplier * 60_000
+    case 'hour':   return multiplier * 3_600_000
+    default:       return multiplier * 86_400_000
+  }
+}
+
+function getNiceTimeIntervalMs (minMs: number): number {
+  for (const iv of NICE_TIME_INTERVALS_MS) {
+    if (iv >= minMs) return iv
+  }
+  return 86_400_000
+}
+
 export type XAxisTemplate = Pick<AxisTemplate, 'name' | 'scrollZoomEnabled' | 'createTicks'>
 
 export interface XAxis extends Axis, Required<XAxisTemplate> {
@@ -71,17 +94,44 @@ export default abstract class XAxisImp extends AxisImp implements XAxis {
     if (tickBetweenBarCount % 2 !== 0) {
       tickBetweenBarCount += 1
     }
-    const startDataIndex = Math.max(0, Math.floor(realFrom / tickBetweenBarCount) * tickBetweenBarCount)
 
-    for (let i = startDataIndex; i < realTo; i += tickBetweenBarCount) {
-      if (i >= from) {
+    const timespan = period?.timespan ?? 'day'
+    const multiplier = period?.multiplier ?? 1
+
+    if (timespan === 'second' || timespan === 'minute' || timespan === 'hour') {
+      // Snap ticks to a nice time boundary (e.g. every 5min, 10min …)
+      const msPerBar = timespanToMs(timespan, multiplier)
+      const minTickIntervalMs = tickBetweenBarCount * msPerBar
+      const niceIntervalMs = getNiceTimeIntervalMs(minTickIntervalMs)
+
+      let lastCoord = -Infinity
+      for (let i = Math.max(0, Math.floor(realFrom)); i < realTo; i++) {
+        if (i < from) continue
         const timestamp = chartStore.dataIndexToTimestamp(i)
-        if (isNumber(timestamp)) {
-          ticks.push({
-            coord: this.convertToPixel(i),
-            value: timestamp,
-            text: formatDate(timestamp, PeriodTypeXAxisFormat[period?.timespan ?? 'day'], 'xAxis')
-          })
+        if (!isNumber(timestamp)) continue
+        if (timestamp % niceIntervalMs !== 0) continue
+        const coord = this.convertToPixel(i)
+        // Ensure labels don't crowd (min tickTextWidth gap)
+        if (coord - lastCoord < tickTextWidth) continue
+        lastCoord = coord
+        ticks.push({
+          coord,
+          value: timestamp,
+          text: formatDate(timestamp, PeriodTypeXAxisFormat[timespan], 'xAxis')
+        })
+      }
+    } else {
+      const startDataIndex = Math.max(0, Math.floor(realFrom / tickBetweenBarCount) * tickBetweenBarCount)
+      for (let i = startDataIndex; i < realTo; i += tickBetweenBarCount) {
+        if (i >= from) {
+          const timestamp = chartStore.dataIndexToTimestamp(i)
+          if (isNumber(timestamp)) {
+            ticks.push({
+              coord: this.convertToPixel(i),
+              value: timestamp,
+              text: formatDate(timestamp, PeriodTypeXAxisFormat[timespan], 'xAxis')
+            })
+          }
         }
       }
     }
