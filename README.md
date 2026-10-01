@@ -127,7 +127,7 @@ export default function App() {
 | `locale` | `string` | BCP-47 locale (e.g. `'ja-JP'`) |
 | `drawingBarVisible` | `boolean` | Show drawing toolbar |
 | `mainIndicators` | `IndicatorDef[]` | Main pane indicators |
-| `subIndicators` | `string[]` | Sub-pane indicators (`['VOL', 'MACD', 'RSI']`) |
+| `subIndicators` | `string[]` | Sub-pane indicators (`['VOL', 'MACD', 'RSI']`); add `'LINE'` for a live close-price line chart pane under the candles |
 | `plugins` | `ChartPlugin[]` | Custom plugins with lifecycle hooks |
 | `accessible` | `boolean` | Screen-reader support |
 | `style` / `className` | | Container styling |

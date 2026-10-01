@@ -535,6 +535,64 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
     }
   }, [])
 
+  // mainIndicators / subIndicators are applied once at mount (above). Keep the
+  // chart in step when the props change afterwards. Only names that entered or
+  // left the props are touched, so indicators added through the indicator
+  // modal are left alone.
+  const appliedMainRef = useRef<IndicatorDef[]>(props.mainIndicators ?? DEFAULT_MAIN_INDICATORS)
+  const appliedSubRef = useRef<string[]>(props.subIndicators ?? ['VOL'])
+  const mainIndicatorsKey = JSON.stringify(props.mainIndicators ?? null)
+  const subIndicatorsKey = (props.subIndicators ?? ['VOL']).join(',')
+
+  useEffect(() => {
+    const widget = widgetRef.current
+    if (!widget || props.mainIndicators === undefined) return
+    const next = props.mainIndicators
+    const prev = appliedMainRef.current
+    appliedMainRef.current = next
+    const signature = (i: IndicatorDef): string => `${i.name}:${(i.calcParams ?? []).join(',')}`
+    const nextSignatures = new Set(next.map(signature))
+    const prevSignatures = new Set(prev.map(signature))
+    const removed = prev.filter(i => !nextSignatures.has(signature(i)))
+    const added = next.filter(i => !prevSignatures.has(signature(i)))
+    if (removed.length === 0 && added.length === 0) return
+    removed.forEach(i => { widget.removeIndicator({ paneId: 'candle_pane', name: i.name }) })
+    added.forEach(i => { createIndicator(widget, i, true, { id: 'candle_pane' }) })
+    const removedNames = new Set(removed.map(i => i.name))
+    indicators.setMainIndicators([
+      ...indicators.mainIndicators().filter(i => !removedNames.has(i.name)),
+      ...added
+    ])
+  }, [mainIndicatorsKey])
+
+  useEffect(() => {
+    const widget = widgetRef.current
+    if (!widget) return
+    const next = props.subIndicators ?? ['VOL']
+    const prev = appliedSubRef.current
+    appliedSubRef.current = next
+    // The store maps name -> id returned by createIndicator, which is the
+    // indicator id (not the pane id), so removal goes by id.
+    const ids = { ...indicators.subIndicators() }
+    let changed = false
+    prev.filter(name => !next.includes(name)).forEach(name => {
+      const id = ids[name]
+      if (id) {
+        widget.removeIndicator({ id })
+        delete ids[name]
+        changed = true
+      }
+    })
+    next.filter(name => !prev.includes(name) && !(name in ids)).forEach(name => {
+      const id = createIndicator(widget, { name }, true)
+      if (id) {
+        ids[name] = id
+        changed = true
+      }
+    })
+    if (changed) indicators.setSubIndicators(ids)
+  }, [subIndicatorsKey])
+
   const symbol = chart.symbol()
   const period = chart.period()
   const theme = chart.theme()
@@ -629,7 +687,7 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
               }
             } else {
               if (data.paneId) {
-                widgetRef.current?.removeIndicator({ paneId: data.paneId, name: data.name })
+                widgetRef.current?.removeIndicator({ id: data.paneId })
                 delete newSub[data.name]
               }
             }
