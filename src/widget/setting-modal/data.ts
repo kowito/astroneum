@@ -29,6 +29,7 @@ export function getOptions (locale: string): SettingOption[] {
         { key: 'candle_up_stroke', text: i18n('candle_up_stroke', locale) },
         { key: 'candle_down_stroke', text: i18n('candle_down_stroke', locale) },
         { key: 'ohlc', text: i18n('ohlc', locale) },
+        { key: 'line', text: i18n('line', locale) },
         { key: 'area', text: i18n('area', locale) }
       ]
     },

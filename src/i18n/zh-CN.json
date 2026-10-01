@@ -117,6 +117,7 @@
   "candle_down_stroke": "Candle Down Stroke",
   "ohlc": "OHLC",
   "area": "Area",
+  "line": "折线",
 
   "last_price_show": "Show Last Price",
   "high_price_show": "Show Highest Price",
