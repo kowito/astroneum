@@ -9,6 +9,12 @@ once it reaches v1.0. Until then, minor releases may include breaking changes
 
 ## [Unreleased]
 
+### Changed — Node.js 22
+
+- The project now targets **Node.js 22**. `engines.node` is `>=22` (was
+  `>=18`; Node 18 and 20 are end-of-life), `.nvmrc` pins 22 for local
+  development, and all CI workflows read their Node version from it.
+
 ### Added — Real-time line chart
 
 - **`line` candle type** — `styles={{ candle: { type: 'line' } }}` draws the

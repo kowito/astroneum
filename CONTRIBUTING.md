@@ -14,7 +14,8 @@ pnpm verify
 
 Requirements:
 
-- **Node.js ≥ 18** (matches the `engines` field).
+- **Node.js 22** — pinned in [.nvmrc](.nvmrc) (`nvm use`); CI reads the same
+  file, and the `engines` field requires ≥ 22.
 - **pnpm 10+** (the lockfile is pnpm v10).
 
 `pnpm verify` runs the full gate: `lint → typecheck → build → test`. Every
