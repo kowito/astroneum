@@ -18,6 +18,7 @@ export default defineConfig({
     'src/entries/script.ts',
     'src/entries/datafeeds/polygon.ts',
     'src/entries/datafeeds/crypto.ts',
+    'src/entries/datafeeds/webtransport.ts',
   ],
   format: ['esm'],
   dts: true,

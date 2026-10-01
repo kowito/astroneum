@@ -23,6 +23,7 @@ const entries = [
   '../../dist/entries/script.js',
   '../../dist/entries/datafeeds/polygon.js',
   '../../dist/entries/datafeeds/crypto.js',
+  '../../dist/entries/datafeeds/webtransport.js',
 ] as const
 
 for (const entry of entries) {

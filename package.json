@@ -53,6 +53,11 @@
       "import": "./dist/entries/datafeeds/crypto.js",
       "default": "./dist/entries/datafeeds/crypto.js"
     },
+    "./datafeeds/webtransport": {
+      "types": "./dist/entries/datafeeds/webtransport.d.ts",
+      "import": "./dist/entries/datafeeds/webtransport.js",
+      "default": "./dist/entries/datafeeds/webtransport.js"
+    },
     "./style.css": "./dist/astroneum.css",
     "./package.json": "./package.json"
   },
