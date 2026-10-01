@@ -1,6 +1,6 @@
 {
   "name": "astroneum",
-  "version": "0.4.1-beta.2",
+  "version": "0.4.1-beta.3",
   "packageManager": "pnpm@9.0.0",
   "description": "Astroneum - Professional financial charting library, ready out of the box.",
   "type": "module",
