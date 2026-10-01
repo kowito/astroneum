@@ -7,6 +7,7 @@ import { index10, getPrecision, nice, round } from '../common/utils/number'
 import { calcTextWidth } from '../common/utils/canvas'
 import { formatPrecision } from '../common/utils/format'
 import { SymbolDefaultPrecisionConstants } from '../common/SymbolInfo'
+import { isCandleLineType } from '../common/Styles'
 
 import AxisImp, {
   type AxisTemplate, type Axis, type AxisRange,
@@ -149,7 +150,7 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
     }
     const visibleRangeDataList = chartStore.getVisibleRangeDataList()
     const candleStyles = chart.getStyles().candle
-    const isArea = candleStyles.type === 'area'
+    const isArea = isCandleLineType(candleStyles.type)
     const areaValueKey = candleStyles.area.value
     const shouldCompareHighLow = (inCandle && !isArea) || (!inCandle && shouldOhlc)
     visibleRangeDataList.forEach((visibleData) => {

@@ -18,6 +18,7 @@ TradingView-class features, zero licensing fees, and MIT license.
 
 ### Chart Types
 - **Candlestick, OHLC, bar, area, line, Heikin-Ashi** — rendered via Canvas2D / WebGL2 with GPU acceleration
+- **Real-time line chart** — `styles={{ candle: { type: 'line' } }}` (or `'area'` for a filled line); the last point follows every datafeed tick
 - **Non-time-based bars** — Renko, Kagi, Tick, Range, and Point & Figure generators
 - **Multi-chart grid** (2/4/8/16 panes) and **multi-period stacked layout** (e.g. 4H + 1H + 15m)
 

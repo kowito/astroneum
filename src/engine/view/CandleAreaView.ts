@@ -74,36 +74,38 @@ export default class CandleAreaView extends ChildrenView {
       }
       )?.draw(ctx)
 
-      // render area
-      const backgroundColor = styles.backgroundColor
-      let color: string | CanvasGradient = ''
-      if (isArray<GradientColor>(backgroundColor)) {
-        if (
-          this._gradientCache === null ||
-          this._gradientCache.height !== bounding.height ||
-          this._gradientCache.minY !== minY
-        ) {
-          const gradient = ctx.createLinearGradient(0, bounding.height, 0, minY)
-          try {
-            backgroundColor.forEach(({ offset, color }) => {
-              gradient.addColorStop(offset, color)
-            })
-          } catch (e) {
+      // render area (the plain 'line' type only draws the stroke)
+      if (chart.getStyles().candle.type !== 'line') {
+        const backgroundColor = styles.backgroundColor
+        let color: string | CanvasGradient = ''
+        if (isArray<GradientColor>(backgroundColor)) {
+          if (
+            this._gradientCache === null ||
+            this._gradientCache.height !== bounding.height ||
+            this._gradientCache.minY !== minY
+          ) {
+            const gradient = ctx.createLinearGradient(0, bounding.height, 0, minY)
+            try {
+              backgroundColor.forEach(({ offset, color }) => {
+                gradient.addColorStop(offset, color)
+              })
+            } catch (e) {
+            }
+            this._gradientCache = { gradient, height: bounding.height, minY }
           }
-          this._gradientCache = { gradient, height: bounding.height, minY }
+          color = this._gradientCache.gradient
+        } else {
+          color = backgroundColor
         }
-        color = this._gradientCache.gradient
-      } else {
-        color = backgroundColor
+        ctx.fillStyle = color
+        ctx.beginPath()
+        ctx.moveTo(areaStartX, bounding.height)
+        ctx.lineTo(coordinates[0].x, coordinates[0].y)
+        lineTo(ctx, coordinates, styles.smooth)
+        ctx.lineTo(coordinates[coordinates.length - 1].x, bounding.height)
+        ctx.closePath()
+        ctx.fill()
       }
-      ctx.fillStyle = color
-      ctx.beginPath()
-      ctx.moveTo(areaStartX, bounding.height)
-      ctx.lineTo(coordinates[0].x, coordinates[0].y)
-      lineTo(ctx, coordinates, styles.smooth)
-      ctx.lineTo(coordinates[coordinates.length - 1].x, bounding.height)
-      ctx.closePath()
-      ctx.fill()
     }
 
     const pointStyles = styles.point

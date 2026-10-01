@@ -3,7 +3,7 @@ import type { VisibleRangeData } from '../common/Data'
 import type BarSpace from '../common/BarSpace'
 import { isValid } from '../common/utils/typeChecks'
 import type { EventHandler } from '../common/EventHandler'
-import type { CandleType, CandleBarColor, RectStyle } from '../common/Styles'
+import type { CandleType, CandleLineType, CandleBarColor, RectStyle } from '../common/Styles'
 
 import type { FigureCreate } from '../component/Figure'
 import type { RectAttrs } from '../extension/figure/rect'
@@ -52,7 +52,7 @@ class BarPool {
 
 // One pool per CandleBarView instance (pools don't need to be shared).
 export interface CandleBarOptions {
-  type: Exclude<CandleType, 'area'>
+  type: Exclude<CandleType, CandleLineType>
   styles: CandleBarColor
 }
 
@@ -381,7 +381,7 @@ export default class CandleBarView extends ChildrenView {
   protected getCandleBarOptions (): Nullable<CandleBarOptions> {
     const candleStyles = this.getWidget().getPane().getChart().getStyles().candle
     return {
-      type: candleStyles.type as Exclude<CandleType, 'area'>,
+      type: candleStyles.type as Exclude<CandleType, CandleLineType>,
       styles: candleStyles.bar
     }
   }

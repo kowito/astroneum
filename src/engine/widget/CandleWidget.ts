@@ -12,6 +12,7 @@ import CrosshairFeatureView from '../view/CrosshairFeatureView'
 import type AxisPane from '../pane/DrawPane'
 
 import type { YAxis } from '../component/YAxis'
+import { isCandleLineType } from '../common/Styles'
 import { destroyRenderer } from '../common/CandleWebGLRenderer'
 import { destroyWorkerRenderer } from '../common/CandleWorkerRenderer'
 import { destroyWebGPURenderer } from '../common/CandleWebGPURenderer'
@@ -31,7 +32,7 @@ export default class CandleWidget extends IndicatorWidget {
 
   override updateMainContent (ctx: CanvasRenderingContext2D): void {
     const candleStyles = this.getPane().getChart().getStyles().candle
-    if (candleStyles.type !== 'area') {
+    if (!isCandleLineType(candleStyles.type)) {
       this._candleBarView.draw(ctx)
       this._candleHighLowPriceView.draw(ctx)
       this._candleAreaView.stopAnimation()

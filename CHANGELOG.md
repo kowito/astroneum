@@ -9,6 +9,17 @@ once it reaches v1.0. Until then, minor releases may include breaking changes
 
 ## [Unreleased]
 
+### Added — Real-time line chart
+
+- **`line` candle type** — `styles={{ candle: { type: 'line' } }}` draws the
+  close series as a plain stroke (no area fill). It follows the live datafeed:
+  each tick moves the last point, a new bar extends the line, and the pulsing
+  last-price marker tracks the latest value. Styling reuses `candle.area`
+  (`lineColor`, `lineSize`, `smooth`, `value`, `point`). Also available in the
+  Settings modal (translated in all 18 locales). The Y-axis fits the plotted
+  values just like `area`.
+- `isCandleLineType()` / `CandleLineType` helpers in the engine styles module.
+
 ### Added — Full Indicator Parity (50 total, +23 new)
 
 Astroneum now ships **50 technical indicators** — up from 27 — achieving full

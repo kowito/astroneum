@@ -224,7 +224,14 @@ export interface CandleTooltipStyle extends TooltipStyle {
   rect: CandleTooltipRectStyle
 }
 
-export type CandleType = 'candle_solid' | 'candle_stroke' | 'candle_up_stroke' | 'candle_down_stroke' | 'ohlc' | 'area'
+export type CandleType = 'candle_solid' | 'candle_stroke' | 'candle_up_stroke' | 'candle_down_stroke' | 'ohlc' | 'area' | 'line'
+
+/** Candle types drawn as a single polyline of `candle.area.value` instead of OHLC bars. */
+export type CandleLineType = Extract<CandleType, 'area' | 'line'>
+
+export function isCandleLineType (type: CandleType): type is CandleLineType {
+  return type === 'area' || type === 'line'
+}
 
 export type CandleColorCompareRule = 'current_open' | 'previous_close'
 
