@@ -1,5 +1,5 @@
 import { getPixelRatio } from './utils/canvas'
-import { type SharedIndicatorGLCanvas, getOrCreateSharedIndicatorGLCanvas, getSharedIndicatorGLCanvas } from './SharedIndicatorGLCanvas'
+import type { SharedIndicatorGLCanvas } from './SharedIndicatorGLCanvas'
 import { getOrCreateColor } from './candleShaders'
 
 // ---------------------------------------------------------------------------

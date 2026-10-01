@@ -259,7 +259,6 @@ export class CandleWorkerRenderer {
   // Allocated when crossOriginIsolated === true (COOP/COEP headers set).
   // Falls back to structured-clone transfer when not available.
   private readonly _sab: SharedArrayBuffer | null
-  private readonly _sabF32: Float32Array | null
   private readonly _sabU8: Uint8Array | null
 
   // ── Staging buffer (same as CandleWebGLRenderer — all data prep stays here)
@@ -324,11 +323,9 @@ export class CandleWorkerRenderer {
     const SAB_MAX_BARS = 65536
     if (typeof SharedArrayBuffer !== 'undefined' && (globalThis as { crossOriginIsolated?: boolean }).crossOriginIsolated === true) {
       this._sab = new SharedArrayBuffer(SAB_MAX_BARS * BYTES_PER_BAR)
-      this._sabF32 = new Float32Array(this._sab)
       this._sabU8 = new Uint8Array(this._sab)
     } else {
       this._sab = null
-      this._sabF32 = null
       this._sabU8 = null
     }
 

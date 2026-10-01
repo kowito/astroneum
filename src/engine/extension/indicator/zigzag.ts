@@ -35,8 +35,6 @@ const zigzag: IndicatorTemplate<Zigzag, number> = {
 
     // Determine initial direction and first pivot
     let direction = dataList[1].close > dataList[0].close ? 1 : -1
-    let lastPivotIdx = 0
-    let lastPivotVal = direction === 1 ? dataList[0].low : dataList[0].high
     let extremeIdx = 0
     let extremeVal = direction === 1 ? dataList[0].high : dataList[0].low
 
@@ -52,8 +50,6 @@ const zigzag: IndicatorTemplate<Zigzag, number> = {
         if (dropPct >= deviationPct) {
           // Mark the peak at the extreme bar
           result[extremeIdx].zigzag = extremeVal
-          lastPivotIdx = extremeIdx
-          lastPivotVal = extremeVal
           // Flip to downtrend — start tracking lows from current bar
           direction = -1
           extremeIdx = i
@@ -70,8 +66,6 @@ const zigzag: IndicatorTemplate<Zigzag, number> = {
         if (risePct >= deviationPct) {
           // Mark the trough at the extreme bar
           result[extremeIdx].zigzag = extremeVal
-          lastPivotIdx = extremeIdx
-          lastPivotVal = extremeVal
           // Flip to uptrend — start tracking highs from current bar
           direction = 1
           extremeIdx = i
