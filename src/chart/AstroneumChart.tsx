@@ -431,7 +431,13 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
     let loadGeneration = 0
     const dataLoader: DataLoader = {
       getBars: async ({ type, timestamp, symbol: sym, period: per, callback }) => {
-        if (type !== 'init' && type !== 'forward') return
+        if (type !== 'init' && type !== 'forward') {
+          // Bars newer than the latest arrive through the subscription, never as
+          // history. Answer anyway: the engine stays in its loading state until
+          // the callback runs, which would block loading older history.
+          callback([], false)
+          return
+        }
         const generation = type === 'init' ? ++loadGeneration : loadGeneration
         ui.setLoadingVisible(true)
         try {
