@@ -7,7 +7,8 @@ import logoSvgRaw from '@/assets/logo.svg'
 
 import { init, dispose, utils } from '@/engine'
 
-import type { Nullable, Chart, OverlayMode, PaneOptions, TooltipFeatureStyle, DataLoader, IndicatorDef } from '@/types'
+import type { Nullable, Chart, OverlayMode, PaneOptions, TooltipFeatureStyle, DataLoader, IndicatorDef, CandleData } from '@/types'
+import type { HistoryCache } from '@/datafeed/HistoryCache'
 
 import { deepSet, deepClone } from '@/utils'
 
@@ -414,24 +415,45 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
       })
     indicators.setSubIndicators(subIndicatorMap)
 
+    // Loaded on first use so charts without a cache never download the module.
+    const historyCacheOption = props.historyCache
+    let historyCache: Promise<HistoryCache | null> | null = null
+    const getHistoryCache = async (): Promise<HistoryCache | null> => {
+      if (historyCacheOption === undefined || historyCacheOption === false) return null
+      historyCache ??= import('@/datafeed/HistoryCache')
+        .then(({ HistoryCache }) => HistoryCache.createDefault(historyCacheOption === true ? {} : historyCacheOption))
+        .catch(() => null)
+      return await historyCache
+    }
+    // Bumped by every initial load (symbol or period change). A response that
+    // arrives after a newer initial load started is dropped, so a slow answer
+    // for the previous symbol can't replace the new symbol's bars.
+    let loadGeneration = 0
     const dataLoader: DataLoader = {
       getBars: async ({ type, timestamp, symbol: sym, period: per, callback }) => {
+        if (type !== 'init' && type !== 'forward') return
+        const generation = type === 'init' ? ++loadGeneration : loadGeneration
         ui.setLoadingVisible(true)
         try {
+          const fetch = async (from: number, to: number): Promise<CandleData[]> => await props.datafeed.getHistoryData(sym, per, from, to)
+          const cache = await getHistoryCache()
+          let dataList: CandleData[]
           if (type === 'init') {
             const [from, to] = adjustFromTo(per, Date.now(), 500)
-            let dataList = await props.datafeed.getHistoryData(sym, per, from, to)
-            if (props.barStyle === 'heikin_ashi') dataList = heikinAshi(dataList)
-            if (props.priceScale && props.priceScale !== 'linear') dataList = transformCandles(dataList, props.priceScale)
-            callback(dataList, dataList.length > 0)
-          } else if (type === 'forward') {
+            dataList = cache !== null
+              ? await cache.load({ type, symbol: sym, period: per, from, to, fetch })
+              : await fetch(from, to)
+          } else {
             const [to] = adjustFromTo(per, timestamp!, 1)
             const [from] = adjustFromTo(per, to, 500)
-            let dataList = await props.datafeed.getHistoryData(sym, per, from, to)
-            if (props.barStyle === 'heikin_ashi') dataList = heikinAshi(dataList)
-            if (props.priceScale && props.priceScale !== 'linear') dataList = transformCandles(dataList, props.priceScale)
-            callback(dataList, dataList.length > 0)
+            dataList = cache !== null
+              ? await cache.load({ type, symbol: sym, period: per, from, to, anchor: timestamp ?? undefined, count: 500, fetch })
+              : await fetch(from, to)
           }
+          if (generation !== loadGeneration) return
+          if (props.barStyle === 'heikin_ashi') dataList = heikinAshi(dataList)
+          if (props.priceScale && props.priceScale !== 'linear') dataList = transformCandles(dataList, props.priceScale)
+          callback(dataList, dataList.length > 0)
         } finally {
           ui.setLoadingVisible(false)
         }

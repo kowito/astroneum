@@ -9,6 +9,7 @@ import type { Coordinate, Bounding } from '@/engine'
 import type { LineAttrs, PolygonAttrs, TextAttrs, CircleAttrs } from '@/engine'
 import type { TooltipFeatureStyle, LineType, PolygonType, TooltipShowRule, TooltipShowType, FeatureType, TooltipFeaturePosition, CandleType, CandleTooltipRectPosition } from '@/engine'
 import type { DataLoader, DataLoadType, DataLoaderGetBarsParams, DataLoaderSubscribeBarParams } from '@/engine'
+import type { HistoryCacheOptions } from '@/datafeed/HistoryCache'
 import type { FormatDateType, ZoomAnchor } from '@/engine'
 
 export type { CandleData, Styles, DeepPartial, Nullable }
@@ -124,6 +125,14 @@ export interface AstroneumOptions {
    * 'percent' shows percentage change from the first visible bar.
    */
   priceScale?: 'linear' | 'log' | 'percent'
+  /**
+   * Cache loaded history in the browser's Origin Private File System, per
+   * symbol and period. Reloads then fetch only the newest bars, and when the
+   * datafeed is unreachable the chart still shows the cached bars. Off by
+   * default; read once at mount. Silently disabled where OPFS is unavailable
+   * or not writable (e.g. private browsing, Safari before 26).
+   */
+  historyCache?: boolean | HistoryCacheOptions
 }
 
 /**
