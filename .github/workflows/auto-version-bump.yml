@@ -42,6 +42,17 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org/
 
+      # Fail fast with a clear cause: an expired/revoked NPM_TOKEN otherwise only
+      # surfaces as an opaque "404 Not Found - PUT" after the full verify run.
+      - name: Check npm credentials
+        run: |
+          if ! npm whoami; then
+            echo "::error title=npm authentication failed::NPM_TOKEN is missing, expired or revoked. Create a granular access token with read and write access to the astroneum package (bypass 2FA) and update the NPM_TOKEN repository secret."
+            exit 1
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Determine bump type
         id: bump
         run: |
