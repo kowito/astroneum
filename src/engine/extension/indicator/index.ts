@@ -15,6 +15,7 @@ import bollingerBands from './bollingerBands'
 import brar from './brar'
 import bullAndBearIndex from './bullAndBearIndex'
 import chaikinMoneyFlow from './chaikinMoneyFlow'
+import closeLine from './closeLine'
 import commodityChannelIndex from './commodityChannelIndex'
 import correlationCoefficient from './correlationCoefficient'
 import currentRatio from './currentRatio'
@@ -60,7 +61,7 @@ const indicators: Record<string, IndicatorConstructor> = {}
 const extensions = [
   accumulationDistribution, adaptiveMovingAverage, averageDirectionalIndex,
   averagePrice, averageTrueRange, awesomeOscillator, bias, bollingerBands, brar,
-  bullAndBearIndex, chaikinMoneyFlow, commodityChannelIndex, correlationCoefficient,
+  bullAndBearIndex, chaikinMoneyFlow, closeLine, commodityChannelIndex, correlationCoefficient,
   currentRatio, differentOfMovingAverage, directionalMovementIndex, donchianChannels,
   doubleExponentialMovingAverage, easeOfMovementValue, exponentialMovingAverage,
   historicalVolatility, hullMovingAverage, ichimokuCloud, keltnerChannels,

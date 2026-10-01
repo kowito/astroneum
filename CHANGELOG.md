@@ -19,6 +19,21 @@ once it reaches v1.0. Until then, minor releases may include breaking changes
   Settings modal (translated in all 18 locales). The Y-axis fits the plotted
   values just like `area`.
 - `isCandleLineType()` / `CandleLineType` helpers in the engine styles module.
+- **`LINE` indicator** — a live close-price line chart in its own pane under
+  the candlesticks (`subIndicators={['VOL', 'LINE']}`). It shares the time
+  axis, zoom and crosshair with the main chart, uses the symbol's price
+  precision, and updates on every tick. Also listed in the indicator modal.
+
+### Fixed — Indicator props and removal
+
+- `mainIndicators` and `subIndicators` are now applied when they change after
+  mount. Previously they were read only once, so toggling indicators through
+  props (as the demo's indicator chips do) had no effect on the chart. Only
+  names that entered or left the props are touched, so indicators added
+  through the indicator modal are kept.
+- Removing a sub-indicator from the indicator modal now works: the chart
+  passed the indicator id where a pane id was expected, so the removal
+  matched nothing.
 
 ### Added — Full Indicator Parity (50 total, +23 new)
 

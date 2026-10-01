@@ -58,7 +58,7 @@ const IndicatorModal: Component<IndicatorModalProps> = props => {
             'RSI', 'BIAS', 'BRAR', 'CCI', 'DMI',
             'CR', 'PSY', 'DMA', 'TRIX', 'OBV',
             'VR', 'WR', 'MTM', 'EMV', 'SAR',
-            'SMA', 'ROC', 'PVT', 'BBI', 'AO'
+            'SMA', 'ROC', 'PVT', 'BBI', 'AO', 'LINE'
           ].map(name => {
             const checked = name in props.subIndicators
             return (

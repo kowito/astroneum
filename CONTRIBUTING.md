@@ -20,6 +20,11 @@ Requirements:
 `pnpm verify` runs the full gate: `lint → typecheck → build → test`. Every
 change must keep this green.
 
+To work on the library against the demo site, run `pnpm dev` from the repo
+root. It builds `dist/` on first run, then watches `src/` (JS and styles) and
+serves the demo at <http://localhost:3000> with hot reload. Press Ctrl-C to
+stop everything.
+
 ## Repository layout
 
 | Path | What lives here |

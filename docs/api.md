@@ -21,7 +21,7 @@
 | `drawingBarVisible` | `boolean` | | `true` | Whether the left-side drawing toolbar is shown |
 | `periods` | `Period[]` | | `[1m,5m,15m,1H,2H,4H,D,W,M,Y]` | Timeframes available in the period bar |
 | `mainIndicators` | `IndicatorDef[]` | | `[{ name: 'EMA', calcParams: [7,25,99] }]` | Indicators overlaid on the main candle pane |
-| `subIndicators` | `string[]` | | `['VOL']` | Indicator names rendered in sub-panes below the chart |
+| `subIndicators` | `string[]` | | `['VOL']` | Indicator names rendered in sub-panes below the chart. Changes after mount add/remove panes. Add `'LINE'` for a live close-price line chart pane |
 | `plugins` | `ChartPlugin[]` | | `[]` | Plugins mounted with chart lifecycle hooks (`onInit` / disposer) |
 
 ---

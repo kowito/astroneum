@@ -30,6 +30,10 @@ const PERIODS: Period[] = [
 
 const LIVE_EXCHANGES = new Set(['BINANCE', 'BITGET', 'OKX'])
 
+// Name of the built-in close-price line indicator. Shown in its own pane under
+// the candles and updated on every live tick.
+const LINE_PANE = 'LINE'
+
 // ---------------------------------------------------------------------------
 // Indicator catalogue — organised by category for the demo picker
 // ---------------------------------------------------------------------------
@@ -290,6 +294,13 @@ export default function ChartDemo() {
 
   const datafeed = useMemo(() => createStandardCryptoDatafeed({ smoothingDuration: 320 }), [])
 
+  const linePaneVisible = activeSubIndicators.includes(LINE_PANE)
+  const setLinePaneVisible = useCallback((visible: boolean) => {
+    setActiveSubIndicators(prev => {
+      const without = prev.filter(x => x !== LINE_PANE)
+      return visible ? [...without, LINE_PANE] : without
+    })
+  }, [])
 
 
   useEffect(() => {
@@ -368,6 +379,26 @@ export default function ChartDemo() {
               {p.text}
             </button>
           ))}
+        </div>
+
+        <div style={css.divider} />
+
+        <div style={css.btnGroup} role="group" aria-label="Chart view">
+          <button
+            style={css.btn(!linePaneVisible)}
+            aria-pressed={!linePaneVisible}
+            onClick={() => setLinePaneVisible(false)}
+          >
+            Candles
+          </button>
+          <button
+            style={css.btn(linePaneVisible)}
+            aria-pressed={linePaneVisible}
+            title="Candlesticks with a live line chart pane underneath"
+            onClick={() => setLinePaneVisible(true)}
+          >
+            Candles + Line
+          </button>
         </div>
 
         <div style={css.spacer} />

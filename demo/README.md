@@ -5,18 +5,14 @@ A Next.js 15 + React 19 demo for the [astroneum](https://github.com/kowito/astro
 ## Getting started
 
 ```bash
-# 1. Build the library first (from the repo root)
-cd ..
+# From the repo root
 pnpm install
-pnpm build
-
-# 2. Install demo deps
-cd demo
-pnpm install
-
-# 3. Start the dev server
-pnpm dev        # http://localhost:5556
+pnpm dev        # http://localhost:3000
 ```
+
+`pnpm dev` (root) builds the library on first run, rebuilds it as you edit
+`src/`, and starts this demo's Next.js dev server. To run only the Next.js
+server against an already-built `dist/`, use `pnpm --filter astroneum-demo-next dev`.
 
 ## Data Source
 
