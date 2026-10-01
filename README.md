@@ -50,22 +50,20 @@ TradingView-class features, zero licensing fees, and MIT license.
 - **State serialization** — full chart state persistence & recovery via `serializeState()`/`loadState()`
 
 ### Data & Performance
-- **Off-main-thread indicator pool** — Web Workers + TypedArray column store
-- **OPFS historical cache** — binary bar data persisted to Origin Private File System
-- **FlatBuffers binary codec** (`BarsCodec`) — 40 bytes per bar, efficient storage & transfer
+- **History cache** — opt-in `historyCache` prop keeps loaded history per symbol in the Origin Private File System: reloads fetch only the newest bars, and the chart still opens with cached bars when the datafeed is down. Stored as compact `BarsCodec` frames (56 bytes per bar, volume included)
+- **Indicator acceleration** — opt-in `configureIndicatorWorkers({ enabled: true })`: on series of 20 000+ bars, MA/EMA/RSI/BOLL update only the changed bars on each tick and run full recomputes in Web Workers, with results identical to the main-thread calculation
 - **TickAnimator** — smooth close/high/low interpolation at 60fps
 - **TaskScheduler** with priority queue (data > indicator > overlay)
-- **SharedArrayBuffer** ring buffer when `crossOriginIsolated`
 
 ### Datafeeds
 - **StandardCryptoDatafeed** — 100+ symbols, Binance/Bitget/OKX futures, real-time WebSocket
 - **DefaultDatafeed & WebSocketDatafeed** — Polygon.io REST + WebSocket
-- **WebTransportDatafeed** — experimental HTTP/3 QUIC support
+- **WebTransportDatafeed** — experimental, `astroneum/datafeeds/webtransport`: HTTP/3 streams for servers implementing its [documented protocol](docs/datafeed-guide.md#pattern-4-webtransport-experimental)
 - **BYO datafeed** — 4-method interface (`searchSymbols`, `getHistoryData`, `subscribe`, `unsubscribe`)
 
 ### Developer Experience
 - **Fully typed TypeScript** — branded financial types (`Price`, `Volume`, `Timestamp`)
-- **8 tree-shakeable subpath exports** — import only what you need
+- **9 tree-shakeable subpath exports** — import only what you need
 - **19 locales** — lazy-loaded on demand, dark/light/high-contrast themes
 - **SSR-safe** — `'use client'` on every entry, Next.js App Router compatible
 - **MIT license** — no usage limits, no watermark, no "Powered by" branding
@@ -129,6 +127,7 @@ export default function App() {
 | `mainIndicators` | `IndicatorDef[]` | Main pane indicators |
 | `subIndicators` | `string[]` | Sub-pane indicators (`['VOL', 'MACD', 'RSI']`); add `'LINE'` for a live close-price line chart pane under the candles |
 | `plugins` | `ChartPlugin[]` | Custom plugins with lifecycle hooks |
+| `historyCache` | `boolean \| { namespace?, maxBars? }` | Cache loaded history in the browser (OPFS); off by default |
 | `accessible` | `boolean` | Screen-reader support |
 | `style` / `className` | | Container styling |
 
@@ -153,6 +152,7 @@ import { SessionVisualizer }    from 'astroneum'
 // Datafeeds
 import { createStandardCryptoDatafeed, STANDARD_CRYPTO_SYMBOLS } from 'astroneum/datafeeds/crypto'
 import { DefaultDatafeed, WebSocketDatafeed }                     from 'astroneum/datafeeds/polygon'
+import { WebTransportDatafeed, BarsCodec }                        from 'astroneum/datafeeds/webtransport' // experimental
 
 // Utilities
 import { heikinAshi }                     from 'astroneum'  // OHLC → Heikin-Ashi transform
@@ -173,12 +173,12 @@ import { createCompareIndicator }         from 'astroneum'  // compare symbols o
 
 | Browser | Minimum | Notes |
 |---------|---------|-------|
-| Chrome / Edge | 110+ | Full WebGL2 + OPFS |
-| Firefox | 115+ | Full WebGL2 |
-| Safari | 16.4+ | Full WebGL2, OPFS on 17+ |
+| Chrome / Edge | 110+ | Full WebGL2, history cache, WebTransport |
+| Firefox | 115+ | Full WebGL2, history cache, WebTransport |
+| Safari | 16.4+ | Full WebGL2; history cache on 26+ |
 | iOS Safari | 16.4+ | Touch + pinch |
 
-Graceful fallback: no WebGL2 → Canvas2D, no OPFS → in-memory cache, no OffscreenCanvas → main-thread calc.
+Graceful fallback: no WebGL2 → Canvas2D; no writable OPFS (older Safari, private browsing) → history loads from the datafeed as usual; no Web Workers → indicators stay on the main thread; no OffscreenCanvas → main-thread rendering.
 
 ## Next.js Usage
 

@@ -23,6 +23,7 @@
 | `mainIndicators` | `IndicatorDef[]` | | `[{ name: 'EMA', calcParams: [7,25,99] }]` | Indicators overlaid on the main candle pane |
 | `subIndicators` | `string[]` | | `['VOL']` | Indicator names rendered in sub-panes below the chart. Changes after mount add/remove panes. Add `'LINE'` for a live close-price line chart pane |
 | `plugins` | `ChartPlugin[]` | | `[]` | Plugins mounted with chart lifecycle hooks (`onInit` / disposer) |
+| `historyCache` | `boolean \| { namespace?: string; maxBars?: number }` | | off | Cache loaded history per symbol and period in the browser's Origin Private File System, so reloads fetch only the newest bars and cached bars show when the datafeed is down. Read once at mount; silently off where OPFS isn't writable. `namespace` separates datafeeds that share tickers; `maxBars` (default 20 000) caps each series |
 
 ---
 
@@ -194,8 +195,9 @@ consumer can pull in just what they need.
 | `astroneum/script` | `ScriptEngine`, types `CompiledIndicator`, `StudyOptions`, `PlotOptions`, `InputOptions` |
 | `astroneum/datafeeds/polygon` | `DefaultDatafeed`, `WebSocketDatafeed`, `WebSocketDatafeedOptions` |
 | `astroneum/datafeeds/crypto` | `createStandardCryptoDatafeed`, `StandardCryptoDatafeed`, `STANDARD_CRYPTO_SYMBOLS`, `DATAFEED_ERROR_EVENT`, `BinanceAdapter`, `BitgetAdapter`, `OkxAdapter`, plus types |
+| `astroneum/datafeeds/webtransport` | `WebTransportDatafeed`, `BarsCodec`, type `WebTransportDatafeedOptions` — experimental, subpath only (see the [protocol](datafeed-guide.md#pattern-4-webtransport-experimental)) |
 
-All listed symbols also re-export from the root `astroneum` entry today,
+All listed symbols except the WebTransport ones also re-export from the root `astroneum` entry today,
 but the root re-exports for these modules will be removed in **v1.0**
 (see the [Roadmap](../README.md#v10--stability)). Migrate to the subpath
 import to be forward-compatible.
@@ -208,6 +210,33 @@ import { createStandardCryptoDatafeed } from 'astroneum/datafeeds/crypto'
 // legacy — works today, will be removed in v1.0
 import { BarReplay, createStandardCryptoDatafeed } from 'astroneum'
 ```
+
+---
+
+## Performance options
+
+### `configureIndicatorWorkers(options)`
+
+```ts
+configureIndicatorWorkers({ enabled: true, minBars?: number, maxWorkers?: number }): void
+```
+
+Accelerates the built-in `MA`, `EMA`, `RSI` and `BOLL` indicators on series
+of at least `minBars` bars (default 20 000): ticks and new bars recompute only
+the changed bars, and full recomputes run in Web Workers (default
+`min(hardwareConcurrency, 4)`). Results are identical to the main-thread
+calculation. Off by default; applies to every chart on the page. Workers are
+started from a `blob:` URL — if your CSP has a `worker-src` that excludes
+`blob:`, calculations stay on the main thread.
+
+### `clearHistoryCache(namespace?)`
+
+```ts
+clearHistoryCache(namespace?: string): Promise<void>
+```
+
+Deletes history stored by the `historyCache` prop — every namespace, or only
+the given one.
 
 ---
 

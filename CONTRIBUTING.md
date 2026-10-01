@@ -50,6 +50,9 @@ stop everything.
    unit test in [src/__tests__](src/__tests__).
 3. **Run the gate locally:** `pnpm verify`.
 4. **Run bundle-size check** when changing shipped entries: `pnpm size`.
+   If you change `src/engine/workers/TypedArrayIndicators.ts` or
+   `indicatorWorker.entry.ts`, run `pnpm gen:worker` to regenerate the worker
+   bundle (`pnpm build` does it too; a test fails when it is stale).
    Update [.size-limit.json](.size-limit.json) only with reviewer approval.
 5. **Update [CHANGELOG.md](CHANGELOG.md)** under `## [Unreleased]`. Use
    `Added`, `Changed`, `Fixed`, `Deprecated`, `Removed`, `Security`.

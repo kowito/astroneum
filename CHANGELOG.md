@@ -9,6 +9,50 @@ once it reaches v1.0. Until then, minor releases may include breaking changes
 
 ## [Unreleased]
 
+### Added — Performance modules
+
+These modules were written in April but never connected to the chart, so
+they never shipped in the npm package even though the README listed them.
+
+- **History cache** — `historyCache` prop on `AstroneumChart` (off by
+  default) keeps loaded history per symbol and period in the Origin Private
+  File System. A reload fetches only from the newest cached bars; a closed bar
+  that changed upstream drops the series; when the datafeed fails or answers
+  empty, the cached bars are shown. Older history is served from the cache
+  when available. `clearHistoryCache(namespace?)` deletes it.
+- **Indicator acceleration** — `configureIndicatorWorkers({ enabled: true })`
+  (off by default). For series of at least `minBars` (20 000) bars, MA, EMA,
+  RSI and BOLL step only the changed bars on each tick (~0.1 ms instead of a
+  full recompute) and run full recomputes in Web Workers. Results are
+  bit-identical to the main-thread templates. Workers that can't start (e.g.
+  CSP) or fail fall back to the main thread.
+- **`astroneum/datafeeds/webtransport`** (experimental) —
+  `WebTransportDatafeed` over a documented protocol: one bidirectional stream
+  per request, an ordered stream per live subscription, several
+  subscriptions per connection, reconnect with re-subscribe. Also exports
+  `BarsCodec`.
+
+### Changed
+
+- `BarsCodec` frames are version 2: 56 bytes per bar with volume, turnover
+  and a float64 timestamp (pre-1970 dates work). Version 1 is gone; nothing
+  ever shipped it.
+- The perf baseline measures the shipped indicator kernels and codec.
+
+### Removed
+
+- `SabRingBuffer`, `OPFSCache` and the `WasmIndicators` alias — never
+  exported. `HistoryCache` replaces `OPFSCache`, whose exact-range keys could
+  never hit.
+
+### Fixed — Data loading
+
+- Scrolling back never loaded older history: right after the first load the
+  chart asked for newer bars, the request was never answered, and the engine
+  stayed in its loading state.
+- A slow history response for the previous symbol or period could replace the
+  new one's bars; it is now dropped.
+
 ### Changed — Node.js 22
 
 - The project now targets **Node.js 22**. `engines.node` is `>=22` (was
