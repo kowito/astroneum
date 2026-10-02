@@ -8,6 +8,13 @@ const nextConfig: NextConfig = {
   transpilePackages: ['astroneum'],
   // Silence the workspace-root lockfile warning
   outputFileTracingRoot: path.join(__dirname, '../'),
+  // Static export, deployed to GitHub Pages by .github/workflows/demo-pages.yml.
+  // A project page is served from /<repo>/, which the workflow passes in; it is
+  // empty for `pnpm dev`.
+  output: 'export',
+  basePath: process.env.PAGES_BASE_PATH ?? '',
+  trailingSlash: true,
+  images: { unoptimized: true },
 }
 
 export default nextConfig
