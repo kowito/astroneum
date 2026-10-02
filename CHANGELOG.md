@@ -9,6 +9,17 @@ once it reaches v1.0. Until then, minor releases may include breaking changes
 
 ## [Unreleased]
 
+### Added — Chart type demos
+
+- The demo has a **chart type picker**, each type on its own link
+  (`?type=line`, `area`, `ohlc`, `hollow`, `candles`, `heikin-ashi`, `renko`,
+  `range`). The earlier "Candles / Candles + Line" toggle is replaced; the live
+  close-price line pane is now a separate "+ Line pane" button.
+- **`createTransformedDatafeed(datafeed, factory)`** — serves a derived series
+  (Heikin-Ashi, Renko, Range bars, or your own transform) from any time-based
+  datafeed, for history and live ticks. Previously those generators only worked
+  on a static array.
+
 ### Changed — Smaller npm package
 
 - `docs/` and `CHANGELOG.md` are no longer published to npm (they stay in the

@@ -7,11 +7,13 @@ import {
   DATAFEED_ERROR_EVENT,
   STANDARD_CRYPTO_SYMBOLS,
   createStandardCryptoDatafeed,
+  createTransformedDatafeed,
   type AstroneumHandle,
   type DatafeedErrorDetail,
   type SymbolInfo,
   type Period,
 } from 'astroneum'
+import { CHART_TYPES, DEFAULT_CHART_TYPE, findChartType } from '../../chartTypes'
 
 interface IndicatorDef {
   name: string
@@ -276,16 +278,12 @@ export default function ChartDemo() {
     ? `${String(symbol.exchange)} live feed`
     : 'Unsupported symbol'
 
-  const toggleSubIndicator = useCallback((name: string) => {
-    setActiveSubIndicators(prev =>
-      prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name]
-    )
-  }, [])
-
-  const toggleMainIndicator = useCallback((name: string) => {
-    setActiveMainIndicators(prev =>
-      prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name]
-    )
+  // Each indicator has exactly one home: overlays live on the price pane,
+  // everything else in its own sub-pane. Toggling elsewhere used to add a second
+  // copy (e.g. clicking the active EMA chip added EMA again instead of removing it).
+  const toggleIndicator = useCallback((name: string) => {
+    const setList = isOverlay(name) ? setActiveMainIndicators : setActiveSubIndicators
+    setList(prev => (prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name]))
   }, [])
 
   const toggleTheme = useCallback(() => {
@@ -293,6 +291,29 @@ export default function ChartDemo() {
   }, [])
 
   const datafeed = useMemo(() => createStandardCryptoDatafeed({ smoothingDuration: 320 }), [])
+
+  // Chart type. Read from ?type=… once on the client (so each type has its own
+  // link) before the chart mounts, so it never mounts twice.
+  const [chartTypeId, setChartTypeId] = useState<string | null>(null)
+  useEffect(() => {
+    setChartTypeId(findChartType(new URLSearchParams(window.location.search).get('type')).id)
+  }, [])
+  const chartType = findChartType(chartTypeId ?? DEFAULT_CHART_TYPE)
+  const selectChartType = useCallback((id: string) => {
+    setChartTypeId(id)
+    const url = new URL(window.location.href)
+    url.searchParams.set('type', id)
+    window.history.replaceState(null, '', url)
+  }, [])
+
+  // Types the chart draws itself are just a style; derived types (Heikin-Ashi,
+  // Renko, Range) get their own datafeed, which also needs a fresh chart.
+  const chartDatafeed = useMemo(
+    () => (chartType.derive !== undefined ? createTransformedDatafeed(datafeed, chartType.derive) : datafeed),
+    [chartType, datafeed]
+  )
+  const chartKey = chartType.derive !== undefined ? chartType.id : 'time'
+  const chartStyles = useMemo(() => ({ candle: { type: chartType.style } }), [chartType.style])
 
   const linePaneVisible = activeSubIndicators.includes(LINE_PANE)
   const setLinePaneVisible = useCallback((visible: boolean) => {
@@ -328,12 +349,8 @@ export default function ChartDemo() {
     setDatafeedError(null)
   }, [symbol.ticker, period.text])
 
-  // Overlays clicked in the sub-indicator panel go to mainIndicators instead
-  const subIndicatorChips = activeSubIndicators.filter(n => !isOverlay(n))
-  const mainIndicatorChips = [
-    ...activeMainIndicators,
-    ...activeSubIndicators.filter(n => isOverlay(n)),
-  ]
+  const subIndicatorChips = activeSubIndicators
+  const mainIndicatorChips = activeMainIndicators
   const mainIndicatorDefsFinal = useMemo<IndicatorDef[]>(
     () => mainIndicatorChips.map(name => indicatorDef(name)).filter(Boolean) as IndicatorDef[],
     [mainIndicatorChips]
@@ -381,30 +398,46 @@ export default function ChartDemo() {
           ))}
         </div>
 
-        <div style={css.divider} />
-
-        <div style={css.btnGroup} role="group" aria-label="Chart view">
-          <button
-            style={css.btn(!linePaneVisible)}
-            aria-pressed={!linePaneVisible}
-            onClick={() => setLinePaneVisible(false)}
-          >
-            Candles
-          </button>
-          <button
-            style={css.btn(linePaneVisible)}
-            aria-pressed={linePaneVisible}
-            title="Candlesticks with a live line chart pane underneath"
-            onClick={() => setLinePaneVisible(true)}
-          >
-            Candles + Line
-          </button>
-        </div>
-
         <div style={css.spacer} />
         <button style={css.badge(theme === 'dark')} onClick={toggleTheme}>
           {theme === 'dark' ? '☀ Light' : '🌙 Dark'}
         </button>
+      </div>
+
+      {/* Chart type — each button is a different way to draw the same market */}
+      <div style={{
+        ...css.toolbar,
+        background: theme === 'dark' ? '#0d1117' : '#f0f3f9',
+        borderBottom: '1px solid ' + (theme === 'dark' ? '#30363d' : '#d0d7de'),
+        padding: '6px 12px',
+      }}>
+        <span style={css.pickerLabel}>Chart type</span>
+        <div style={{ ...css.btnGroup, flexWrap: 'wrap' }} role="group" aria-label="Chart type">
+          {CHART_TYPES.map(type => (
+            <button
+              key={type.id}
+              style={css.btn(chartType.id === type.id)}
+              aria-pressed={chartType.id === type.id}
+              title={type.description}
+              onClick={() => selectChartType(type.id)}
+            >
+              {type.label}
+            </button>
+          ))}
+        </div>
+        <div style={css.divider} />
+        <button
+          style={css.chip(linePaneVisible)}
+          aria-pressed={linePaneVisible}
+          title="Add a live close-price line chart in its own pane under the chart"
+          onClick={() => setLinePaneVisible(!linePaneVisible)}
+        >
+          + Line pane
+        </button>
+        <span style={{ color: '#8b949e', fontSize: 12 }}>
+          {chartType.description}
+          {chartType.timeless && ' The time axis shows synthetic times.'}
+        </span>
       </div>
 
       {/* Indicator picker — category rows */}
@@ -430,18 +463,7 @@ export default function ChartDemo() {
                     background: isActive ? (overlay ? '#3d2e00' : '#1a3a24') : undefined,
                     color: isActive ? (overlay ? '#d29922' : '#3fb950') : undefined,
                   }}
-                  onClick={() => {
-                    if (overlay) {
-                      toggleSubIndicator(e.name)
-                    } else {
-                      // If it's a sub-pane indicator, toggle there; else main
-                      if (['SMA', 'EMA', 'DEMA', 'TEMA', 'WMA', 'VWMA', 'AMA', 'HMA', 'BBI'].includes(e.name)) {
-                        toggleMainIndicator(e.name)
-                      } else {
-                        toggleSubIndicator(e.name)
-                      }
-                    }
-                  }}
+                  onClick={() => toggleIndicator(e.name)}
                 >
                   {e.name}
                 </button>
@@ -491,18 +513,22 @@ export default function ChartDemo() {
 
       {/* Chart */}
       <div style={css.chartWrap}>
+        {chartTypeId !== null && (
         <AstroneumChart
+          key={chartKey}
           ref={chartRef}
           symbol={symbol}
           period={period}
           periods={PERIODS}
-          datafeed={datafeed}
+          datafeed={chartDatafeed}
           theme={theme}
+          styles={chartStyles}
           drawingBarVisible
           mainIndicators={mainIndicatorDefsFinal}
           subIndicators={subIndicatorChips}
           style={{ width: '100%', height: '100%' }}
         />
+        )}
       </div>
     </div>
   )
