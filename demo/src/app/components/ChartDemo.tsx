@@ -278,16 +278,12 @@ export default function ChartDemo() {
     ? `${String(symbol.exchange)} live feed`
     : 'Unsupported symbol'
 
-  const toggleSubIndicator = useCallback((name: string) => {
-    setActiveSubIndicators(prev =>
-      prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name]
-    )
-  }, [])
-
-  const toggleMainIndicator = useCallback((name: string) => {
-    setActiveMainIndicators(prev =>
-      prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name]
-    )
+  // Each indicator has exactly one home: overlays live on the price pane,
+  // everything else in its own sub-pane. Toggling elsewhere used to add a second
+  // copy (e.g. clicking the active EMA chip added EMA again instead of removing it).
+  const toggleIndicator = useCallback((name: string) => {
+    const setList = isOverlay(name) ? setActiveMainIndicators : setActiveSubIndicators
+    setList(prev => (prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name]))
   }, [])
 
   const toggleTheme = useCallback(() => {
@@ -353,12 +349,8 @@ export default function ChartDemo() {
     setDatafeedError(null)
   }, [symbol.ticker, period.text])
 
-  // Overlays clicked in the sub-indicator panel go to mainIndicators instead
-  const subIndicatorChips = activeSubIndicators.filter(n => !isOverlay(n))
-  const mainIndicatorChips = [
-    ...activeMainIndicators,
-    ...activeSubIndicators.filter(n => isOverlay(n)),
-  ]
+  const subIndicatorChips = activeSubIndicators
+  const mainIndicatorChips = activeMainIndicators
   const mainIndicatorDefsFinal = useMemo<IndicatorDef[]>(
     () => mainIndicatorChips.map(name => indicatorDef(name)).filter(Boolean) as IndicatorDef[],
     [mainIndicatorChips]
@@ -471,18 +463,7 @@ export default function ChartDemo() {
                     background: isActive ? (overlay ? '#3d2e00' : '#1a3a24') : undefined,
                     color: isActive ? (overlay ? '#d29922' : '#3fb950') : undefined,
                   }}
-                  onClick={() => {
-                    if (overlay) {
-                      toggleSubIndicator(e.name)
-                    } else {
-                      // If it's a sub-pane indicator, toggle there; else main
-                      if (['SMA', 'EMA', 'DEMA', 'TEMA', 'WMA', 'VWMA', 'AMA', 'HMA', 'BBI'].includes(e.name)) {
-                        toggleMainIndicator(e.name)
-                      } else {
-                        toggleSubIndicator(e.name)
-                      }
-                    }
-                  }}
+                  onClick={() => toggleIndicator(e.name)}
                 >
                   {e.name}
                 </button>
