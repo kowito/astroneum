@@ -14,6 +14,7 @@ import {
   type Period,
 } from 'astroneum'
 import { CHART_TYPES, DEFAULT_CHART_TYPE, findChartType } from '../../chartTypes'
+import { BASE_PATH } from '../../site'
 
 interface IndicatorDef {
   name: string
@@ -368,7 +369,7 @@ export default function ChartDemo() {
         background: theme === 'dark' ? '#161b22' : '#ffffff',
         borderColor: theme === 'dark' ? '#30363d' : '#d0d7de'
       }}>
-        <span style={css.logo}>Astroneum</span>
+        <a href={`${BASE_PATH}/`} style={{ ...css.logo, textDecoration: 'none' }} title="Back to the Astroneum home page">Astroneum</a>
         <span style={css.sourceBadge}>{sourceBadgeText}</span>
         {datafeedError && <span style={css.errorBadge} title={datafeedError}>{datafeedError}</span>}
         <div style={css.divider} />
