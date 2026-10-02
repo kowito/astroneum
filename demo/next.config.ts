@@ -14,6 +14,8 @@ const nextConfig: NextConfig = {
   output: 'export',
   basePath: process.env.PAGES_BASE_PATH ?? '',
   trailingSlash: true,
+  // Plain <img>/<a> don't get the base path added; pages use this to build asset URLs.
+  env: { NEXT_PUBLIC_BASE_PATH: process.env.PAGES_BASE_PATH ?? '' },
   images: { unoptimized: true },
 }
 
