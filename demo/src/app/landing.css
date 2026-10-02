@@ -305,6 +305,12 @@
   padding-left: 22px;
 }
 
+.lp-steps li {
+  /* a grid item won't shrink below its content; without this the code block
+     stretches the whole page on phones instead of scrolling inside its box */
+  min-width: 0;
+}
+
 .lp-steps li > span {
   display: block;
   margin-bottom: 10px;
