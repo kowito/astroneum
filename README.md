@@ -58,7 +58,7 @@ TradingView-class features, zero licensing fees, and MIT license.
 ### Datafeeds
 - **StandardCryptoDatafeed** — 100+ symbols, Binance/Bitget/OKX futures, real-time WebSocket
 - **DefaultDatafeed & WebSocketDatafeed** — Polygon.io REST + WebSocket
-- **WebTransportDatafeed** — experimental, `astroneum/datafeeds/webtransport`: HTTP/3 streams for servers implementing its [documented protocol](docs/datafeed-guide.md#pattern-4-webtransport-experimental)
+- **WebTransportDatafeed** — experimental, `astroneum/datafeeds/webtransport`: HTTP/3 streams for servers implementing its [documented protocol](https://github.com/kowito/astroneum/blob/main/docs/datafeed-guide.md#pattern-4-webtransport-experimental)
 - **BYO datafeed** — 4-method interface (`searchSymbols`, `getHistoryData`, `subscribe`, `unsubscribe`)
 
 ### Developer Experience

@@ -67,8 +67,6 @@
   "files": [
     "LICENSE",
     "README.md",
-    "CHANGELOG.md",
-    "docs",
     "dist/**/*.js",
     "dist/**/*.css",
     "dist/**/*.d.ts"

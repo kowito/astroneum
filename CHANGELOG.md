@@ -9,6 +9,16 @@ once it reaches v1.0. Until then, minor releases may include breaking changes
 
 ## [Unreleased]
 
+### Changed — Smaller npm package
+
+- `docs/` and `CHANGELOG.md` are no longer published to npm (they stay in the
+  repository; the README links to them on GitHub).
+- `astroneum.css` ships the icon font as WOFF only. The embedded-OpenType,
+  TrueType and SVG copies were base64-inlined too and only served browsers
+  that are not supported.
+- Icon and toolbar SVG paths are rounded to two decimals (they carried up to
+  17 digits). Rendering is visually identical.
+
 ### Added — Performance modules
 
 These modules were written in April but never connected to the chart, so
