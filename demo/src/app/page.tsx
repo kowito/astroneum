@@ -136,7 +136,6 @@ export default function HomePage() {
           <div className="lp-gallery">
             {CHART_TYPE_INFO.map(type => (
               <Link key={type.id} href={`/demo/?type=${type.id}`} className="lp-tile">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={asset(`/gallery/${type.id}.webp`)}
                   alt={`${type.label} chart of the Bitcoin price`}

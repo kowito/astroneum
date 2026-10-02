@@ -9,7 +9,6 @@ import { asset } from '../../site'
 const HeroChart = dynamic(async () => await import('./HeroChart'), {
   ssr: false,
   loading: () => (
-    // eslint-disable-next-line @next/next/no-img-element
     <img
       className="lp-hero-placeholder"
       src={asset('/gallery/area.webp')}
