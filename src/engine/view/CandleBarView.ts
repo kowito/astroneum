@@ -189,7 +189,6 @@ export default class CandleBarView extends ChildrenView {
     if (mainWebGLRenderer !== null && visibleData.length > 0) {
       const dataList = chartStore.getDataList()
       const firstVis = visibleData[0]
-      const lastVis  = visibleData[visibleData.length - 1]
 
       // Overscan bars BEFORE the visible range (older bars, to the left)
       const nBefore = Math.min(OVERSCAN, firstVis.dataIndex)

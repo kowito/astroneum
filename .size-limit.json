@@ -52,5 +52,11 @@
     "path": "dist/entries/datafeeds/crypto.js",
     "limit": "30 KB",
     "ignore": ["react", "react-dom"]
+  },
+  {
+    "name": "astroneum/datafeeds/webtransport",
+    "path": "dist/entries/datafeeds/webtransport.js",
+    "limit": "10 KB",
+    "ignore": ["react", "react-dom"]
   }
 ]

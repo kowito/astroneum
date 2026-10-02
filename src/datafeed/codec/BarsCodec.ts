@@ -1,117 +1,109 @@
 /**
- * BarsCodec — P4-B: FlatBuffers-style binary bar codec.
+ * BarsCodec — compact binary encoding for a series of bars.
  *
- * Wire format
- * ───────────
- * Each message is a self-describing binary frame:
+ * Used by the OPFS history cache (`HistoryCache`) and the WebTransport
+ * datafeed, where it is also the wire format.
  *
- *   ┌──────────────────────────────────────────────────────────┐
- *   │  4 bytes │ magic "BARS" (0x42415253)                     │
- *   │  4 bytes │ version (u32 LE) = 1                          │
- *   │  4 bytes │ bar count (u32 LE)                            │
- *   │  N × 40  │ bar records (see below)                       │
- *   └──────────────────────────────────────────────────────────┘
+ * Frame layout (all little-endian)
+ * ────────────────────────────────
+ *    0  u32  magic "BARS" (0x42415253)
+ *    4  u32  version = 2
+ *    8  u32  bar count N
+ *   12  u32  reserved (0) — keeps the bar records 8-byte aligned
+ *   16  N × 56-byte records:
+ *         +0   f64  timestamp (ms since epoch; f64 also covers pre-1970)
+ *         +8   f64  open
+ *         +16  f64  high
+ *         +24  f64  low
+ *         +32  f64  close
+ *         +40  f64  volume    (NaN = absent)
+ *         +48  f64  turnover  (NaN = absent)
  *
- * Bar record layout (40 bytes, all little-endian):
- *   offset  0 │  8 bytes │ timestamp (i64 LE, milliseconds since epoch)
- *   offset  8 │  8 bytes │ open     (f64 LE)
- *   offset 16 │  8 bytes │ high     (f64 LE)
- *   offset 24 │  8 bytes │ low      (f64 LE)
- *   offset 32 │  8 bytes │ close    (f64 LE)
- *
- * Note: volume/turnover are omitted from v1 to minimise wire bytes for
- * the common chart rendering case.  A v2 extension with optional fields
- * is planned.
- *
- * Alignment
- * ─────────
- * All records are 8-byte aligned; the frame header is exactly 12 bytes.
- * When decoded, a 4-byte pad is inserted after the header so bar records
- * start at offset 16 (aligned for DataView 8-byte operations without
- * explicit alignment checks).
+ * A frame is self-delimiting: `frameLength()` reads the header of a byte
+ * stream and returns the total size of the frame that starts there.
  */
 
 import type { CandleData } from '@/types'
 
-const MAGIC = 0x42415253   // 'B','A','R','S'
-const VERSION = 1
-const HDR_SIZE = 12   // magic(4) + version(4) + count(4)
-const BAR_SIZE = 40   // timestamp(8) + o(8) + h(8) + l(8) + c(8)
-const PAD_TO_16 = 4    // pad header to 16 for 8-byte alignment of first bar
+const MAGIC = 0x42415253 // 'B','A','R','S'
+const VERSION = 2
+const HEADER_SIZE = 16
+const BAR_SIZE = 56
+// ~28 MB — guards against crafted or corrupt input allocating unbounded memory.
+const MAX_BARS = 500_000
 
 export class BarsCodec {
-  /**
-   * Encode an array of `CandleData` into a compact binary frame.
-   *
-   * @param bars  Source bar array.
-   * @returns     Uint8Array ready to transmit.
-   */
-  static encode(bars: ReadonlyArray<CandleData>): Uint8Array {
-    const n = bars.length
-    const size = HDR_SIZE + PAD_TO_16 + n * BAR_SIZE
-    const buf = new ArrayBuffer(size)
-    const view = new DataView(buf)
+  static readonly HEADER_SIZE = HEADER_SIZE
+  static readonly BAR_SIZE = BAR_SIZE
+  static readonly MAX_BARS = MAX_BARS
 
+  /** Encode bars into a single frame. */
+  static encode (bars: ReadonlyArray<CandleData>): Uint8Array<ArrayBuffer> {
+    const n = bars.length
+    if (n > MAX_BARS) {
+      throw new RangeError(`[BarsCodec] ${n} bars exceeds the ${MAX_BARS}-bar frame limit`)
+    }
+    const buf = new ArrayBuffer(HEADER_SIZE + n * BAR_SIZE)
+    const view = new DataView(buf)
     view.setUint32(0, MAGIC, true)
     view.setUint32(4, VERSION, true)
     view.setUint32(8, n, true)
-    // 4-byte pad (bytes 12–15) left as zero
-
     for (let i = 0; i < n; i++) {
-      const off = 16 + i * BAR_SIZE
       const bar = bars[i]
-      // timestamp as i64: BigInt avoids precision loss for 64-bit int.
-      // We split into two 32-bit words because DataView.setBigInt64 is not
-      // available in all targets.
-      const ts = bar.timestamp
-      const tsLo = ts >>> 0
-      const tsHi = Math.floor(ts / 0x100000000) >>> 0
-      view.setUint32(off, tsLo, true)
-      view.setUint32(off + 4, tsHi, true)
-
+      const off = HEADER_SIZE + i * BAR_SIZE
+      view.setFloat64(off, bar.timestamp, true)
       view.setFloat64(off + 8, bar.open, true)
       view.setFloat64(off + 16, bar.high, true)
       view.setFloat64(off + 24, bar.low, true)
       view.setFloat64(off + 32, bar.close, true)
+      view.setFloat64(off + 40, bar.volume ?? NaN, true)
+      view.setFloat64(off + 48, bar.turnover ?? NaN, true)
     }
-
     return new Uint8Array(buf)
   }
 
   /**
-   * Decode a binary frame back into `CandleData[]`.
-   *
-   * @param data  Received bytes.
-   * @returns     Decoded bar array (empty on invalid magic/version).
+   * Size in bytes of the frame starting at `data[0]`, or `null` when fewer
+   * than `HEADER_SIZE` bytes are available or the header is not a valid
+   * BarsCodec header.
    */
-  static decode(data: Uint8Array): CandleData[] {
-    if (data.byteLength < HDR_SIZE) return []
-    const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
-
-    const magic = view.getUint32(0, true)
-    const version = view.getUint32(4, true)
+  static frameLength (data: Uint8Array): number | null {
+    if (data.byteLength < HEADER_SIZE) return null
+    const view = new DataView(data.buffer, data.byteOffset, HEADER_SIZE)
+    if (view.getUint32(0, true) !== MAGIC || view.getUint32(4, true) !== VERSION) return null
     const n = view.getUint32(8, true)
+    if (n > MAX_BARS) return null
+    return HEADER_SIZE + n * BAR_SIZE
+  }
 
-    if (magic !== MAGIC || version !== VERSION) return []
-    // Cap to 500k bars (~20 MB) to prevent OOM on crafted input
-    const MAX_BARS = 500_000
-    if (n > MAX_BARS) return []
-    if (data.byteLength < 16 + n * BAR_SIZE) return []
-
+  /**
+   * Decode exactly one frame. Returns `[]` for anything that is not a complete,
+   * well-formed frame (wrong magic/version, truncated or trailing bytes,
+   * non-finite timestamp or price).
+   */
+  static decode (data: Uint8Array): CandleData[] {
+    const length = BarsCodec.frameLength(data)
+    if (length === null || data.byteLength !== length) return []
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
+    const n = view.getUint32(8, true)
     const bars: CandleData[] = new Array(n)
     for (let i = 0; i < n; i++) {
-      const off = 16 + i * BAR_SIZE
-      const tsLo = view.getUint32(off, true)
-      const tsHi = view.getUint32(off + 4, true)
-      const timestamp = tsLo + tsHi * 0x100000000
-
-      bars[i] = {
-        timestamp,
-        open: view.getFloat64(off + 8, true),
-        high: view.getFloat64(off + 16, true),
-        low: view.getFloat64(off + 24, true),
-        close: view.getFloat64(off + 32, true)
+      const off = HEADER_SIZE + i * BAR_SIZE
+      const timestamp = view.getFloat64(off, true)
+      const open = view.getFloat64(off + 8, true)
+      const high = view.getFloat64(off + 16, true)
+      const low = view.getFloat64(off + 24, true)
+      const close = view.getFloat64(off + 32, true)
+      if (!Number.isFinite(timestamp) || !Number.isFinite(open) || !Number.isFinite(high) ||
+        !Number.isFinite(low) || !Number.isFinite(close)) {
+        return []
       }
+      const bar: CandleData = { timestamp, open, high, low, close }
+      const volume = view.getFloat64(off + 40, true)
+      const turnover = view.getFloat64(off + 48, true)
+      if (!Number.isNaN(volume)) bar.volume = volume
+      if (!Number.isNaN(turnover)) bar.turnover = turnover
+      bars[i] = bar
     }
     return bars
   }

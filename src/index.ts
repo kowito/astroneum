@@ -110,6 +110,10 @@ export { asPrice, asVolume, asTimestamp, rafCoalesce, rafMergeTick, deepSet, dee
 export { EventBus } from './chart/EventBus'
 export { TickAnimator } from './engine/common/TickAnimator'
 export { RingBuffer } from './engine/common/RingBuffer'
+export { clearHistoryCache } from './datafeed/BarStore'
+export { configureIndicatorWorkers } from './engine/workers/indicatorOffload'
+export type { IndicatorWorkerOptions } from './engine/workers/indicatorOffload'
+export type { HistoryCacheOptions } from './datafeed/HistoryCache'
 
 export type {
   Datafeed, SymbolInfo, Period, DatafeedSubscribeCallback, AstroneumOptions, AstroneumHandle, CandleData,

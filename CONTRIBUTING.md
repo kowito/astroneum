@@ -14,7 +14,8 @@ pnpm verify
 
 Requirements:
 
-- **Node.js ≥ 18** (matches the `engines` field).
+- **Node.js 22** — pinned in [.nvmrc](.nvmrc) (`nvm use`); CI reads the same
+  file, and the `engines` field requires ≥ 22.
 - **pnpm 10+** (the lockfile is pnpm v10).
 
 `pnpm verify` runs the full gate: `lint → typecheck → build → test`. Every
@@ -49,6 +50,9 @@ stop everything.
    unit test in [src/__tests__](src/__tests__).
 3. **Run the gate locally:** `pnpm verify`.
 4. **Run bundle-size check** when changing shipped entries: `pnpm size`.
+   If you change `src/engine/workers/TypedArrayIndicators.ts` or
+   `indicatorWorker.entry.ts`, run `pnpm gen:worker` to regenerate the worker
+   bundle (`pnpm build` does it too; a test fails when it is stale).
    Update [.size-limit.json](.size-limit.json) only with reviewer approval.
 5. **Update [CHANGELOG.md](CHANGELOG.md)** under `## [Unreleased]`. Use
    `Added`, `Changed`, `Fixed`, `Deprecated`, `Removed`, `Security`.

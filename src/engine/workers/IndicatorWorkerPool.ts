@@ -1,187 +1,122 @@
 /**
- * IndicatorWorker — off-main-thread indicator calculation worker.
+ * IndicatorWorkerPool — runs indicator kernels in Web Workers started from a
+ * Blob URL (source: indicatorWorkerSource.generated.ts).
  *
- * P1-B: Spawns from a Blob URL so no import path is needed at runtime.
- * Receives serialised OHLCV data as a Float64Array column store via
- * structured clone (SharedArrayBuffer upgrade: see IndicatorWorkerPool).
- *
- * Protocol:
- *   → { type: 'calc', id, cols, n, period, kind }
- *   ← { type: 'result', id, data: Float64Array[] }
- *   ← { type: 'error',  id, message: string }
+ * Every request settles: if a worker cannot start (e.g. a CSP without `blob:`
+ * in `worker-src`), errors, or does not answer within the timeout, the pool
+ * marks itself dead and rejects everything pending; later requests reject at
+ * once. Callers fall back to computing on the main thread.
  */
 
-// ── Worker source ─────────────────────────────────────────────────────────
+import workerSource from './indicatorWorkerSource.generated'
+import type { IndicatorKind } from './TypedArrayIndicators'
 
-function _buildWorkerSrc(): string {
-  return /* javascript */ `
-'use strict';
-
-// Reusable EMA helper
-function emaStep(period, src, out) {
-  const n = src.length;
-  out.fill(NaN);
-  if (period <= 0 || period > n) return out;
-  const k = 2 / (period + 1), km1 = 1 - k;
-  let seed = 0;
-  for (let i = 0; i < period; i++) seed += src[i];
-  seed /= period;
-  out[period - 1] = seed;
-  for (let i = period; i < n; i++) out[i] = src[i] * k + out[i - 1] * km1;
-  return out;
+export interface IndicatorJobResult {
+  outputs: Float64Array[]
+  stateBeforeLast: number[] | null
 }
 
-function smaStep(period, src, out) {
-  const n = src.length;
-  out.fill(NaN);
-  if (period <= 0 || period > n) return out;
-  let sum = 0;
-  for (let i = 0; i < period; i++) sum += src[i];
-  out[period - 1] = sum / period;
-  for (let i = period; i < n; i++) { sum += src[i] - src[i - period]; out[i] = sum / period; }
-  return out;
+interface Pending {
+  resolve: (result: IndicatorJobResult) => void
+  reject: (error: Error) => void
+  timer: ReturnType<typeof setTimeout>
+  worker: number
 }
 
-self.onmessage = function(evt) {
-  const msg = evt.data;
-  try {
-    const { id, cols, n, period, kind } = msg;
-    // Reconstruct column views from the received Float64Array column store.
-    const closeCol = new Float64Array(cols.buffer, cols.byteOffset + n * 3 * 8, n); // COL_CLOSE = 3
-    const out1 = new Float64Array(n);
-    let result;
-
-    switch (kind) {
-      case 'sma':
-        result = [smaStep(period, closeCol, out1)];
-        break;
-      case 'ema':
-        result = [emaStep(period, closeCol, out1)];
-        break;
-      case 'rsi': {
-        out1.fill(NaN);
-        if (period > 0 && period + 1 <= n) {
-          let avgGain = 0, avgLoss = 0;
-          for (let i = 1; i <= period; i++) {
-            const d = closeCol[i] - closeCol[i - 1];
-            if (d > 0) avgGain += d; else avgLoss -= d;
-          }
-          avgGain /= period; avgLoss /= period;
-          out1[period] = avgLoss === 0 ? 100 : (100 - 100 / (1 + avgGain / avgLoss));
-          const inv = 1 / period, pm1 = period - 1;
-          for (let i = period + 1; i < n; i++) {
-            const d = closeCol[i] - closeCol[i - 1];
-            avgGain = (avgGain * pm1 + (d > 0 ? d : 0)) * inv;
-            avgLoss = (avgLoss * pm1 + (d < 0 ? -d : 0)) * inv;
-            out1[i] = avgLoss === 0 ? 100 : (100 - 100 / (1 + avgGain / avgLoss));
-          }
-        }
-        result = [out1];
-        break;
-      }
-      default:
-        result = [];
-    }
-    self.postMessage({ type: 'result', id, data: result });
-  } catch (err) {
-    self.postMessage({ type: 'error', id: msg.id, message: String(err) });
-  }
-};
-`
+interface WorkerReply {
+  id: number
+  outputs?: Float64Array[]
+  stateBeforeLast?: number[] | null
+  error?: string
 }
 
-// ── IndicatorWorkerPool ────────────────────────────────────────────────────
+const DEFAULT_TIMEOUT_MS = 10_000
 
-export type IndicatorKind = 'sma' | 'ema' | 'rsi'
-
-export interface IndicatorWorkerRequest {
-  kind: IndicatorKind
-  period: number
-  /** Packed column store from TypedArrayIndicators.packBars() */
-  cols: Float64Array
-  n: number
-}
-
-export interface IndicatorWorkerResult {
-  data: Float64Array[]
-}
-
-interface PendingRequest {
-  resolve: (r: IndicatorWorkerResult) => void
-  reject: (e: Error) => void
-}
-
-/**
- * P1-B: Pool of indicator calculation workers.
- *
- * Maintains N concurrent workers (default: `navigator.hardwareConcurrency`
- * capped at 4).  Requests are round-robin dispatched; each worker handles
- * one in-flight request at a time.  The pool is created lazily on first use
- * and destroyed when the chart unmounts via `IndicatorWorkerPool.destroy()`.
- */
 export class IndicatorWorkerPool {
-  private readonly _workers: Worker[]
-  private readonly _pending = new Map<string, PendingRequest>()
-  private _nextWorker = 0
+  private readonly _workers: Worker[] = []
+  private readonly _inFlight: number[] = []
+  private readonly _pending = new Map<number, Pending>()
+  private readonly _timeoutMs: number
+  private _url: string | null = null
   private _seq = 0
+  private _dead = false
 
-  constructor(size?: number) {
-    const n = Math.min(size ?? (navigator.hardwareConcurrency ?? 2), 4)
-    const src = _buildWorkerSrc()
-    const blob = new Blob([src], { type: 'application/javascript' })
-    const url = URL.createObjectURL(blob)
-    this._workers = Array.from({ length: n }, () => {
-      const w = new Worker(url)
-      w.onmessage = (e: MessageEvent) => this._onMessage(e)
-      w.onerror = (e: ErrorEvent) => this._onError(e)
-      return w
-    })
-    URL.revokeObjectURL(url)
-  }
-
-  /**
-   * Submit an indicator calculation and receive the result as a Promise.
-   * When crossOriginIsolated is true, the Float64Array is transferred (zero-copy)
-   * via SharedArrayBuffer; otherwise it is structured-cloned for compatibility.
-   */
-  run(req: IndicatorWorkerRequest): Promise<IndicatorWorkerResult> {
-    return new Promise<IndicatorWorkerResult>((resolve, reject) => {
-      const id = String(this._seq++)
-      this._pending.set(id, { resolve, reject })
-      const worker = this._workers[this._nextWorker % this._workers.length]
-      this._nextWorker++
-      // Transfer the buffer when cross-origin isolated (zero-copy SAB),
-      // otherwise fall back to structured-clone.
-      const transfer: Transferable[] = req.cols.buffer instanceof SharedArrayBuffer
-        ? [] // SAB is shared — no transfer needed
-        : []
-      worker.postMessage(
-        { type: 'calc', id, cols: req.cols, n: req.n, period: req.period, kind: req.kind },
-        transfer
-      )
-    })
-  }
-
-  destroy(): void {
-    for (const w of this._workers) w.terminate()
-    this._pending.clear()
-  }
-
-  private _onMessage(e: MessageEvent): void {
-    const { type, id, data, message } = e.data as { type: string; id: string; data?: Float64Array[]; message?: string }
-    const pending = this._pending.get(id)
-    if (pending === undefined) return
-    this._pending.delete(id)
-    if (type === 'result') {
-      pending.resolve({ data: data ?? [] })
-    } else {
-      pending.reject(new Error(message ?? 'IndicatorWorker error'))
+  constructor (size: number, timeoutMs = DEFAULT_TIMEOUT_MS) {
+    this._timeoutMs = timeoutMs
+    try {
+      // Kept for the pool's lifetime: revoking right after `new Worker()` races
+      // the script fetch in some browsers.
+      this._url = URL.createObjectURL(new Blob([workerSource], { type: 'text/javascript' }))
+      for (let i = 0; i < Math.max(1, size); i++) {
+        const worker = new Worker(this._url)
+        worker.onmessage = (event: MessageEvent<WorkerReply>) => { this._onReply(event.data) }
+        worker.onerror = (event: ErrorEvent) => {
+          event.preventDefault()
+          this._fail(new Error(event.message !== '' ? event.message : 'indicator worker failed'))
+        }
+        worker.onmessageerror = () => { this._fail(new Error('indicator worker sent an unreadable message')) }
+        this._workers.push(worker)
+        this._inFlight.push(0)
+      }
+    } catch (e) {
+      this._fail(e instanceof Error ? e : new Error(String(e)))
     }
   }
 
-  private _onError(e: ErrorEvent): void {
-    // Reject all pending requests when a worker crashes
-    this._pending.forEach(p => p.reject(new Error(e.message)))
+  get alive (): boolean {
+    return !this._dead
+  }
+
+  /** Compute `kind` over `closes`. The array's buffer is transferred to the worker. */
+  async run (kind: IndicatorKind, params: number[], closes: Float64Array): Promise<IndicatorJobResult> {
+    if (this._dead) throw new Error('indicator worker pool is unavailable')
+    return await new Promise<IndicatorJobResult>((resolve, reject) => {
+      const id = ++this._seq
+      let worker = 0
+      for (let i = 1; i < this._workers.length; i++) {
+        if (this._inFlight[i] < this._inFlight[worker]) worker = i
+      }
+      const timer = setTimeout(() => { this._fail(new Error('indicator worker timed out')) }, this._timeoutMs)
+      this._pending.set(id, { resolve, reject, timer, worker })
+      this._inFlight[worker]++
+      try {
+        this._workers[worker].postMessage({ id, kind, params, closes }, [closes.buffer])
+      } catch (e) {
+        this._fail(e instanceof Error ? e : new Error(String(e)))
+      }
+    })
+  }
+
+  destroy (): void {
+    this._fail(new Error('indicator worker pool destroyed'))
+  }
+
+  private _onReply (reply: WorkerReply): void {
+    const pending = this._pending.get(reply.id)
+    if (pending === undefined) return
+    this._pending.delete(reply.id)
+    clearTimeout(pending.timer)
+    this._inFlight[pending.worker]--
+    if (reply.error !== undefined || reply.outputs === undefined) {
+      pending.reject(new Error(reply.error ?? 'indicator worker returned no data'))
+    } else {
+      pending.resolve({ outputs: reply.outputs, stateBeforeLast: reply.stateBeforeLast ?? null })
+    }
+  }
+
+  private _fail (error: Error): void {
+    if (this._dead) return
+    this._dead = true
+    this._pending.forEach(pending => {
+      clearTimeout(pending.timer)
+      pending.reject(error)
+    })
     this._pending.clear()
+    this._workers.forEach(worker => { worker.terminate() })
+    this._workers.length = 0
+    if (this._url !== null) {
+      URL.revokeObjectURL(this._url)
+      this._url = null
+    }
   }
 }

@@ -269,6 +269,44 @@ const myDatafeed: Datafeed = {
 
 ---
 
+## Pattern 4: WebTransport (experimental)
+
+`astroneum/datafeeds/webtransport` ships a client for servers that speak the
+protocol below over WebTransport (HTTP/3). Live bars travel on ordered,
+reliable streams, and one connection carries every subscription.
+
+```tsx
+import { WebTransportDatafeed } from 'astroneum/datafeeds/webtransport'
+
+const datafeed = WebTransportDatafeed.isSupported()
+  ? new WebTransportDatafeed('https://feed.example.com/wt')
+  : fallbackDatafeed
+```
+
+**Requests.** The client opens a bidirectional stream, writes one UTF-8 JSON
+line ending in `\n`, and closes its side. The server writes the response and
+closes.
+
+| Request | Response |
+|---|---|
+| `{"type":"history","ticker","exchange"?,"multiplier","timespan","from","to"}` | One `BarsCodec` frame (empty body = no bars) |
+| `{"type":"search","query"}` | UTF-8 JSON array of `SymbolInfo` |
+| `{"type":"subscribe","id","ticker","exchange"?,"multiplier","timespan"}` | Empty acknowledgement |
+| `{"type":"unsubscribe","id"}` | Empty acknowledgement |
+
+**Live bars.** For each subscription the server opens a unidirectional
+stream that starts with the subscription `id` (u32, little-endian), followed
+by `BarsCodec` frames carrying one or more updated bars. Unsubscribing ends
+the stream. After a reconnect the client re-sends every subscription with the
+same `id`.
+
+**`BarsCodec` frame** (little-endian): `u32` magic `0x42415253` ("BARS"),
+`u32` version `2`, `u32` bar count *N*, `u32` reserved, then *N* records of
+seven `f64`s — timestamp (ms), open, high, low, close, volume, turnover — where
+`NaN` means absent. JS/TS servers can import `BarsCodec` from the same subpath.
+
+---
+
 ## Using a Datafeed in AstroneumChart
 
 ```tsx
@@ -293,7 +331,7 @@ export function Chart() {
 ## Tips
 
 1. **Start simple** — Begin with a REST API; add WebSocket if you need real-time.
-2. **Handle errors gracefully** — Return empty arrays if data fetches fail; reconnect on socket close.
+2. **Handle errors gracefully** — Return empty arrays (or throw) if data fetches fail; reconnect on socket close. With the `historyCache` prop on, the chart then shows the cached bars.
 3. **Cache symbols** — Don't re-fetch the symbol list on every search.
 4. **Timestamp precision** — Use milliseconds (Unix ms) throughout; ensure `from` and `to` are in ms.
 5. **Smooth real-time** — Emit ticks smoothly at ~100–200 ms intervals instead of burst updates.

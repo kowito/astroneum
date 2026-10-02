@@ -53,6 +53,11 @@
       "import": "./dist/entries/datafeeds/crypto.js",
       "default": "./dist/entries/datafeeds/crypto.js"
     },
+    "./datafeeds/webtransport": {
+      "types": "./dist/entries/datafeeds/webtransport.d.ts",
+      "import": "./dist/entries/datafeeds/webtransport.js",
+      "default": "./dist/entries/datafeeds/webtransport.js"
+    },
     "./style.css": "./dist/astroneum.css",
     "./package.json": "./package.json"
   },
@@ -62,14 +67,12 @@
   "files": [
     "LICENSE",
     "README.md",
-    "CHANGELOG.md",
-    "docs",
     "dist/**/*.js",
     "dist/**/*.css",
     "dist/**/*.d.ts"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "repository": {
     "type": "git",
@@ -104,7 +107,8 @@
   "scripts": {
     "clean": "node -e \"const fs=require('node:fs');fs.rmSync('dist',{ recursive: true, force: true })\"",
     "dev": "node scripts/dev.mjs",
-    "build:js": "tsup --config tsup.config.ts",
+    "gen:worker": "node scripts/gen-indicator-worker.mjs",
+    "build:js": "node scripts/gen-indicator-worker.mjs && tsup --config tsup.config.ts",
     "build:css": "sass src/styles/index.scss src/styles/.tmp-astroneum.css --no-source-map && esbuild src/styles/.tmp-astroneum.css --bundle --minify --loader:.eot=dataurl --loader:.ttf=dataurl --loader:.woff=dataurl --loader:.svg=dataurl --outfile=dist/astroneum.css && node -e \"const fs=require('node:fs');fs.rmSync('src/styles/.tmp-astroneum.css',{ force: true })\"",
     "build": "pnpm clean && pnpm build:js && pnpm build:css",
     "typecheck": "tsc --noEmit",

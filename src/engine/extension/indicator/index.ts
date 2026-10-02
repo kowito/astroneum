@@ -3,6 +3,8 @@
 import type Nullable from '../../common/Nullable'
 
 import IndicatorImp, { type IndicatorTemplate, type IndicatorConstructor } from '../../component/Indicator'
+import { withWorkerOffload } from '../../workers/indicatorOffload'
+import type { IndicatorKind } from '../../workers/TypedArrayIndicators'
 
 import accumulationDistribution from './accumulationDistribution'
 import adaptiveMovingAverage from './adaptiveMovingAverage'
@@ -74,8 +76,12 @@ const extensions = [
   volumeWeightedMovingAverage, weightedMovingAverage, williamsR, zigzag
 ]
 
+// Built-ins that can run on the accelerated path (see configureIndicatorWorkers).
+const ACCELERATED: Record<string, IndicatorKind> = { MA: 'MA', EMA: 'EMA', RSI: 'RSI', BOLL: 'BOLL' }
+
 extensions.forEach((indicator: IndicatorTemplate) => {
-  indicators[indicator.name] = IndicatorImp.extend(indicator)
+  const kind = ACCELERATED[indicator.name]
+  indicators[indicator.name] = IndicatorImp.extend(kind !== undefined ? withWorkerOffload(indicator, kind) : indicator)
 })
 
 function registerIndicator<D = unknown, C = unknown, E = unknown>(indicator: IndicatorTemplate<D, C, E>): void {
