@@ -229,6 +229,38 @@ calculation. Off by default; applies to every chart on the page. Workers are
 started from a `blob:` URL — if your CSP has a `worker-src` that excludes
 `blob:`, calculations stay on the main thread.
 
+### `createTransformedDatafeed(datafeed, factory)`
+
+```ts
+createTransformedDatafeed(
+  datafeed: Datafeed,
+  factory: (history: CandleData[]) => (bars: CandleData[]) => CandleData[]
+): Datafeed
+```
+
+Wraps a time-based datafeed so the chart shows a **derived series**: Heikin-Ashi
+(`heikinAshi`), Renko (`generateRenko`), Range bars (`generateRangeBars`), or any
+function from bars to bars. History and live ticks are both derived, so the series
+keeps updating.
+
+`factory` runs once per loaded series with the initial bars; use it to fix
+parameters such as a brick size so the series does not repaint as ticks arrive.
+Each tick re-derives the series and the chart receives only the newest bar
+replaced or new bars appended. Older history can't be derived from a window, so
+scrolling back past the loaded bars loads nothing. Renko and Range bars use
+synthetic timestamps, so their time axis is not real time.
+
+```tsx
+const renko = createTransformedDatafeed(datafeed, history => {
+  const brick = 2 * averageRange(history)
+  return bars => generateRenko(bars, brick)
+})
+<AstroneumChart datafeed={renko} key="renko" … />
+```
+
+Mount the chart again (a different `key`) when you switch to another datafeed:
+the chart reads its datafeed at mount.
+
 ### `clearHistoryCache(namespace?)`
 
 ```ts
@@ -546,6 +578,7 @@ Represents the currently visible region of the chart canvas. Used for coordinate
 | `WatchlistManager` | Symbol watchlist with live prices |
 | `PortfolioTracker` | Position tracking and P&L calculation |
 | `PerformanceMode` | Reduced-render performance optimization |
+| `createTransformedDatafeed` | Wrap a datafeed to serve a derived series (Heikin-Ashi, Renko, Range bars, …), live |
 | `loadLocales` | Register UI locale strings |
 | `formatPrice` | Format a price number using symbol precision |
 | `formatVolume` | Format a volume number |

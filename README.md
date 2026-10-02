@@ -21,6 +21,7 @@ TradingView-class features, zero licensing fees, and MIT license.
 ### Chart Types
 - **Candlestick, OHLC, bar, area, line, Heikin-Ashi** — rendered via Canvas2D / WebGL2 with GPU acceleration
 - **Real-time line chart** — `styles={{ candle: { type: 'line' } }}` (or `'area'` for a filled line); the last point follows every datafeed tick
+- **Live Heikin-Ashi, Renko and Range bars** — wrap any datafeed with `createTransformedDatafeed(datafeed, …)`: history and live ticks are re-derived and streamed to the chart
 - **Non-time-based bars** — Renko, Kagi, Tick, Range, and Point & Figure generators
 - **Multi-chart grid** (2/4/8/16 panes) and **multi-period stacked layout** (e.g. 4H + 1H + 15m)
 
@@ -71,6 +72,21 @@ TradingView-class features, zero licensing fees, and MIT license.
 - **MIT license** — no usage limits, no watermark, no "Powered by" branding
 
 ---
+
+### Chart type demos
+
+Every type below runs live on its own link:
+
+| Chart type | Live demo |
+|---|---|
+| Candlestick | [open](https://kowito.github.io/astroneum/?type=candles) |
+| Hollow candles | [open](https://kowito.github.io/astroneum/?type=hollow) |
+| OHLC bars | [open](https://kowito.github.io/astroneum/?type=ohlc) |
+| **Line** | [open](https://kowito.github.io/astroneum/?type=line) |
+| Area | [open](https://kowito.github.io/astroneum/?type=area) |
+| Heikin-Ashi | [open](https://kowito.github.io/astroneum/?type=heikin-ashi) |
+| Renko | [open](https://kowito.github.io/astroneum/?type=renko) |
+| Range bars | [open](https://kowito.github.io/astroneum/?type=range) |
 
 ## Install
 
