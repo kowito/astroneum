@@ -10,6 +10,8 @@ TradingView-class features, zero licensing fees, and MIT license.
 [![Node >=18](https://img.shields.io/badge/node-%3E%3D18-339933)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
+**[Live demo →](https://kowito.github.io/astroneum/)**
+
 ![Astroneum chart — dark theme with EMA, MACD, RSI and volume indicators](screenshort-1.png)
 
 ![Astroneum chart — dark theme with multi-pane indicators](screenshort-2.png)
