@@ -37,7 +37,7 @@ stop everything.
 | [src/plugin](src/plugin) | Public indicator plugin system. |
 | [src/scripting](src/scripting) | Sandboxed indicator scripting engine. |
 | [src/entries](src/entries) | Subpath export entry points (e.g. `astroneum/replay`). |
-| [src/i18n](src/i18n) | 19 locale dictionaries (lazy-loaded on demand). |
+| [src/i18n](src/i18n) | 18 locale dictionaries (lazy-loaded on demand). |
 | [src/store](src/store) | React state stores (chart, indicator, UI). |
 | [src/__tests__](src/__tests__) | All tests (unit, contract, SSR smoke, perf baseline). |
 | [demo](demo) | Next.js demo app. |

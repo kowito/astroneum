@@ -9,6 +9,39 @@ once it reaches v1.0. Until then, minor releases may include breaking changes
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-10-04
+
+The first stable release since 0.4.1. The notes for the 0.4.x betas were never cut into
+releases of their own, so the sections below also cover them.
+
+### Highlights
+
+- **More chart types, all live.** Line and area charts, plus Heikin-Ashi, Renko and range
+  bars through the new `createTransformedDatafeed`.
+- **Live line pane.** `subIndicators={['LINE']}` adds a close-price line chart under the
+  candles.
+- **Faster and offline, opt-in.** A browser history cache (`historyCache`), Web Worker
+  indicators (`configureIndicatorWorkers`), and an experimental WebTransport datafeed.
+- **Fixes that matter.** Older history now loads when you scroll back; a slow response for
+  the previous symbol can no longer replace the new one; `mainIndicators` and
+  `subIndicators` now follow prop changes; unchecking a sub-indicator in the modal works.
+- **Smaller package:** about 13% less to download.
+- **Docs.** New step-by-step [Getting started](docs/getting-started.md) and
+  [How it works](docs/architecture.md) guides, with diagrams.
+
+### Upgrade notes (from 0.4.1)
+
+- **Node.js 22 or newer is required** (`engines.node`).
+- `mainIndicators` and `subIndicators` used to be read only when the chart mounted. They now
+  apply when they change. If your app passed arrays that changed and relied on them being
+  ignored, the chart will now follow them.
+- `docs/` and `CHANGELOG.md` are no longer in the npm package; read them on GitHub.
+- The icon font in `astroneum.css` is WOFF only (no visible change in supported browsers).
+- `SabRingBuffer`, `OPFSCache` and `WasmIndicators` were removed. None was ever exported.
+- The README's counts are corrected: about 50 indicators and 18 languages.
+
+### Details
+
 ### Added — Chart type demos
 
 - The demo has a **chart type picker**, each type on its own link
@@ -291,7 +324,7 @@ Still tracked for v0.6 – v1.0; not in this release:
 ### Added — v0.3 Hardening
 
 - **Subpath exports** for tree-shakeable, opt-in feature modules
-  ([#roadmap-4](README.md#v04--modularization)):
+  (roadmap item 4):
   - `astroneum/replay` — `BarReplay`
   - `astroneum/multichart` — `MultiChartLayout`
   - `astroneum/watchlist` — `WatchlistManager`

@@ -199,7 +199,7 @@ consumer can pull in just what they need.
 
 All listed symbols except the WebTransport ones also re-export from the root `astroneum` entry today,
 but the root re-exports for these modules will be removed in **v1.0**
-(see the [Roadmap](../README.md#v10--stability)). Migrate to the subpath
+(planned for v1.0). Migrate to the subpath
 import to be forward-compatible.
 
 ```ts
