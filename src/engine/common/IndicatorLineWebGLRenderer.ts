@@ -1,35 +1,23 @@
 import { getPixelRatio } from './utils/canvas'
 import type { SharedIndicatorGLCanvas } from './SharedIndicatorGLCanvas'
-import { getOrCreateColor } from './candleShaders'
+import { type InstanceStaging, SEGMENT_BYTES, SEGMENT_COLOR_OFFSET } from './instancePacking'
 
 // ---------------------------------------------------------------------------
-// GPU line renderer for indicator figure lines (Priority 3).
+// GPU line renderer for indicator figure lines and grid lines.
 //
-// Uses instanced rendering: 1 draw-call instance = 1 line segment.
-// The vertex shader expands each (x0,y0)→(x1,y1) segment into a screen-aligned
-// quad (2 triangles, 6 verts via gl_VertexID) giving sub-pixel smooth lines
-// at any line-width — unlike Canvas2D polylines which alias at fractional widths.
+// Instanced rendering: one instance per line segment. The vertex shader expands
+// each (x0,y0)→(x1,y1) segment into a screen-aligned quad (two triangles via
+// gl_VertexID) and the fragment shader anti-aliases the edge, so lines look the
+// same at any width, unlike Canvas2D polylines which alias at fractional widths.
 //
-// Memory layout — packed per-instance VBO  (24 bytes / segment)
-//
-//  Byte  0– 3  Float32  x0          (CSS pixels)
-//  Byte  4– 7  Float32  y0          (CSS pixels)
-//  Byte  8–11  Float32  x1          (CSS pixels)
-//  Byte 12–15  Float32  y1          (CSS pixels)
-//  Byte 16–19  Float32  halfWidth   (CSS pixels — shader scales by pixelRatio)
-//  Byte 20–23  UByte×4  RGBA        (normalized: 0..255 → 0..1 in shader)
-//
-// Coordinate system: CSS pixels, Y=0 at top of canvas (matching Canvas2D).
-// Shader converts: CSS px → physical px → NDC (with Y-flip).
+// The view packs segments into an InstanceStaging (see instancePacking.ts) and
+// hands it to upload() once per frame. The staging's hash decides whether the
+// GPU buffer is rewritten, so redraws that keep the data cost no upload. Grid
+// lines have their own buffer: they change on zoom and resize but not on pan.
 // ---------------------------------------------------------------------------
 
-const BYTES_PER_SEG = 24
-const COLOR_BYTE_OFF = 20   // byte offset of the colour field per segment
 const VERTS_PER_SEG = 6   // two triangles, no index buffer
 
-// ---------------------------------------------------------------------------
-// Vertex shader — quad expansion via gl_VertexID
-// ---------------------------------------------------------------------------
 const VERT_SRC = /* glsl */`#version 300 es
 precision highp float;
 
@@ -46,7 +34,8 @@ uniform vec2  u_resolution;
 uniform float u_pixelRatio;
 
 out vec4  v_color;
-out float v_normDist;   // signed normalised perp distance: ±1 at the line edges
+out float v_dist;        // signed distance from the centreline, physical pixels
+out float v_halfWidth;   // half the line width, physical pixels
 
 void main() {
   // Quad-expansion pattern for 6 vertices (two triangles):
@@ -65,8 +54,11 @@ void main() {
   vec2 unitDir = len > 0.001 ? dir / len : vec2(1.0, 0.0);
   vec2 normal  = vec2(-unitDir.y, unitDir.x);
 
-  // Interpolate along segment then extrude perpendicular
-  vec2 pos = mix(p0, p1, t) + normal * (n * a_halfWidth * u_pixelRatio);
+  // Extrude one extra pixel each side so the anti-aliased edge has room; the
+  // fragment shader fades that margin out by pixel coverage.
+  float halfWidth = a_halfWidth * u_pixelRatio;
+  float extent = halfWidth + 1.0;
+  vec2 pos = mix(p0, p1, t) + normal * (n * extent);
 
   // Physical px → NDC (Y-flip: CSS Y=0 is top, NDC Y=+1 is top)
   gl_Position = vec4(
@@ -75,32 +67,29 @@ void main() {
     0.0, 1.0
   );
 
-  v_color    = a_color;
-  v_normDist = n;         // ±1 at the outer edges, interpolated across the quad
+  v_color     = a_color;
+  v_dist      = n * extent;
+  v_halfWidth = halfWidth;
 }
 `
 
 const FRAG_SRC = /* glsl */`#version 300 es
 precision mediump float;
 in  vec4  v_color;
-in  float v_normDist;
+in  float v_dist;
+in  float v_halfWidth;
 out vec4  fragColor;
 void main() {
-  // Anti-alias the line edge over ~1 physical pixel using the built-in
-  // fwidth() derivative (GLSL ES 3.0 — no extension needed).
-  // abs(v_normDist) → 0 at the centreline, 1 at the hard edge.
-  // smoothstep fades the alpha from 1 → 0 over one derivative-width.
-  float fw = fwidth(v_normDist);
-  float aa = 1.0 - smoothstep(1.0 - fw, 1.0 + fw, abs(v_normDist));
-  fragColor = vec4(v_color.rgb, v_color.a * aa);
+  // Alpha is the share of this pixel the line covers: full inside the line,
+  // fading over one pixel at the edge. A 1px line keeps its full colour at the
+  // centre, as it does on Canvas2D, instead of being faded by a derivative-width
+  // smoothstep that treats thin lines as all edge.
+  float coverage = clamp(v_halfWidth + 0.5 - abs(v_dist), 0.0, 1.0);
+  fragColor = vec4(v_color.rgb, v_color.a * coverage);
 }
 `
 
-// ---------------------------------------------------------------------------
-// Shader helpers
-// ---------------------------------------------------------------------------
-
-function compileShader(gl: WebGL2RenderingContext, type: GLenum, src: string): WebGLShader {
+function compileShader (gl: WebGL2RenderingContext, type: GLenum, src: string): WebGLShader {
   const shader = gl.createShader(type)!
   gl.shaderSource(shader, src)
   gl.compileShader(shader)
@@ -110,7 +99,7 @@ function compileShader(gl: WebGL2RenderingContext, type: GLenum, src: string): W
   return shader
 }
 
-function createProgram(gl: WebGL2RenderingContext): WebGLProgram {
+function createProgram (gl: WebGL2RenderingContext): WebGLProgram {
   const vert = compileShader(gl, gl.VERTEX_SHADER, VERT_SRC)
   const frag = compileShader(gl, gl.FRAGMENT_SHADER, FRAG_SRC)
   const prog = gl.createProgram()!
@@ -125,419 +114,154 @@ function createProgram(gl: WebGL2RenderingContext): WebGLProgram {
   return prog
 }
 
-// Colour helpers imported from candleShaders (hexToRgba, parseColor, getOrCreateColor)
+/** One instance buffer on the GPU, and what was last uploaded to it. */
+class SegmentBuffer {
+  readonly vao: WebGLVertexArrayObject
+  readonly vbo: WebGLBuffer
+  gpuCapacity = 0
+  uploadedCount = 0
+  uploadedHash = -1
+  version = 0
+  drawnVersion = -1
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
+  constructor (gl: WebGL2RenderingContext, program: WebGLProgram) {
+    this.vao = gl.createVertexArray()!
+    gl.bindVertexArray(this.vao)
+    this.vbo = gl.createBuffer()!
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo)
+    const bindF32 = (name: string, byteOffset: number): void => {
+      const loc = gl.getAttribLocation(program, name)
+      if (loc < 0) return
+      gl.enableVertexAttribArray(loc)
+      gl.vertexAttribPointer(loc, 1, gl.FLOAT, false, SEGMENT_BYTES, byteOffset)
+      gl.vertexAttribDivisor(loc, 1)
+    }
+    bindF32('a_x0', 0)
+    bindF32('a_y0', 4)
+    bindF32('a_x1', 8)
+    bindF32('a_y1', 12)
+    bindF32('a_halfWidth', 16)
+    const colorLoc = gl.getAttribLocation(program, 'a_color')
+    if (colorLoc >= 0) {
+      gl.enableVertexAttribArray(colorLoc)
+      gl.vertexAttribPointer(colorLoc, 4, gl.UNSIGNED_BYTE, true, SEGMENT_BYTES, SEGMENT_COLOR_OFFSET)
+      gl.vertexAttribDivisor(colorLoc, 1)
+    }
+    gl.bindVertexArray(null)
+  }
 
-export interface LineSegmentData {
-  x0: number
-  y0: number
-  x1: number
-  y1: number
-  halfWidth: number   // CSS pixels
-  color: string       // any CSS color string
+  /** Rewrite the GPU buffer when the staged segments differ from what it holds. */
+  upload (gl: WebGL2RenderingContext, staging: InstanceStaging): void {
+    const { count, hash } = staging
+    if (count === this.uploadedCount && hash === this.uploadedHash) return
+    this.uploadedCount = count
+    this.uploadedHash = hash
+    this.version++
+    if (count === 0) return
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo)
+    if (count > this.gpuCapacity) {
+      this.gpuCapacity = staging.capacity
+      gl.bufferData(gl.ARRAY_BUFFER, this.gpuCapacity * SEGMENT_BYTES, gl.DYNAMIC_DRAW)
+    }
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, staging.bytes())
+  }
+
+  destroy (gl: WebGL2RenderingContext): void {
+    gl.deleteVertexArray(this.vao)
+    gl.deleteBuffer(this.vbo)
+  }
 }
 
 export class IndicatorLineWebGLRenderer {
   private readonly _sharedCanvas: SharedIndicatorGLCanvas
   private readonly _gl: WebGL2RenderingContext
   private readonly _program: WebGLProgram
-  private readonly _vao: WebGLVertexArrayObject
-  private readonly _vbo: WebGLBuffer
-
-  // uniform locations
   private readonly _uResolution: WebGLUniformLocation
   private readonly _uPixelRatio: WebGLUniformLocation
 
-  private _capacity = 0
-  private _segCount = 0
-
-  // Pre-allocated staging buffer — grows with capacity, never shrinks
-  private _stagingBuf: ArrayBuffer = new ArrayBuffer(512 * BYTES_PER_SEG)
-  private _stagingF32: Float32Array = new Float32Array(this._stagingBuf)
-  private _stagingU8: Uint8Array = new Uint8Array(this._stagingBuf)
-
-  // Color cache — indicator palettes are small (≤10 distinct colors typically)
-  private readonly _colorCache = new Map<string, readonly [number, number, number, number]>()
-
-  // ── Grid line GPU resources (separate VAO + VBO so grid and indicator data are independent)
-  private readonly _gridVao: WebGLVertexArrayObject
-  private readonly _gridVbo: WebGLBuffer
-  private _gridCapacity = 0
-  private _gridSegCount = 0
-  private _gridStagingBuf: ArrayBuffer = new ArrayBuffer(128 * BYTES_PER_SEG)
-  private _gridStagingF32: Float32Array = new Float32Array(this._gridStagingBuf)
-  private _gridStagingU8: Uint8Array = new Uint8Array(this._gridStagingBuf)
-  private _gridVboVersion = 0
-  private _gridDrawnVersion = -1
-  // O(1) fingerprint for grid lines (changes only on zoom/resize, not pan)
-  private _gridFingerprintCount = -1
-  private _gridFingerprintFirstX = 0
-  private _gridFingerprintFirstY = 0
-  private _gridFingerprintLastX = 0
-  private _gridFingerprintLastY = 0
-
-  // ---------------------------------------------------------------------------
-  // Dirty-flag fingerprint (same O(1) strategy as CandleWebGLRenderer)
-  // ---------------------------------------------------------------------------
-  private _fingerprintSegmentCount = -1
-  private _fingerprintFirstX = 0
-  private _fingerprintFirstY = 0
-  private _fingerprintLastX = 0
-  private _fingerprintLastY = 0
-
-  // Sub-pixel culling reuse buffer — grows amortised, never shrinks.
-  // Holds the visible subset of segments after culling each frame.
-  private readonly _culledBuf: LineSegmentData[] = []
-
-  // ── Incremental dirty tracking ───────────────────────────────────────────────
-  //  _vboVersion increments whenever the VBO is actually written.
-  //  isDirty() compares _drawnVersion and _lastSizeVersion against the shared
-  //  canvas state so the view can skip beginFrame() + draw() on clean frames.
-  private _vboVersion = 0
-  private _drawnVersion = -1
+  private readonly _lines: SegmentBuffer
+  private readonly _grid: SegmentBuffer
   private _lastSizeVersion = -1
 
-  constructor(sharedCanvas: SharedIndicatorGLCanvas) {
+  constructor (sharedCanvas: SharedIndicatorGLCanvas) {
     this._sharedCanvas = sharedCanvas
     const gl = sharedCanvas.gl
     this._gl = gl
 
-    // Note: BLEND, DEPTH_TEST, SCISSOR_TEST are set once in SharedIndicatorGLCanvas.
-
+    // BLEND, DEPTH_TEST and SCISSOR_TEST are set once by SharedIndicatorGLCanvas.
     this._program = createProgram(gl)
     gl.useProgram(this._program)
-
     this._uResolution = gl.getUniformLocation(this._program, 'u_resolution')!
     this._uPixelRatio = gl.getUniformLocation(this._program, 'u_pixelRatio')!
 
-    this._vao = gl.createVertexArray()!
-    gl.bindVertexArray(this._vao)
-
-    this._vbo = gl.createBuffer()!
-    gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
-
-    this._setupAttribs(gl)
-    gl.bindVertexArray(null)
-
-    // Grid VAO/VBO — same shader, separate instance buffer
-    this._gridVao = gl.createVertexArray()!
-    gl.bindVertexArray(this._gridVao)
-
-    this._gridVbo = gl.createBuffer()!
-    gl.bindBuffer(gl.ARRAY_BUFFER, this._gridVbo)
-
-    this._setupAttribs(gl)
-    gl.bindVertexArray(null)
+    this._lines = new SegmentBuffer(gl, this._program)
+    this._grid = new SegmentBuffer(gl, this._program)
   }
 
-  // ---------------------------------------------------------------------------
-  // Attribute bindings
-  // ---------------------------------------------------------------------------
+  /** Upload this frame's indicator line segments (packed with packSegment). */
+  upload (staging: InstanceStaging): void { this._lines.upload(this._gl, staging) }
 
-  private _setupAttribs(gl: WebGL2RenderingContext): void {
-    const prog = this._program
-    const stride = BYTES_PER_SEG
+  /** Upload this frame's grid line segments (packed with packSegment). */
+  uploadGrid (staging: InstanceStaging): void { this._grid.upload(this._gl, staging) }
 
-    const bindF32 = (name: string, byteOffset: number): void => {
-      const loc = gl.getAttribLocation(prog, name)
-      if (loc < 0) return
-      gl.enableVertexAttribArray(loc)
-      gl.vertexAttribPointer(loc, 1, gl.FLOAT, false, stride, byteOffset)
-      gl.vertexAttribDivisor(loc, 1)
-    }
-
-    bindF32('a_x0', 0)
-    bindF32('a_y0', 4)
-    bindF32('a_x1', 8)
-    bindF32('a_y1', 12)
-    bindF32('a_halfWidth', 16)
-
-    const colorLoc = gl.getAttribLocation(prog, 'a_color')
-    if (colorLoc >= 0) {
-      gl.enableVertexAttribArray(colorLoc)
-      gl.vertexAttribPointer(colorLoc, 4, gl.UNSIGNED_BYTE, true, stride, COLOR_BYTE_OFF)
-      gl.vertexAttribDivisor(colorLoc, 1)
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Dirty tracking
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Returns true when the renderer's output is stale and must be redrawn.
-   * Stale when the VBO contents changed OR the shared canvas was resized.
-   */
-  isDirty(): boolean {
-    return this._vboVersion !== this._drawnVersion ||
+  /** True when the line layer must be redrawn: new data, or the canvas was resized. */
+  isDirty (): boolean {
+    return this._lines.version !== this._lines.drawnVersion ||
       this._lastSizeVersion !== this._sharedCanvas.sizeVersion
   }
 
-  // ---------------------------------------------------------------------------
-  // Resize — delegates to the shared canvas (idempotent).
-  // ---------------------------------------------------------------------------
+  isGridDirty (): boolean {
+    return this._grid.version !== this._grid.drawnVersion ||
+      this._lastSizeVersion !== this._sharedCanvas.sizeVersion
+  }
 
-  resize(width: number, height: number): void {
+  resize (width: number, height: number): void {
     this._sharedCanvas.resize(width, height)
   }
 
-  // ---------------------------------------------------------------------------
-  // VBO management
-  // ---------------------------------------------------------------------------
-
-  private _ensureCapacity(count: number): void {
-    if (count <= this._capacity) return
-    const newCap = Math.max(count, this._capacity * 2, 512)
-    this._stagingBuf = new ArrayBuffer(newCap * BYTES_PER_SEG)
-    this._stagingF32 = new Float32Array(this._stagingBuf)
-    this._stagingU8 = new Uint8Array(this._stagingBuf)
-    const gl = this._gl
-    gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
-    gl.bufferData(gl.ARRAY_BUFFER, newCap * BYTES_PER_SEG, gl.DYNAMIC_DRAW)
-    this._capacity = newCap
-  }
-
-  private _parseColorCached(color: string): readonly [number, number, number, number] {
-    return getOrCreateColor(color, this._colorCache)
-  }
-
-  /**
-   * Upload all line segments for this frame.
-   * Sub-pixel culling: segments where both Δx and Δy are < 0.5 CSS pixel are
-   * invisible at any scale and skipped before upload — proportionally reduces
-   * GPU work at high zoom-out where many indicator segments collapse to a point.
-   * Dirty-flag: skips the GPU upload when the culled segment set is identical
-   * to the previous frame (e.g. crosshair hover redraws).
-   */
-  setData(segs: LineSegmentData[]): void {
-    // Sub-pixel culling pass — compact visible segments into the reused buffer
-    const culledBuf = this._culledBuf
-    let culledCount = 0
-    for (let i = 0; i < segs.length; i++) {
-      const s = segs[i]
-      if (Math.abs(s.x1 - s.x0) < 0.5 && Math.abs(s.y1 - s.y0) < 0.5) continue
-      if (culledCount >= culledBuf.length) culledBuf.push(s)
-      else culledBuf[culledCount] = s
-      culledCount++
-    }
-    const segmentCount = culledCount
-    this._segCount = segmentCount
-    if (segmentCount === 0) {
-      if (this._fingerprintSegmentCount !== 0) this._vboVersion++   // canvas must be cleared
-      this._fingerprintSegmentCount = 0
-      return
-    }
-
-    // O(1) fingerprint — first/last endpoint covers pan + new-tick cases
-    const firstSegment = culledBuf[0]
-    const lastSegment = culledBuf[culledCount - 1]
-    if (
-      segmentCount === this._fingerprintSegmentCount &&
-      firstSegment.x0 === this._fingerprintFirstX &&
-      firstSegment.y0 === this._fingerprintFirstY &&
-      lastSegment.x1 === this._fingerprintLastX &&
-      lastSegment.y1 === this._fingerprintLastY
-    ) return
-
-    this._fingerprintSegmentCount = segmentCount
-    this._fingerprintFirstX = firstSegment.x0
-    this._fingerprintFirstY = firstSegment.y0
-    this._fingerprintLastX = lastSegment.x1
-    this._fingerprintLastY = lastSegment.y1
-
-    this._ensureCapacity(segmentCount)
-
-    const f32 = this._stagingF32
-    const u8 = this._stagingU8
-    for (let i = 0; i < segmentCount; i++) {
-      const seg = culledBuf[i]
-      const f32Base = i * 5          // 5 float32 fields per segment
-      const byteBase = i * BYTES_PER_SEG
-      f32[f32Base + 0] = seg.x0
-      f32[f32Base + 1] = seg.y0
-      f32[f32Base + 2] = seg.x1
-      f32[f32Base + 3] = seg.y1
-      f32[f32Base + 4] = seg.halfWidth
-      const rgba = this._parseColorCached(seg.color)
-      u8[byteBase + COLOR_BYTE_OFF] = (rgba[0] * 255 + 0.5) | 0
-      u8[byteBase + COLOR_BYTE_OFF + 1] = (rgba[1] * 255 + 0.5) | 0
-      u8[byteBase + COLOR_BYTE_OFF + 2] = (rgba[2] * 255 + 0.5) | 0
-      u8[byteBase + COLOR_BYTE_OFF + 3] = (rgba[3] * 255 + 0.5) | 0
-    }
-
-    const gl = this._gl
-    gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._stagingU8, 0, segmentCount * BYTES_PER_SEG)
-    this._vboVersion++   // VBO updated — draw() must re-render
-  }
-
-  /**
-   * Draw all uploaded line segments in a single instanced draw call.
-   * Caller MUST call sharedCanvas.beginFrame() before this and check isDirty()
-   * first — this method always draws (dirty tracking is done by the view).
-   */
-  draw(): void {
-    const shared = this._sharedCanvas
-    const canvas = shared.canvas
-    const gl = this._gl
-    const pr = getPixelRatio(canvas)
-    const w = canvas.width
-    const h = canvas.height
-
-    // Mark as current — viewport/scissor/clear already handled by beginFrame().
-    this._drawnVersion = this._vboVersion
-    this._lastSizeVersion = shared.sizeVersion
-
-    if (this._segCount === 0) return
-
-    gl.useProgram(this._program)
-    gl.uniform2f(this._uResolution, w, h)
-    gl.uniform1f(this._uPixelRatio, pr)
-
-    gl.bindVertexArray(this._vao)
-    gl.drawArraysInstanced(gl.TRIANGLES, 0, VERTS_PER_SEG, this._segCount)
-    gl.bindVertexArray(null)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Cleanup
-  // ---------------------------------------------------------------------------
-
-  // ---------------------------------------------------------------------------
-  // Grid dirty tracking
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Returns true when the grid layer is stale and must be redrawn.
-   * Stale when the grid VBO contents changed OR the shared canvas was resized.
-   */
-  isGridDirty(): boolean {
-    return this._gridVboVersion !== this._gridDrawnVersion ||
-      this._lastSizeVersion !== this._sharedCanvas.sizeVersion
-  }
-
-  // ---------------------------------------------------------------------------
-  // Grid VBO management
-  // ---------------------------------------------------------------------------
-
-  private _ensureGridCapacity(count: number): void {
-    if (count <= this._gridCapacity) return
-    const newCap = Math.max(count, this._gridCapacity * 2, 128)
-    this._gridStagingBuf = new ArrayBuffer(newCap * BYTES_PER_SEG)
-    this._gridStagingF32 = new Float32Array(this._gridStagingBuf)
-    this._gridStagingU8 = new Uint8Array(this._gridStagingBuf)
-    const gl = this._gl
-    gl.bindBuffer(gl.ARRAY_BUFFER, this._gridVbo)
-    gl.bufferData(gl.ARRAY_BUFFER, newCap * BYTES_PER_SEG, gl.DYNAMIC_DRAW)
-    this._gridCapacity = newCap
-  }
-
-  /**
-   * Upload grid line segments (horizontal + vertical grid ticks).
-   * Called from GridView before IndicatorView flushes its GPU draw.
-   * Fingerprint gate: grid segments change only on zoom/resize, not pan —
-   * so most live-tick frames skip the VBO write entirely.
-   */
-  setGridLines(segs: LineSegmentData[]): void {
-    const count = segs.length
-    this._gridSegCount = count
-    if (count === 0) {
-      if (this._gridFingerprintCount !== 0) this._gridVboVersion++
-      this._gridFingerprintCount = 0
-      return
-    }
-
-    const first = segs[0]
-    const last = segs[count - 1]
-    if (
-      count === this._gridFingerprintCount &&
-      first.x0 === this._gridFingerprintFirstX &&
-      first.y0 === this._gridFingerprintFirstY &&
-      last.x1 === this._gridFingerprintLastX &&
-      last.y1 === this._gridFingerprintLastY
-    ) return
-
-    this._gridFingerprintCount = count
-    this._gridFingerprintFirstX = first.x0
-    this._gridFingerprintFirstY = first.y0
-    this._gridFingerprintLastX = last.x1
-    this._gridFingerprintLastY = last.y1
-
-    this._ensureGridCapacity(count)
-
-    const f32 = this._gridStagingF32
-    const u8 = this._gridStagingU8
-    for (let i = 0; i < count; i++) {
-      const seg = segs[i]
-      const f32Base = i * 5
-      const byteBase = i * BYTES_PER_SEG
-      f32[f32Base + 0] = seg.x0
-      f32[f32Base + 1] = seg.y0
-      f32[f32Base + 2] = seg.x1
-      f32[f32Base + 3] = seg.y1
-      f32[f32Base + 4] = seg.halfWidth
-      const rgba = this._parseColorCached(seg.color)
-      u8[byteBase + COLOR_BYTE_OFF] = (rgba[0] * 255 + 0.5) | 0
-      u8[byteBase + COLOR_BYTE_OFF + 1] = (rgba[1] * 255 + 0.5) | 0
-      u8[byteBase + COLOR_BYTE_OFF + 2] = (rgba[2] * 255 + 0.5) | 0
-      u8[byteBase + COLOR_BYTE_OFF + 3] = (rgba[3] * 255 + 0.5) | 0
-    }
-
-    const gl = this._gl
-    gl.bindBuffer(gl.ARRAY_BUFFER, this._gridVbo)
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._gridStagingU8, 0, count * BYTES_PER_SEG)
-    this._gridVboVersion++
-  }
-
-  /**
-   * Draw all uploaded grid line segments in a single instanced draw call.
-   * Must be called AFTER sharedCanvas.beginFrame() and BEFORE draw() so that
-   * grid lines appear behind indicator lines.
-   */
-  drawGrid(): void {
-    this._gridDrawnVersion = this._gridVboVersion
+  /** Draw the indicator lines. The caller clears the canvas with beginFrame() first. */
+  draw (): void {
+    this._lines.drawnVersion = this._lines.version
     this._lastSizeVersion = this._sharedCanvas.sizeVersion
-    if (this._gridSegCount === 0) return
+    this._drawBuffer(this._lines)
+  }
 
-    const shared = this._sharedCanvas
-    const canvas = shared.canvas
+  /** Draw the grid lines; call before draw() so the grid sits behind the lines. */
+  drawGrid (): void {
+    this._grid.drawnVersion = this._grid.version
+    this._lastSizeVersion = this._sharedCanvas.sizeVersion
+    this._drawBuffer(this._grid)
+  }
+
+  private _drawBuffer (buffer: SegmentBuffer): void {
+    if (buffer.uploadedCount === 0) return
+    const canvas = this._sharedCanvas.canvas
     const gl = this._gl
-    const pr = getPixelRatio(canvas)
-    const w = canvas.width
-    const h = canvas.height
-
     gl.useProgram(this._program)
-    gl.uniform2f(this._uResolution, w, h)
-    gl.uniform1f(this._uPixelRatio, pr)
-
-    gl.bindVertexArray(this._gridVao)
-    gl.drawArraysInstanced(gl.TRIANGLES, 0, VERTS_PER_SEG, this._gridSegCount)
+    gl.uniform2f(this._uResolution, canvas.width, canvas.height)
+    gl.uniform1f(this._uPixelRatio, getPixelRatio(canvas))
+    gl.bindVertexArray(buffer.vao)
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, VERTS_PER_SEG, buffer.uploadedCount)
     gl.bindVertexArray(null)
   }
 
-  destroy(): void {
+  destroy (): void {
     const gl = this._gl
-    gl.deleteVertexArray(this._gridVao)
-    gl.deleteBuffer(this._gridVbo)
-    gl.deleteVertexArray(this._vao)
-    gl.deleteBuffer(this._vbo)
+    this._grid.destroy(gl)
+    this._lines.destroy(gl)
     gl.deleteProgram(this._program)
-    // The GL context and canvas are owned by SharedIndicatorGLCanvas — do not
-    // lose the context here; destroySharedIndicatorGLCanvas() handles that.
+    // The context and canvas belong to SharedIndicatorGLCanvas.
   }
 }
 
-// WeakMap keyed on the widget instance — one renderer per pane widget
+// One renderer per pane widget.
 const _lineRendererCache = new WeakMap<object, IndicatorLineWebGLRenderer>()
 
-export function getLineRenderer(widgetKey: object): IndicatorLineWebGLRenderer | null {
+export function getLineRenderer (widgetKey: object): IndicatorLineWebGLRenderer | null {
   return _lineRendererCache.get(widgetKey) ?? null
 }
 
-export function getOrCreateLineRenderer(
+export function getOrCreateLineRenderer (
   widgetKey: object,
   sharedCanvas: SharedIndicatorGLCanvas
 ): IndicatorLineWebGLRenderer {
@@ -549,7 +273,7 @@ export function getOrCreateLineRenderer(
   return r
 }
 
-export function destroyLineRenderer(widgetKey: object): void {
+export function destroyLineRenderer (widgetKey: object): void {
   const r = _lineRendererCache.get(widgetKey)
   if (r !== undefined) {
     r.destroy()

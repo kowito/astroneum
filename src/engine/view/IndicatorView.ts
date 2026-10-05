@@ -9,9 +9,15 @@ import type Coordinate from '../common/Coordinate'
 import { INDICATOR_PLUGIN_RUNTIME_KEY } from '../../constants'
 
 import { eachFigures, type IndicatorFigure, type IndicatorFigureAttrs, type IndicatorFigureStyle } from '../component/Indicator'
-import { getLineRenderer, getOrCreateLineRenderer, type LineSegmentData, getOrCreateSharedIndicatorGLCanvas, getSharedIndicatorGLCanvas } from '../common/IndicatorLineWebGLRenderer'
+import { getLineRenderer, getOrCreateLineRenderer, getOrCreateSharedIndicatorGLCanvas, getSharedIndicatorGLCanvas } from '../common/IndicatorLineWebGLRenderer'
 import { getIndicatorPluginRenderer, getOrCreateIndicatorPluginRenderer } from '../common/IndicatorPluginWebGLRenderer'
-import { getOrCreateRectRenderer, getRectRenderer, isGpuRectEligible, type RectInstanceData } from '../common/IndicatorRectWebGLRenderer'
+import { getOrCreateRectRenderer, getRectRenderer, isGpuRectEligible } from '../common/IndicatorRectWebGLRenderer'
+import {
+  InstanceStaging, packRect, packSegment, type Rgba,
+  RECT_BYTES, RECT_FLOATS, RECT_COLOR_OFFSET, SEGMENT_BYTES, SEGMENT_FLOATS, SEGMENT_COLOR_OFFSET
+} from '../common/instancePacking'
+import { getOrCreateColor } from '../common/candleShaders'
+import { WebGLCanvas } from '../common/WebGLCanvas'
 
 import CandleBarView, { type CandleBarOptions } from './CandleBarView'
 
@@ -92,7 +98,47 @@ function createPluginViewport (
   }
 }
 
+/** The backdrop behind volume bars, as CSS for the GPU layer (see drawImp). */
+const VOLUME_BACKDROP = 'linear-gradient(to top, rgba(46, 116, 255, 0.24) 0%, rgba(46, 116, 255, 0.08) 45%, rgba(46, 116, 255, 0) 100%)'
+
+/** Solid, straight lines with a plain colour go to the GPU; dashed, smooth and gradient lines stay on Canvas2D. */
+function isGpuLineEligible (styles: SmoothLineStyle): boolean {
+  return styles.style !== 'dashed' &&
+    styles.smooth !== true &&
+    typeof styles.color === 'string' &&
+    styles.color !== 'transparent' &&
+    styles.color !== ''
+}
+
+/** Canvas2D stand-in for the GPU layer when no WebGL context could be created. */
+function drawStagingWithCanvas (ctx: CanvasRenderingContext2D, rects: InstanceStaging, lines: InstanceStaging): void {
+  const rgba = (u8: Uint8Array, b: number): string => `rgba(${u8[b]},${u8[b + 1]},${u8[b + 2]},${u8[b + 3] / 255})`
+  ctx.save()
+  for (let i = 0; i < rects.count; i++) {
+    const f = i * RECT_FLOATS
+    ctx.fillStyle = rgba(rects.u8, i * RECT_BYTES + RECT_COLOR_OFFSET)
+    ctx.fillRect(rects.f32[f], rects.f32[f + 1], rects.f32[f + 2], rects.f32[f + 3])
+  }
+  for (let i = 0; i < lines.count; i++) {
+    const f = i * SEGMENT_FLOATS
+    ctx.strokeStyle = rgba(lines.u8, i * SEGMENT_BYTES + SEGMENT_COLOR_OFFSET)
+    ctx.lineWidth = lines.f32[f + 4] * 2
+    ctx.beginPath()
+    ctx.moveTo(lines.f32[f], lines.f32[f + 1])
+    ctx.lineTo(lines.f32[f + 2], lines.f32[f + 3])
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
 export default class IndicatorView extends CandleBarView {
+  // Per-frame GPU instance data. Packed here (no GL needed) and uploaded at the
+  // end of drawImp, so a pane only gets a GL context once it has GPU work.
+  private readonly _lineStaging = new InstanceStaging(SEGMENT_BYTES, 1024)
+  private readonly _rectStaging = new InstanceStaging(RECT_BYTES, 512)
+  private readonly _colorCache = new Map<string, Rgba>()
+  private _backdropOnGl = false
+
   override getCandleBarOptions (): Nullable<CandleBarOptions> {
     const pane = this.getWidget().getPane()
     const yAxis = pane.getAxisComponent()
@@ -140,9 +186,17 @@ export default class IndicatorView extends CandleBarView {
     const indicators = chartStore.getIndicatorsByPaneId(pane.getId())
     const defaultStyles = chartStore.getStyles().indicator
 
+    // A subtle backdrop behind volume bars. The bars are drawn on the GPU layer,
+    // which sits under this Canvas2D layer, so once that layer exists the
+    // backdrop becomes its CSS background instead of a fill that would cover them.
     const hasVolumeIndicator = indicators.some(indicator => indicator.visible && indicator.series === 'volume')
-    if (hasVolumeIndicator) {
-      // Restore a subtle pane backdrop gradient behind VOL bars.
+    const backdropLayer = getSharedIndicatorGLCanvas(widget)
+    if (backdropLayer !== null) {
+      if (hasVolumeIndicator !== this._backdropOnGl) {
+        backdropLayer.canvas.style.background = hasVolumeIndicator ? VOLUME_BACKDROP : ''
+        this._backdropOnGl = hasVolumeIndicator
+      }
+    } else if (hasVolumeIndicator) {
       const gradient = ctx.createLinearGradient(0, bounding.height, 0, 0)
       gradient.addColorStop(0, 'rgba(46, 116, 255, 0.24)')
       gradient.addColorStop(0.45, 'rgba(46, 116, 255, 0.08)')
@@ -153,13 +207,16 @@ export default class IndicatorView extends CandleBarView {
       ctx.restore()
     }
 
-    // Accumulate GPU-eligible (solid, non-smooth) line segments from ALL indicators
-    // so they can be flushed in a single instanced draw call after the Canvas2D pass.
-    // NOTE: indicators with zLevel < 0 use 'destination-over' blending which cannot
-    // be replicated on a separate WebGL canvas — those fall back to Canvas2D.
-    const gpuLineSegs: LineSegmentData[] = []
-    // Accumulate GPU-eligible (solid fill, no border/radius) rect instances.
-    const gpuRects: RectInstanceData[] = []
+    // GPU-eligible figures from every indicator are packed into two instance
+    // buffers and drawn with one instanced call each after the Canvas2D pass.
+    // Indicators with zLevel < 0 use 'destination-over' blending, which a
+    // separate WebGL canvas cannot replicate, so they stay on Canvas2D.
+    const gpu = WebGLCanvas.isSupported()
+    const lineStaging = this._lineStaging
+    const rectStaging = this._rectStaging
+    const colorCache = this._colorCache
+    lineStaging.reset()
+    rectStaging.reset()
     // Accumulate plugin-driven WebGL draws that bypass the built-in figure pipeline.
     const pluginGpuDraws: Array<{
       indicatorId: string
@@ -309,19 +366,28 @@ export default class IndicatorView extends CandleBarView {
                       break
                     }
                     case 'line': {
-                      if (!isValid(lines[figureIndex])) {
-                        lines[figureIndex] = []
-                      }
-                      if ((figureStyles as SmoothLineStyle).show !== false && isNumber(currentCoordinate[figure.key]) && isNumber(nextCoordinate[figure.key])) {
-                        lines[figureIndex].push({
-                          coordinates: [
-                            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- ignore
-                            { x: currentCoordinate.x, y: currentCoordinate[figure.key] },
-                            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- ignore
-                            { x: nextCoordinate.x, y: nextCoordinate[figure.key] }
-                          ],
-                          styles: figureStyles as unknown as SmoothLineStyle
-                        })
+                      const lineStyles = figureStyles as SmoothLineStyle
+                      if (lineStyles.show !== false && isNumber(currentCoordinate[figure.key]) && isNumber(nextCoordinate[figure.key])) {
+                        const x0 = currentCoordinate.x
+                        const y0 = currentCoordinate[figure.key] as number
+                        const x1 = nextCoordinate.x
+                        const y1 = nextCoordinate[figure.key] as number
+                        if (gpu && indicator.zLevel >= 0 && isGpuLineEligible(lineStyles)) {
+                          // One segment per bar, straight into the instance buffer: no
+                          // coordinate objects, no polyline merge, no Figure per run.
+                          // Shorter than half a pixel in both directions draws nothing.
+                          if (Math.abs(x1 - x0) >= 0.5 || Math.abs(y1 - y0) >= 0.5) {
+                            packSegment(lineStaging, x0, y0, x1, y1, (lineStyles.size ?? 1) / 2, getOrCreateColor(lineStyles.color, colorCache))
+                          }
+                        } else {
+                          if (!isValid(lines[figureIndex])) {
+                            lines[figureIndex] = []
+                          }
+                          lines[figureIndex].push({
+                            coordinates: [{ x: x0, y: y0 }, { x: x1, y: y1 }],
+                            styles: lineStyles
+                          })
+                        }
                       }
                       break
                     }
@@ -331,19 +397,17 @@ export default class IndicatorView extends CandleBarView {
                 const type = figure.type!
                 if (isValid<IndicatorFigureAttrs>(attrs) && type !== 'line') {
                   if (
+                    gpu &&
                     indicator.zLevel >= 0 &&
-                    indicator.series !== 'volume' &&
                     (type === 'rect' || type === 'bar') &&
+                    !Array.isArray(attrs) &&
                     isGpuRectEligible(figureStyles)
                   ) {
-                    // GPU path: batch solid fill rects for a single instanced draw call
-                    gpuRects.push({
-                      x:      (attrs as { x: number }).x,
-                      y:      (attrs as { y: number }).y,
-                      width:  (attrs as { width: number }).width,
-                      height: (attrs as { height: number }).height,
-                      color:  figureStyles.color as string
-                    })
+                    const { x: rectX, y: rectY, width, height } = attrs as { x: number, y: number, width: number, height: number }
+                    // Thinner than half a pixel draws nothing at any zoom.
+                    if (width >= 0.5 && height >= 0.5) {
+                      packRect(rectStaging, rectX, rectY, width, height, getOrCreateColor(figureStyles.color, colorCache))
+                    }
                   } else {
                     this.createFigure({
                       name: type === 'bar' ? 'rect' : type,
@@ -387,11 +451,8 @@ export default class IndicatorView extends CandleBarView {
                   })
                 }
               }
+              // Lines the GPU does not draw: dashed, smooth, gradient, zLevel < 0.
               mergeLines.forEach(({ coordinates, styles }) => {
-                const lineStyle = styles as SmoothLineStyle
-                // Keep indicator lines on the stable Canvas2D path.
-                // The WebGL line path can render sporadic large diagonal artifacts
-                // on some GPU/browser combinations during live chart updates.
                 this.createFigure({
                   name: 'line',
                   attrs: { coordinates },
@@ -460,72 +521,43 @@ export default class IndicatorView extends CandleBarView {
       }
     }
 
-    // -------------------------------------------------------------------------
-    // GPU rect + line flush — shared WebGL canvas, single-clear-per-frame,
-    // two-pass dirty detection: setData first, then beginFrame only if needed.
-    // This ensures both renderers always draw together (rect under lines) and
-    // the canvas is never cleared unless actual content has changed.
-    // -------------------------------------------------------------------------
+    // GPU flush: one shared canvas per pane, cleared once, then grid, rects
+    // and lines in that order. The renderers upload only when their packed
+    // bytes changed, and nothing is drawn when nothing changed.
     const { width, height } = bounding
-    const hasGpuIndicators = gpuRects.length > 0 || gpuLineSegs.length > 0
-    const activeShared = hasGpuIndicators
+    const hasGpuWork = rectStaging.count > 0 || lineStaging.count > 0
+    const activeShared = hasGpuWork
       ? getOrCreateSharedIndicatorGLCanvas(widget, widget.getContainer())
       : getSharedIndicatorGLCanvas(widget)
 
     if (activeShared !== null) {
-      // Resize shared canvas once — idempotent, increments sizeVersion if changed.
+      // Idempotent; bumps sizeVersion when the size changed so every layer redraws.
       activeShared.resize(width, height)
 
-      // If this pane has no GPU indicator payload in the current frame,
-      // still clear the shared layer to avoid stale artifacts from previous
-      // frames when the renderer path changes (e.g., volume bars on Canvas2D).
-      if (!hasGpuIndicators) {
-        activeShared.beginFrame()
-        return
-      }
-
-      // Obtain renderers — create only when there is actual GPU work to do;
-      // otherwise use cached instances so clean frames can still skip the draw.
-      const activeRectRenderer = gpuRects.length > 0
+      const activeRectRenderer = rectStaging.count > 0
         ? getOrCreateRectRenderer(widget, activeShared)
         : getRectRenderer(widget)
-
-      const activeLineRenderer = gpuLineSegs.length > 0
+      const activeLineRenderer = lineStaging.count > 0
         ? getOrCreateLineRenderer(widget, activeShared)
         : getLineRenderer(widget)
 
-      // Upload staged data — fingerprint check prevents bufferSubData when unchanged.
-      activeRectRenderer?.setData(gpuRects)
-      activeLineRenderer?.setData(gpuLineSegs)
+      // An empty staging after a frame with data is a change too: the layer must clear.
+      activeRectRenderer?.upload(rectStaging)
+      activeLineRenderer?.upload(lineStaging)
 
-      // Dirty detection: any stale VBO or canvas-resize triggers a full redraw.
       const anyDirty = (activeRectRenderer?.isDirty() ?? false) ||
                        (activeLineRenderer?.isDirty() ?? false) ||
                        (activeLineRenderer?.isGridDirty() ?? false)
       if (anyDirty) {
-        // Clear once, then draw rects first (below lines for correct compositing).
-        // Draw grid lines before indicator lines so they appear behind.
         activeShared.beginFrame()
-        activeRectRenderer?.draw()
         activeLineRenderer?.drawGrid()
+        activeRectRenderer?.draw()
         activeLineRenderer?.draw()
       }
-    } else if (hasGpuIndicators) {
-      // WebGL2 unavailable — Canvas2D fallback for rects and lines.
-      ctx.save()
-      for (const rect of gpuRects) {
-        ctx.fillStyle = rect.color
-        ctx.fillRect(rect.x, rect.y, rect.width, rect.height)
-      }
-      for (const seg of gpuLineSegs) {
-        ctx.beginPath()
-        ctx.strokeStyle = seg.color
-        ctx.lineWidth   = seg.halfWidth * 2
-        ctx.moveTo(seg.x0, seg.y0)
-        ctx.lineTo(seg.x1, seg.y1)
-        ctx.stroke()
-      }
-      ctx.restore()
+    } else if (hasGpuWork) {
+      // WebGL2 is supported but no context could be created (for example the
+      // browser's limit on live contexts): draw this frame with Canvas2D.
+      drawStagingWithCanvas(ctx, rectStaging, lineStaging)
     }
   }
 }
