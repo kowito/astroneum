@@ -23,6 +23,7 @@ Astroneum is a React component on top of a drawing engine. Your app gives it a
 **datafeed** (where the bars come from) and settings; the engine turns bars into pixels.
 
 ```mermaid
+%% diagram: big-picture
 flowchart TB
     subgraph App["Your app"]
         P["Props: symbol, period,<br/>indicators, styles"]
@@ -91,6 +92,7 @@ you are making). The overlay repaints without redrawing all the bars.
 ### First load
 
 ```mermaid
+%% diagram: first-load
 sequenceDiagram
     participant App as Your app
     participant React as AstroneumChart
@@ -114,6 +116,7 @@ Once subscribed, the datafeed calls the chart's callback with the newest bar. Th
 compares timestamps with the last bar it has:
 
 ```mermaid
+%% diagram: live-updates
 flowchart TD
     A["Datafeed calls callback(bar)"] --> B{"bar.timestamp compared<br/>with the last bar"}
     B -->|"greater"| C["Add a new bar<br/>(the old one is final)"]
@@ -137,6 +140,7 @@ Two details worth knowing:
 When you pan until the first loaded bar is on screen, the chart asks for older data:
 
 ```mermaid
+%% diagram: scroll-back
 sequenceDiagram
     participant User
     participant Store as Engine store
@@ -162,6 +166,7 @@ arrive through `subscribe`, so the chart answers it with an empty result immedia
 There are two families, and the family decides how you set it up.
 
 ```mermaid
+%% diagram: chart-type-split
 flowchart LR
     subgraph Styles["Drawn from the same bars (a style)"]
         S1["Candlestick"]
@@ -185,6 +190,7 @@ flowchart LR
 bars, re-derives the series on every tick, and passes the chart only what *changed*.
 
 ```mermaid
+%% diagram: transformed-feed
 sequenceDiagram
     participant Chart
     participant Wrap as createTransformedDatafeed
@@ -217,7 +223,8 @@ back past the window they were built from.
 An indicator is a function from bars to numbers, plus a description of how to draw them.
 
 ```mermaid
-flowchart LR
+%% diagram: indicator-pipeline
+flowchart TD
     A["New bars<br/>(load, tick, scroll)"] --> B["Mark indicators<br/>as stale"]
     B --> C["Wait one moment<br/>(microtask) to batch"]
     C --> D["Queue the work<br/>at background priority"]
@@ -238,6 +245,7 @@ flowchart LR
 Off by default. Turn it on with `configureIndicatorWorkers({ enabled: true })`.
 
 ```mermaid
+%% diagram: worker-decision
 flowchart TD
     A["calc() called for<br/>MA, EMA, RSI or BOLL"] --> B{"Enabled, 20,000+ bars,<br/>and plain-number settings?"}
     B -->|"No"| M["Normal calculation<br/>on the main thread"]
@@ -255,6 +263,7 @@ indicators bar for bar, so turning it on never changes what you see.
 Off by default. Turn it on with the `historyCache` prop.
 
 ```mermaid
+%% diagram: cache-decision
 flowchart TD
     L["Initial load"] --> R["Read saved bars<br/>for this symbol and period"]
     R --> E{"Anything saved<br/>that reaches the window?"}
@@ -278,6 +287,7 @@ Why each rule exists:
 ## Where the code lives
 
 ```mermaid
+%% diagram: code-map
 flowchart LR
     subgraph src
         chart["chart/<br/>AstroneumChart and features"]
@@ -315,6 +325,7 @@ flowchart LR
 Merging to `main` does the work; nobody runs a release by hand for a beta.
 
 ```mermaid
+%% diagram: release-pipeline
 flowchart TD
     A["Open a pull request"] --> B{"Touches src, package.json<br/>or the lockfile?"}
     B -->|"Yes"| C["Benchmark check runs<br/>install, build, size, speed tests"]

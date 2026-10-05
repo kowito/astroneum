@@ -9,6 +9,17 @@ once it reaches v1.0. Until then, minor releases may include breaking changes
 
 ## [Unreleased]
 
+### Added
+
+- **Documentation site** at `/docs/` on the website: eight pages (overview, getting started, chart types,
+  datafeeds, indicators, speed and offline, how it works, reference) with live charts next to the code, rendered
+  diagrams, a chart type playground, an indicator playground with generated props, a datafeed call inspector, a
+  history cache inspector and a tick-rule simulator.
+
+### Changed
+
+- Every diagram in `docs/*.md` carries a `%% diagram: <id>` tag so the website can draw the same diagrams.
+
 ## [0.5.0] — 2026-10-05
 
 The first stable release since 0.4.1. The notes for the 0.4.x betas were never cut into

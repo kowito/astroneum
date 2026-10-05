@@ -4,6 +4,7 @@ This guide takes you from an empty folder to a live, interactive chart, one smal
 at a time. Every step ends with something you can see, so you always know it worked.
 
 ```mermaid
+%% diagram: steps-overview
 flowchart TB
     subgraph P1["Get it running"]
         direction LR
@@ -108,6 +109,7 @@ Before using your own data, it helps to see what the chart does with a datafeed.
 is an object with four methods. The chart calls them; you never call them yourself.
 
 ```mermaid
+%% diagram: datafeed-calls
 sequenceDiagram
     participant You as Your app
     participant Chart as AstroneumChart
@@ -142,6 +144,7 @@ A **bar** (`CandleData`) is `{ timestamp, open, high, low, close, volume? }`, wi
 update it, or a *newer timestamp* to start a new bar. Older timestamps are ignored.
 
 ```mermaid
+%% diagram: live-bar-rule
 flowchart TD
     T["callback(bar) arrives"] --> Q{"Compare bar.timestamp<br/>with the latest bar"}
     Q -->|"newer"| N["Append a new bar"]
@@ -233,6 +236,7 @@ WebSocket feed in full.
 **Which datafeed should I use?**
 
 ```mermaid
+%% diagram: which-datafeed
 flowchart TD
     A{"Where does<br/>your data live?"} -->|"Crypto, quick start"| B["createStandardCryptoDatafeed()<br/>Binance, Bitget, OKX"]
     A -->|"US stocks via Polygon.io"| C["DefaultDatafeed<br/>from astroneum/datafeeds/polygon"]
@@ -245,6 +249,7 @@ flowchart TD
 There are two kinds of chart type, and the difference decides how you set them up.
 
 ```mermaid
+%% diagram: chart-type-families
 flowchart TD
     Q{"Which chart do you want?"} --> A["Candlestick, hollow candles,<br/>OHLC bars, line, area"]
     Q --> B["Heikin-Ashi, Renko,<br/>range bars"]
@@ -336,6 +341,7 @@ else gets its own pane underneath.
 ```
 
 ```mermaid
+%% diagram: indicator-panes
 flowchart TD
     subgraph Screen["What you see"]
         direction TB
@@ -405,11 +411,12 @@ Saving the user's chart is two calls. `serializeState()` returns plain JSON, so 
 anywhere: `localStorage`, a URL, or your database.
 
 ```mermaid
+%% diagram: save-restore
 flowchart LR
-    A["User draws lines,<br/>adds indicators"] --> B["chart.current.serializeState()"]
-    B --> C[("localStorage<br/>or your server")]
-    C --> D["chart.current.loadState(saved)"]
-    D --> E["Same chart<br/>restored"]
+    A["User edits<br/>the chart"] --> B["serializeState()"]
+    B --> C[("Saved JSON")]
+    C --> D["loadState(saved)"]
+    D --> E["Chart<br/>restored"]
 ```
 
 The [API reference](./api.md) lists every prop and method.
@@ -426,6 +433,7 @@ new, and the chart still opens when the data source is down.
 ```
 
 ```mermaid
+%% diagram: cache-flow
 flowchart TD
     L["Chart loads"] --> C{"Saved bars<br/>in the browser?"}
     C -->|"No"| F["Fetch the full window<br/>and save it"]
@@ -446,6 +454,7 @@ configureIndicatorWorkers({ enabled: true }) // MA, EMA, RSI and BOLL, 20,000+ b
 ```
 
 ```mermaid
+%% diagram: worker-paths
 flowchart TD
     U["New data arrives"] --> K{"What changed?"}
     K -->|"Only the last bar<br/>(a live tick)"| A["Recompute just that bar<br/>on the main thread<br/>about 0.1 ms"]
@@ -514,6 +523,7 @@ for them:
 ## Where to go next
 
 ```mermaid
+%% diagram: next-guides
 flowchart LR
     G["You are here:<br/>Getting started"] --> A["How it works<br/>(diagrams)"]
     G --> B["Datafeed guide<br/>(real data)"]
