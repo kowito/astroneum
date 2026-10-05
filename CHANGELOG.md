@@ -9,7 +9,7 @@ once it reaches v1.0. Until then, minor releases may include breaking changes
 
 ## [Unreleased]
 
-## [0.5.0] — 2026-10-04
+## [0.5.0] — 2026-10-05
 
 The first stable release since 0.4.1. The notes for the 0.4.x betas were never cut into
 releases of their own, so the sections below also cover them.
@@ -26,6 +26,8 @@ releases of their own, so the sections below also cover them.
   the previous symbol can no longer replace the new one; `mainIndicators` and
   `subIndicators` now follow prop changes; unchecking a sub-indicator in the modal works.
 - **Smaller package:** about 13% less to download.
+- **A real website.** https://kowito.github.io/astroneum/ is now a home page with a gallery
+  of every chart type; the live demo moved to `/demo/`.
 - **Docs.** New step-by-step [Getting started](docs/getting-started.md) and
   [How it works](docs/architecture.md) guides, with diagrams.
 
@@ -41,6 +43,14 @@ releases of their own, so the sections below also cover them.
 - The README's counts are corrected: about 50 indicators and 18 languages.
 
 ### Details
+
+### Changed — Website
+
+- https://kowito.github.io/astroneum/ is now a home page (hero with a live chart,
+  features, a gallery of every chart type, quick start, links to npm, GitHub and
+  the docs) instead of the bare demo. The demo moved to `/demo/`; old
+  `/?type=…` links redirect there. Pages have titles, descriptions and share
+  preview tags.
 
 ### Added — Chart type demos
 

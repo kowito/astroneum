@@ -10,7 +10,7 @@ TradingView-class features, zero licensing fees, and MIT license.
 [![Node >=22](https://img.shields.io/badge/node-%3E%3D22-339933)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-**[Live demo →](https://kowito.github.io/astroneum/)**
+**[Website](https://kowito.github.io/astroneum/) · [Live demo](https://kowito.github.io/astroneum/demo/)**
 
 ![Astroneum chart — dark theme with EMA, MACD, RSI and volume indicators](screenshort-1.png)
 
@@ -79,14 +79,14 @@ Every type below runs live on its own link:
 
 | Chart type | Live demo |
 |---|---|
-| Candlestick | [open](https://kowito.github.io/astroneum/?type=candles) |
-| Hollow candles | [open](https://kowito.github.io/astroneum/?type=hollow) |
-| OHLC bars | [open](https://kowito.github.io/astroneum/?type=ohlc) |
-| **Line** | [open](https://kowito.github.io/astroneum/?type=line) |
-| Area | [open](https://kowito.github.io/astroneum/?type=area) |
-| Heikin-Ashi | [open](https://kowito.github.io/astroneum/?type=heikin-ashi) |
-| Renko | [open](https://kowito.github.io/astroneum/?type=renko) |
-| Range bars | [open](https://kowito.github.io/astroneum/?type=range) |
+| Candlestick | [open](https://kowito.github.io/astroneum/demo/?type=candles) |
+| Hollow candles | [open](https://kowito.github.io/astroneum/demo/?type=hollow) |
+| OHLC bars | [open](https://kowito.github.io/astroneum/demo/?type=ohlc) |
+| **Line** | [open](https://kowito.github.io/astroneum/demo/?type=line) |
+| Area | [open](https://kowito.github.io/astroneum/demo/?type=area) |
+| Heikin-Ashi | [open](https://kowito.github.io/astroneum/demo/?type=heikin-ashi) |
+| Renko | [open](https://kowito.github.io/astroneum/demo/?type=renko) |
+| Range bars | [open](https://kowito.github.io/astroneum/demo/?type=range) |
 
 ## Install
 
