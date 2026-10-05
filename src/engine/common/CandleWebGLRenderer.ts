@@ -181,7 +181,7 @@ export class CandleWebGLRenderer {
     canvas.style.position = 'absolute'
     canvas.style.top = '0'
     canvas.style.left = '0'
-    canvas.style.zIndex = '1'   // below Canvas2D layers (z-index 2)
+    canvas.style.zIndex = '0'   // below the indicator GL layer (1) and the Canvas2D layers (2)
     canvas.style.pointerEvents = 'none'
     container.appendChild(canvas)
     this._canvas = canvas
@@ -278,7 +278,28 @@ export class CandleWebGLRenderer {
   // Attribute bindings — packed layout (Float32 price fields + UByte color fields)
   // ---------------------------------------------------------------------------
 
+  // Attribute locations are looked up once: getAttribLocation is a synchronous
+  // round trip to the GL driver, and the pointers are rebound on every pan
+  // frame that moves the draw-start offset.
+  private _attribs: Array<{ loc: number, size: number, type: number, normalized: boolean, offset: number }> = []
+
   private _setupAttribs(gl: WebGL2RenderingContext): void {
+    const prog = this._program
+    const f32 = (name: string, offset: number): typeof this._attribs[number] =>
+      ({ loc: gl.getAttribLocation(prog, name), size: 1, type: gl.FLOAT, normalized: false, offset })
+    // normalized=true: GPU divides UNSIGNED_BYTE [0..255] by 255 → [0..1]
+    const u8Color = (name: string, offset: number): typeof this._attribs[number] =>
+      ({ loc: gl.getAttribLocation(prog, name), size: 4, type: gl.UNSIGNED_BYTE, normalized: true, offset })
+    this._attribs = [
+      f32('a_centerX', 0),
+      f32('a_open', 4),
+      f32('a_high', 8),
+      f32('a_low', 12),
+      f32('a_close', 16),
+      u8Color('a_wickColor', 20),
+      u8Color('a_bodyColor', 24),
+      u8Color('a_borderColor', 28)
+    ].filter(attrib => attrib.loc >= 0)
     this._rebindAttribsWithOffset(gl, 0)
   }
 
@@ -288,34 +309,11 @@ export class CandleWebGLRenderer {
    * changes (overscan fast path) — updates the VAO's captured state.
    */
   private _rebindAttribsWithOffset(gl: WebGL2RenderingContext, baseOffset: number): void {
-    const prog = this._program
-    const stride = BYTES_PER_BAR
-
-    const bindF32 = (name: string, fieldOffset: number): void => {
-      const loc = gl.getAttribLocation(prog, name)
-      if (loc < 0) return
-      gl.enableVertexAttribArray(loc)
-      gl.vertexAttribPointer(loc, 1, gl.FLOAT, false, stride, baseOffset + fieldOffset)
-      gl.vertexAttribDivisor(loc, 1)
+    for (const attrib of this._attribs) {
+      gl.enableVertexAttribArray(attrib.loc)
+      gl.vertexAttribPointer(attrib.loc, attrib.size, attrib.type, attrib.normalized, BYTES_PER_BAR, baseOffset + attrib.offset)
+      gl.vertexAttribDivisor(attrib.loc, 1)
     }
-
-    const bindU8Color = (name: string, fieldOffset: number): void => {
-      const loc = gl.getAttribLocation(prog, name)
-      if (loc < 0) return
-      gl.enableVertexAttribArray(loc)
-      // normalized=true: GPU divides UNSIGNED_BYTE [0..255] by 255 → [0..1]
-      gl.vertexAttribPointer(loc, 4, gl.UNSIGNED_BYTE, true, stride, baseOffset + fieldOffset)
-      gl.vertexAttribDivisor(loc, 1)
-    }
-
-    bindF32('a_centerX', 0)
-    bindF32('a_open', 4)
-    bindF32('a_high', 8)
-    bindF32('a_low', 12)
-    bindF32('a_close', 16)
-    bindU8Color('a_wickColor', 20)
-    bindU8Color('a_bodyColor', 24)
-    bindU8Color('a_borderColor', 28)
   }
 
   // ---------------------------------------------------------------------------

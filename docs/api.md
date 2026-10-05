@@ -221,13 +221,14 @@ import { BarReplay, createStandardCryptoDatafeed } from 'astroneum'
 configureIndicatorWorkers({ enabled: true, minBars?: number, maxWorkers?: number }): void
 ```
 
-Accelerates the built-in `MA`, `EMA`, `RSI` and `BOLL` indicators on series
-of at least `minBars` bars (default 20 000): ticks and new bars recompute only
-the changed bars, and full recomputes run in Web Workers (default
-`min(hardwareConcurrency, 4)`). Results are identical to the main-thread
-calculation. Off by default; applies to every chart on the page. Workers are
-started from a `blob:` URL — if your CSP has a `worker-src` that excludes
-`blob:`, calculations stay on the main thread.
+Runs full recomputes of the built-in `MA`, `EMA`, `RSI`, `BOLL`, `VOL` and
+`MACD` indicators in Web Workers (default `min(hardwareConcurrency, 4)`) on
+series of at least `minBars` bars (default 20 000). Ticks and new bars always
+recompute only the changed bars for these six, on the main thread, whether or
+not this is enabled. Results are identical to the main-thread calculation. Off
+by default; applies to every chart on the page. Workers are started from a
+`blob:` URL — if your CSP has a `worker-src` that excludes `blob:`, full
+recomputes stay on the main thread.
 
 ### `createTransformedDatafeed(datafeed, factory)`
 

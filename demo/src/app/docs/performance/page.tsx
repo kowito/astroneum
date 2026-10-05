@@ -56,14 +56,16 @@ export default function PerformancePage() {
 
       <h2 id="indicator-workers">Indicator workers</h2>
       <p>
-        With tens of thousands of bars, recalculating an indicator takes long enough to make scrolling stutter. Workers move the
-        heavy part off the page&apos;s main thread, and live ticks take a shortcut that only recomputes the newest bar.
+        With tens of thousands of bars, recalculating an indicator takes long enough to make scrolling stutter. For the six
+        built-in indicators with step kernels (MA, EMA, RSI, BOLL, VOL, MACD) a live tick always takes a shortcut that only
+        recomputes the newest bar; workers move the remaining heavy part, the full recompute on a first load or a new symbol, off
+        the page&apos;s main thread.
       </p>
-      <CodeBlock code={`import { configureIndicatorWorkers } from 'astroneum'\n\n// Applies to every chart on the page. MA, EMA, RSI and BOLL, on 20,000+ bars.\nconfigureIndicatorWorkers({ enabled: true })`} />
+      <CodeBlock code={`import { configureIndicatorWorkers } from 'astroneum'\n\n// Applies to every chart on the page. MA, EMA, RSI, BOLL, VOL and MACD, on 20,000+ bars.\nconfigureIndicatorWorkers({ enabled: true })`} />
       <Diagram
         doc="architecture.md"
         id="worker-decision"
-        label="When MA, EMA, RSI or BOLL is calculated: if workers are off, the series is under 20,000 bars, or the settings are not plain numbers, calculate normally. If only the last bar changed or bars were added, step just the new bars from saved state. If it is new data, clear the old values and compute in a Web Worker, falling back to the main thread if the worker fails."
+        label="When MA, EMA, RSI, BOLL, VOL or MACD is calculated: if only the last bar changed or bars were added, step just the new bars from saved state. If it is new data and workers are on with 20,000 or more bars, clear the old values and compute in a Web Worker, falling back to the main thread if the worker fails; otherwise compute on the main thread."
       />
       <h3 id="what-it-buys">What it buys</h3>
       <p>
@@ -72,7 +74,7 @@ export default function PerformancePage() {
       <table>
         <thead><tr><th>Case</th><th>Without</th><th>With workers</th></tr></thead>
         <tbody>
-          <tr><td>A live tick (only the last bar changed)</td><td>12 to 29 ms</td><td>about 0.1 ms</td></tr>
+          <tr><td>A live tick (only the last bar changed)</td><td>about 0.1 ms</td><td>about 0.1 ms</td></tr>
           <tr><td>Longest page freeze, full recompute: Bollinger Bands</td><td>29 ms</td><td>9 ms</td></tr>
           <tr><td>Longest page freeze, full recompute: RSI</td><td>21 ms</td><td>14 ms</td></tr>
           <tr><td>Longest page freeze, full recompute: moving average</td><td>19 ms</td><td>15 ms</td></tr>
@@ -80,8 +82,8 @@ export default function PerformancePage() {
         </tbody>
       </table>
       <p>
-        The tick shortcut is the big win for live charts. Full recomputes gain less because turning the numbers into chart rows still
-        happens on the page; EMA gains least for that reason. The results are identical either way: a test compares them bar for bar.
+        Full recomputes gain less than you might expect because turning the numbers into chart rows still happens on the page;
+        EMA gains least for that reason. The results are identical either way: a test compares them bar for bar.
       </p>
       <Callout kind="note" title="If workers cannot start">
         <p>

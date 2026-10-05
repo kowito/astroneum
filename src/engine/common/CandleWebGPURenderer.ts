@@ -371,7 +371,10 @@ export class CandleWebGPURenderer {
     const device = await _getSharedGPUDevice()
 
     const canvas = document.createElement('canvas')
-    canvas.style.cssText = 'position:absolute;top:0;left:0;z-index:1;pointer-events:none;'
+    // z-index 0: below the indicator GL layer (1) and the Canvas2D layers (2). This
+    // canvas is created asynchronously, often after the indicator layer, so DOM
+    // order alone would put candles over the indicator lines.
+    canvas.style.cssText = 'position:absolute;top:0;left:0;z-index:0;pointer-events:none;'
     container.appendChild(canvas)
 
     const gpuCtx = canvas.getContext('webgpu') as GPUCanvasContext | null

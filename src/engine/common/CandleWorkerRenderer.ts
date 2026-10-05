@@ -312,7 +312,7 @@ export class CandleWorkerRenderer {
     canvas.style.position = 'absolute'
     canvas.style.top = '0'
     canvas.style.left = '0'
-    canvas.style.zIndex = '1'   // below Canvas2D layers (z-index 2)
+    canvas.style.zIndex = '0'   // below the indicator GL layer (1) and the Canvas2D layers (2)
     canvas.style.pointerEvents = 'none'
     container.appendChild(canvas)
     this._canvas = canvas

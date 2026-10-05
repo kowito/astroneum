@@ -1,10 +1,16 @@
 import type { LineAttrs } from '../extension/figure/line'
 
 import View from './View'
-import { getLineRenderer, type LineSegmentData } from '../common/IndicatorLineWebGLRenderer'
-import { getSharedIndicatorGLCanvas } from '../common/SharedIndicatorGLCanvas'
+import { getLineRenderer } from '../common/IndicatorLineWebGLRenderer'
+import { getOrCreateColor } from '../common/candleShaders'
+import { InstanceStaging, packSegment, SEGMENT_BYTES, type Rgba } from '../common/instancePacking'
 
 export default class GridView extends View {
+  // Grid lines go to the pane's GPU line renderer once IndicatorView has created
+  // one; until then (and without WebGL2) they are drawn with Canvas2D.
+  private readonly _staging = new InstanceStaging(SEGMENT_BYTES, 64)
+  private readonly _colorCache = new Map<string, Rgba>()
+
   override drawImp (ctx: CanvasRenderingContext2D): void {
     const widget = this.getWidget()
     const pane = this.getWidget().getPane()
@@ -15,47 +21,36 @@ export default class GridView extends View {
     const show = styles.show
     if (!show) return
 
-    // GPU path: upload grid segments to the shared indicator GL canvas.
-    // IndicatorView calls drawGrid() before draw() so grid lines appear
-    // behind indicator lines on the GPU layer.
-    const sharedCanvas = getSharedIndicatorGLCanvas(widget)
-    const lineRenderer = sharedCanvas !== null ? getLineRenderer(widget) : null
+    const horizontalStyles = styles.horizontal
+    const verticalStyles = styles.vertical
+
+    // IndicatorView draws the grid buffer before the indicator lines, so grid
+    // lines appear behind them on the GPU layer.
+    const lineRenderer = getLineRenderer(widget)
     if (lineRenderer !== null) {
-      const gpuSegs: LineSegmentData[] = []
-      const horizontalStyles = styles.horizontal
-      if (horizontalStyles.show !== false) {
+      const staging = this._staging
+      staging.reset()
+      if (horizontalStyles.show) {
         const yAxis = pane.getAxisComponent()
-        const hw = ((horizontalStyles.size as number | undefined) ?? 1) / 2
+        const halfWidth = ((horizontalStyles.size as number | undefined) ?? 1) / 2
+        const color = getOrCreateColor(horizontalStyles.color as string, this._colorCache)
         for (const tick of yAxis.getTicks()) {
-          gpuSegs.push({
-            x0: 0, y0: tick.coord,
-            x1: bounding.width, y1: tick.coord,
-            halfWidth: hw,
-            color: horizontalStyles.color as string
-          })
+          packSegment(staging, 0, tick.coord, bounding.width, tick.coord, halfWidth, color)
         }
       }
-      const verticalStyles = styles.vertical
-      if (verticalStyles.show !== false) {
+      if (verticalStyles.show) {
         const xAxis = chart.getXAxisPane().getAxisComponent()
-        const hw = ((verticalStyles.size as number | undefined) ?? 1) / 2
+        const halfWidth = ((verticalStyles.size as number | undefined) ?? 1) / 2
+        const color = getOrCreateColor(verticalStyles.color as string, this._colorCache)
         for (const tick of xAxis.getTicks()) {
-          gpuSegs.push({
-            x0: tick.coord, y0: 0,
-            x1: tick.coord, y1: bounding.height,
-            halfWidth: hw,
-            color: verticalStyles.color as string
-          })
+          packSegment(staging, tick.coord, 0, tick.coord, bounding.height, halfWidth, color)
         }
       }
-      lineRenderer.setGridLines(gpuSegs)
+      lineRenderer.uploadGrid(staging)
       return
     }
 
-    // Canvas2D fallback (GL canvas not yet available)
-    const horizontalStyles = styles.horizontal
-    const horizontalShow = horizontalStyles.show
-    if (horizontalShow) {
+    if (horizontalStyles.show) {
       const yAxis = pane.getAxisComponent()
       const attrs: LineAttrs[] = yAxis.getTicks().map(tick => ({
         coordinates: [
@@ -69,9 +64,7 @@ export default class GridView extends View {
         styles: horizontalStyles
       })?.draw(ctx)
     }
-    const verticalStyles = styles.vertical
-    const verticalShow = verticalStyles.show
-    if (verticalShow) {
+    if (verticalStyles.show) {
       const xAxis = chart.getXAxisPane().getAxisComponent()
       const attrs: LineAttrs[] = xAxis.getTicks().map(tick => ({
         coordinates: [

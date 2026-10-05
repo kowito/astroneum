@@ -254,15 +254,13 @@ export function eachFigures<D = unknown> (
     switch (figure.type) {
       case 'circle': {
         figureIndex = circleCount
-        const styles = circleStyles[circleCount % circleStyleCount]
-        defaultFigureStyles = { ...styles, color: styles.noChangeColor }
+        defaultFigureStyles = polygonFigureStyles(circleStyles[circleCount % circleStyleCount])
         circleCount++
         break
       }
       case 'bar': {
         figureIndex = barCount
-        const styles = barStyles[barCount % barStyleCount]
-        defaultFigureStyles = { ...styles, color: styles.noChangeColor }
+        defaultFigureStyles = polygonFigureStyles(barStyles[barCount % barStyleCount])
         barCount++
         break
       }
@@ -284,10 +282,25 @@ export function eachFigures<D = unknown> (
         indicator,
         defaultStyles
       })
+      // This runs once per figure per visible bar, so merge only when the
+      // figure actually customises its styles.
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- ignore
-      eachFigureCallback(figure, { ...defaultFigureStyles, ...ss }, figureIndex)
+      eachFigureCallback(figure, isValid(ss) ? { ...defaultFigureStyles, ...ss } : defaultFigureStyles, figureIndex)
     }
   })
+}
+
+// A polygon style with its colour defaulted, cached per style object: the
+// default styles are shared by every bar, so this allocates once, not per bar.
+const _polygonFigureStyles = new WeakMap<IndicatorPolygonStyle, IndicatorPolygonStyle & { color: string }>()
+
+function polygonFigureStyles (styles: IndicatorPolygonStyle): IndicatorPolygonStyle & { color: string } {
+  let withColor = _polygonFigureStyles.get(styles)
+  if (withColor === undefined) {
+    withColor = { ...styles, color: styles.noChangeColor }
+    _polygonFigureStyles.set(styles, withColor)
+  }
+  return withColor
 }
 
 export default class IndicatorImp<D = unknown, C = unknown, E = unknown> implements Indicator<D, C, E> {
