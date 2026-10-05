@@ -16,6 +16,7 @@
 //   --trace [scenario]  list which requestAnimationFrame callbacks run (idle by default)
 //   --profile    sample the CPU during that scenario and print the hottest functions
 //   --tree       with --profile, also print a top-down call tree
+//   --metrics    also print Chrome's whole-page time per scenario (tasks, script, layout, style, GC)
 //
 // The GPU must stay enabled: with --disable-gpu, headless Chrome has no
 // WebGL2 at all and every path silently becomes Canvas2D.
@@ -73,6 +74,13 @@ const evaluate = async (expression) => {
 
 await send('Runtime.enable')
 await send('Page.enable')
+if ('metrics' in args) await send('Performance.enable')
+const METRICS = ['TaskDuration', 'ScriptDuration', 'LayoutDuration', 'RecalcStyleDuration', 'V8CompileDuration']
+const readMetrics = async () => {
+  if (!('metrics' in args)) return null
+  const res = await send('Performance.getMetrics')
+  return Object.fromEntries(res.result.metrics.filter(m => METRICS.includes(m.name)).map(m => [m.name, m.value]))
+}
 await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
 const target = `${url}${url.includes('?') ? '&' : '?'}bars=${bars}&path=${path}&ind=${ind}`
 await send('Page.navigate', { url: target })
@@ -102,7 +110,15 @@ for (const scenario of scenarios) {
     await send('Profiler.start')
   }
   const runs = []
-  for (let i = 0; i < repeat; i++) runs.push(await evaluate(`window.__bench.run(${JSON.stringify(scenario)}, ${frames}, ${settle})`))
+  for (let i = 0; i < repeat; i++) {
+    const before = await readMetrics()
+    const run = await evaluate(`window.__bench.run(${JSON.stringify(scenario)}, ${frames}, ${settle})`)
+    if (before !== null) {
+      const after = await readMetrics()
+      for (const key of METRICS) run[key] = (after[key] - before[key]) * 1000
+    }
+    runs.push(run)
+  }
   results.push(median(runs))
   if (profiling) {
     const stopped = await send('Profiler.stop')
@@ -197,6 +213,13 @@ console.log(`canvases=${info.canvases} glContexts=${info.glContexts} dpr=${info.
 console.log('scenario   draws layouts   total ms  mean ms   p50 ms   p95 ms   max ms  >16.7ms')
 for (const r of results) {
   console.log(`${r.scenario.padEnd(9)} ${String(r.drawFrames).padStart(6)} ${String(r.layouts ?? '-').padStart(7)} ${fmt(r.totalMs).padStart(10)} ${fmt(r.meanMs)} ${fmt(r.p50Ms)} ${fmt(r.p95Ms)} ${fmt(r.maxMs)} ${String(r.longFrames).padStart(8)}`)
+}
+if ('metrics' in args) {
+  console.log('\nwhole-page time per scenario, ms (Chrome Performance metrics):')
+  console.log('scenario     tasks   script   layout    style  compile')
+  for (const r of results) {
+    console.log(`${r.scenario.padEnd(9)} ${fmt(r.TaskDuration ?? 0).padStart(8)} ${fmt(r.ScriptDuration ?? 0).padStart(8)} ${fmt(r.LayoutDuration ?? 0).padStart(8)} ${fmt(r.RecalcStyleDuration ?? 0).padStart(8)} ${fmt(r.V8CompileDuration ?? 0).padStart(8)}`)
+  }
 }
 if (cpuProfile !== null) {
   const { total, rows, inclusive, tree } = summarise(cpuProfile)
