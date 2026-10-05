@@ -9,6 +9,34 @@ once it reaches v1.0. Until then, minor releases may include breaking changes
 
 ## [Unreleased]
 
+### Added
+
+- **Indicator lines and bars on the GPU.** With WebGL2, solid indicator lines (moving
+  averages, Bollinger Bands, MACD and RSI lines, volume MAs), histogram bars (volume, MACD)
+  and the grid are drawn by the WebGL2 renderers in one instanced draw call per layer,
+  instead of one Canvas2D call per bar. Dashed, smooth and gradient figures stay on Canvas2D;
+  without WebGL2 nothing changes.
+- A render benchmark: `scripts/render-bench.mjs` drives the demo's `/bench/` page in headless
+  Chrome and reports main-thread draw time under pan, zoom, hover and live ticks. See
+  `demo/README.md`.
+
+### Changed
+
+- A chart at rest no longer redraws. The Y-axis spring settles once the remaining movement
+  is under a quarter of a pixel (it used to chase a tolerance far below a pixel for seconds),
+  and it no longer restarts on layouts that leave the range unchanged, so a crosshair move no
+  longer redraws every pane.
+- `ASTRONEUM_MINIFY=0 pnpm build` produces an unminified bundle for profiling.
+
+### Fixed
+
+- The GPU line and rect renderers packed instances 4 bytes short of the stride the shaders
+  read, so every instance after the first was drawn from garbage. This is why GPU indicator
+  lines were switched off in 0.4.0 ("sporadic diagonal artifacts"); they are back on.
+- GPU lines are drawn at full strength: a 1px line was faded to about 84% by the edge
+  anti-aliasing.
+- Each pane no longer pre-allocates 131 072 bar objects (about 10 MB) it will mostly never use.
+
 ## [0.5.0] — 2026-10-05
 
 The first stable release since 0.4.1. The notes for the 0.4.x betas were never cut into
