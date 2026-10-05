@@ -43,12 +43,14 @@ const FEATURES = [
   {
     title: 'Live data',
     text: 'Real-time crypto feeds built in. Bring any other source with a four-method datafeed interface and smooth tick animation.',
-    href: DOCS.datafeeds,
+    href: '/docs/datafeeds/',
     cta: 'Datafeed guide',
   },
   {
     title: 'Fast by design',
     text: 'WebGL2 rendering with a Canvas2D fallback. Optional Web Worker indicators and an offline history cache for large datasets.',
+    href: '/docs/performance/',
+    cta: 'Speed and offline',
   },
   {
     title: 'Built for apps',
@@ -59,6 +61,7 @@ const FEATURES = [
 const LINKS = [
   { label: 'GitHub', href: REPO_URL, note: 'Source and issues' },
   { label: 'npm', href: NPM_URL, note: 'astroneum' },
+  { label: 'Docs', href: '/docs/', note: 'Step-by-step guides with live examples' },
   { label: 'API reference', href: DOCS.api, note: 'Props, methods, exports' },
   { label: 'Datafeed guide', href: DOCS.datafeeds, note: 'Connect your data' },
   { label: 'Plugin guide', href: DOCS.plugins, note: 'Custom indicators' },
@@ -80,7 +83,7 @@ export default function HomePage() {
           <Link href="/demo/">Demo</Link>
           <a href="#chart-types">Chart types</a>
           <a href="#get-started">Get started</a>
-          <a href={DOCS.api} target="_blank" rel="noreferrer">Docs</a>
+          <Link href="/docs/">Docs</Link>
           <a href={REPO_URL} target="_blank" rel="noreferrer">GitHub</a>
         </nav>
       </header>
@@ -115,14 +118,9 @@ export default function HomePage() {
               <article key={feature.title} className="lp-card">
                 <h3>{feature.title}</h3>
                 <p>{feature.text}</p>
-                {feature.href !== undefined && (
-                  <a
-                    href={feature.href}
-                    {...(feature.href.startsWith('http') ? { target: '_blank', rel: 'noreferrer' } : {})}
-                  >
-                    {feature.cta} →
-                  </a>
-                )}
+                {feature.href !== undefined && (feature.href.startsWith('/')
+                  ? <Link href={feature.href}>{feature.cta} →</Link>
+                  : <a href={feature.href} {...(feature.href.startsWith('http') ? { target: '_blank', rel: 'noreferrer' } : {})}>{feature.cta} →</a>)}
               </article>
             ))}
           </div>
@@ -170,17 +168,28 @@ export default function HomePage() {
               </div>
             </li>
           </ol>
+          <p className="lp-more">
+            New to charting libraries? The <Link href="/docs/getting-started/">step-by-step guide</Link> builds a working chart in ten
+            steps, with a live example next to every one.
+          </p>
         </section>
 
         <section className="lp-section" aria-labelledby="resources">
           <h2 id="resources">Resources</h2>
           <div className="lp-links">
-            {LINKS.map(link => (
-              <a key={link.label} href={link.href} target="_blank" rel="noreferrer" className="lp-link">
-                <strong>{link.label}</strong>
-                <span>{link.note}</span>
-              </a>
-            ))}
+            {LINKS.map(link => link.href.startsWith('/')
+              ? (
+                <Link key={link.label} href={link.href} className="lp-link">
+                  <strong>{link.label}</strong>
+                  <span>{link.note}</span>
+                </Link>
+                )
+              : (
+                <a key={link.label} href={link.href} target="_blank" rel="noreferrer" className="lp-link">
+                  <strong>{link.label}</strong>
+                  <span>{link.note}</span>
+                </a>
+                ))}
           </div>
         </section>
       </main>
