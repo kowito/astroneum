@@ -54,7 +54,7 @@ TradingView-class features, zero licensing fees, and MIT license.
 
 ### Data & Performance
 - **History cache** — opt-in `historyCache` prop keeps loaded history per symbol in the Origin Private File System: reloads fetch only the newest bars, and the chart still opens with cached bars when the datafeed is down. Stored as compact `BarsCodec` frames (56 bytes per bar, volume included)
-- **Indicator acceleration** — opt-in `configureIndicatorWorkers({ enabled: true })`: on series of 20 000+ bars, MA/EMA/RSI/BOLL update only the changed bars on each tick and run full recomputes in Web Workers, with results identical to the main-thread calculation
+- **Indicator acceleration** — MA, EMA, RSI, BOLL, VOL and MACD update only the changed bar on each live tick, always. Opt-in `configureIndicatorWorkers({ enabled: true })` also runs their full recomputes in Web Workers on series of 20 000+ bars, with results identical to the main-thread calculation
 - **GPU indicator rendering** — with WebGL2, solid indicator lines, histogram bars and the grid are drawn in one instanced draw call per layer, like the candles. Dashed, smooth and gradient figures use Canvas2D
 - **TickAnimator** — smooth close/high/low interpolation at 60fps
 - **TaskScheduler** with priority queue (data > indicator > overlay)

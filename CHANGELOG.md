@@ -26,6 +26,12 @@ once it reaches v1.0. Until then, minor releases may include breaking changes
 
 ### Changed
 
+- **Live ticks no longer recompute indicators from scratch.** MA, EMA, RSI, BOLL, VOL and
+  MACD step the changed bar from the state kept since the last full run, whether or not
+  `configureIndicatorWorkers` is enabled. On 20 000 bars with those five, a tick went from
+  about 6.6 ms of calculation plus 2.5 ms of garbage collection to too little to measure.
+  Other indicators still recompute in full.
+
 - Every diagram in `docs/*.md` carries a `%% diagram: <id>` tag so the website can draw the same diagrams.
 
 - A chart at rest no longer redraws. The Y-axis spring settles once the remaining movement
