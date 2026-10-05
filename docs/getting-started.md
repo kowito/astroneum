@@ -450,7 +450,7 @@ indicator maths off the main thread so scrolling stays smooth.
 ```ts
 import { configureIndicatorWorkers } from 'astroneum'
 
-configureIndicatorWorkers({ enabled: true }) // MA, EMA, RSI and BOLL, 20,000+ bars
+configureIndicatorWorkers({ enabled: true }) // MA, EMA, RSI, BOLL, VOL and MACD, 20,000+ bars
 ```
 
 ```mermaid
