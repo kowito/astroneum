@@ -3,6 +3,7 @@
 Pick the guide that matches what you are trying to do.
 
 ```mermaid
+%% diagram: where-to-start
 flowchart TD
     Start{"What do you want to do?"} --> A["Put a chart<br/>on a page"]
     Start --> B["Show my own<br/>market data"]
@@ -29,6 +30,7 @@ flowchart TD
 ## Learning path
 
 ```mermaid
+%% diagram: learning-path
 flowchart LR
     A["Getting started<br/>steps 1 to 3"] --> B["Datafeed guide"]
     B --> C["Getting started<br/>steps 6 to 8"]
