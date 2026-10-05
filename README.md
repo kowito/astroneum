@@ -26,7 +26,7 @@ TradingView-class features, zero licensing fees, and MIT license.
 - **Multi-chart grid** (2/4/8/16 panes) and **multi-period stacked layout** (e.g. 4H + 1H + 15m)
 
 ### Indicators & Analysis
-- **28 built-in indicators** — SMA, EMA, MACD, RSI, KDJ, Bollinger Bands, TRIX, SAR, and more
+- **50 built-in indicators** — SMA, EMA, MACD, RSI, KDJ, Bollinger Bands, Ichimoku, SuperTrend, and more
 - **Volume Profile** — horizontal histogram with POC, Value Area, and price-level bucketing
 - **ZigZag + auto pattern detection** — swing highs/lows, support/resistance clustering
 - **Depth of Market** — bid/ask volume ladder visualization
@@ -67,7 +67,7 @@ TradingView-class features, zero licensing fees, and MIT license.
 ### Developer Experience
 - **Fully typed TypeScript** — branded financial types (`Price`, `Volume`, `Timestamp`)
 - **9 tree-shakeable subpath exports** — import only what you need
-- **19 locales** — lazy-loaded on demand, dark/light/high-contrast themes
+- **18 languages** — lazy-loaded on demand, dark/light/high-contrast themes
 - **SSR-safe** — `'use client'` on every entry, Next.js App Router compatible
 - **MIT license** — no usage limits, no watermark, no "Powered by" branding
 
@@ -129,6 +129,16 @@ export default function App() {
   )
 }
 ```
+
+## Documentation
+
+| Guide | |
+|---|---|
+| [Getting started](https://github.com/kowito/astroneum/blob/main/docs/getting-started.md) | Ten small steps from an empty folder to a live chart, with diagrams |
+| [How it works](https://github.com/kowito/astroneum/blob/main/docs/architecture.md) | The parts of the chart and how data moves through them |
+| [Datafeed guide](https://github.com/kowito/astroneum/blob/main/docs/datafeed-guide.md) | Connect a REST API or WebSocket |
+| [API reference](https://github.com/kowito/astroneum/blob/main/docs/api.md) | Every prop, method and export |
+| [Plugin guide](https://github.com/kowito/astroneum/blob/main/docs/plugin-development.md) | Write your own indicator |
 
 ## Key Props
 
