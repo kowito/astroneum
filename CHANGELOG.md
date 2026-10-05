@@ -11,6 +11,10 @@ once it reaches v1.0. Until then, minor releases may include breaking changes
 
 ### Added
 
+- **Documentation site** at `/docs/` on the website: eight pages (overview, getting started, chart types,
+  datafeeds, indicators, speed and offline, how it works, reference) with live charts next to the code, rendered
+  diagrams, a chart type playground, an indicator playground with generated props, a datafeed call inspector, a
+  history cache inspector and a tick-rule simulator.
 - **Indicator lines and bars on the GPU.** With WebGL2, solid indicator lines (moving
   averages, Bollinger Bands, MACD and RSI lines, volume MAs), histogram bars (volume, MACD)
   and the grid are drawn by the WebGL2 renderers in one instanced draw call per layer,
@@ -21,6 +25,8 @@ once it reaches v1.0. Until then, minor releases may include breaking changes
   `demo/README.md`.
 
 ### Changed
+
+- Every diagram in `docs/*.md` carries a `%% diagram: <id>` tag so the website can draw the same diagrams.
 
 - A chart at rest no longer redraws. The Y-axis spring settles once the remaining movement
   is under a quarter of a pixel (it used to chase a tolerance far below a pixel for seconds),

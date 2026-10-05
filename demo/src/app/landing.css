@@ -317,6 +317,15 @@
   color: var(--muted);
 }
 
+.lp-more {
+  margin-top: 22px;
+  color: var(--muted);
+}
+
+.lp-more a {
+  color: var(--accent);
+}
+
 .lp-code {
   position: relative;
   border: 1px solid var(--border);

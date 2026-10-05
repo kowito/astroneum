@@ -133,6 +133,11 @@ export default function App() {
 
 ## Documentation
 
+**[Read the docs on the website](https://kowito.github.io/astroneum/docs/)** — the same guides with live charts you can
+change, interactive diagrams and a playground for chart types and indicators.
+
+The pages below are the plain-Markdown versions, for reading on GitHub:
+
 | Guide | |
 |---|---|
 | [Getting started](https://github.com/kowito/astroneum/blob/main/docs/getting-started.md) | Ten small steps from an empty folder to a live chart, with diagrams |
