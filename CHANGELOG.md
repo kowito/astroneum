@@ -9,6 +9,14 @@ once it reaches v1.0. Until then, minor releases may include breaking changes
 
 ## [Unreleased]
 
+### Changed — Website
+
+- https://kowito.github.io/astroneum/ is now a home page (hero with a live chart,
+  features, a gallery of every chart type, quick start, links to npm, GitHub and
+  the docs) instead of the bare demo. The demo moved to `/demo/`; old
+  `/?type=…` links redirect there. Pages have titles, descriptions and share
+  preview tags.
+
 ### Added — Chart type demos
 
 - The demo has a **chart type picker**, each type on its own link

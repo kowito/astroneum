@@ -37,11 +37,26 @@ The demo uses astroneum's built-in standard crypto datafeed (`createStandardCryp
 - `astroneum/style.css` is imported inside the client component
 - `transpilePackages: ['astroneum']` in `next.config.ts` ensures the ESM-only library is bundled correctly by Next.js
 
+## The site
+
+`pnpm dev` serves the whole site (<http://localhost:3000>):
+
+| Route | What it is | Source |
+|---|---|---|
+| `/` | Home page: hero with a live chart, features, chart-type gallery, quick start, links | `src/app/page.tsx`, `src/app/landing.css` |
+| `/demo/` | The full chart demo. `?type=line`, `area`, `ohlc`, `hollow`, `candles`, `heikin-ashi`, `renko` and `range` open a chart type | `src/app/demo/page.tsx`, `src/app/components/ChartDemo.tsx` |
+
+Links published before the demo moved (`/?type=line`) redirect to `/demo/?type=line`.
+
+Chart type descriptions live in `src/chartTypeInfo.ts` and are shared by the demo picker and the
+home page gallery. The gallery thumbnails and the share image (`public/og.png`) are snapshots; to
+refresh them, capture each `/demo/?type=…` page and crop to the price pane.
+
 ## Deploying (GitHub Pages)
 
 The demo is exported as static files and published by
 [`.github/workflows/demo-pages.yml`](../.github/workflows/demo-pages.yml) on every
-push to `main` that touches the library or the demo:
+push to `main` that touches the library or the site:
 **https://kowito.github.io/astroneum/**
 
 To build the same output locally:
