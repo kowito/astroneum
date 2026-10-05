@@ -19,34 +19,26 @@ import {
 } from '../common/CandleWebGPURenderer'
 
 // ---------------------------------------------------------------------------
-// P1-D: Object pool for BarRenderData — avoids 50K+ heap allocations per frame.
-//
-// Pre-allocated ring of BarRenderData slots.  Each _drawWithWebGL call calls
-// pool.reset() at the start; subsequent alloc() calls return the same pre-
-// existing objects.  GC minor-collection pressure drops to near-zero on the
-// candle hot path.
+// Object pool for BarRenderData, so a frame with thousands of visible bars
+// allocates nothing once warm. Each _drawWithWebGL call resets the cursor and
+// hands out the same objects again. The pool grows on demand: every view
+// (indicator panes included) owns one, so pre-allocating would cost tens of
+// megabytes per chart for bars most panes never draw.
 // ---------------------------------------------------------------------------
-const _BAR_POOL_MAX = 131072   // 128 K slots — covers 50K bars + overscan
-
 class BarPool {
-  private readonly _pool: BarRenderData[]
+  private readonly _pool: BarRenderData[] = []
   private _cursor = 0
-
-  constructor () {
-    this._pool = []
-    for (let i = 0; i < _BAR_POOL_MAX; i++) {
-      this._pool.push({ dataIndex: 0, centerX: 0, open: 0, high: 0, low: 0, close: 0, wickColor: '', bodyColor: '', borderColor: '' })
-    }
-  }
 
   reset (): void { this._cursor = 0 }
 
   alloc (): BarRenderData {
-    if (this._cursor >= this._pool.length) {
-      // Safety: grow pool beyond the pre-allocated limit (shouldn't happen in practice)
-      this._pool.push({ dataIndex: 0, centerX: 0, open: 0, high: 0, low: 0, close: 0, wickColor: '', bodyColor: '', borderColor: '' })
+    let slot = this._pool[this._cursor]
+    if (slot === undefined) {
+      slot = { dataIndex: 0, centerX: 0, open: 0, high: 0, low: 0, close: 0, wickColor: '', bodyColor: '', borderColor: '' }
+      this._pool.push(slot)
     }
-    return this._pool[this._cursor++]
+    this._cursor++
+    return slot
   }
 }
 
