@@ -23,7 +23,8 @@ export default defineConfig({
   format: ['esm'],
   dts: true,
   sourcemap: false,
-  minify: true,
+  // ASTRONEUM_MINIFY=0 keeps function names for profiling (scripts/render-bench.mjs --profile).
+  minify: process.env.ASTRONEUM_MINIFY !== '0',
   target: 'esnext',
   outDir: 'dist',
   clean: false,

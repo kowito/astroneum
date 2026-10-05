@@ -52,6 +52,33 @@ Chart type descriptions live in `src/chartTypeInfo.ts` and are shared by the dem
 home page gallery. The gallery thumbnails and the share image (`public/og.png`) are snapshots; to
 refresh them, capture each `/demo/?type=…` page and crop to the price pane.
 
+## Render benchmark
+
+`/bench/` mounts a chart on synthetic data and times every `requestAnimationFrame`
+callback, so a scenario reports how much main-thread time the chart spends drawing
+while the input runs. `scripts/render-bench.mjs` (repo root) drives it in headless
+Chrome and prints a table:
+
+```bash
+pnpm dev                                   # in demo/, or any server that serves /bench/
+node scripts/render-bench.mjs --url http://localhost:3000/bench/ --bars 20000 --path webgl
+node scripts/render-bench.mjs --zoomout 40 --profile tick --tree   # dense view, with a CPU profile
+```
+
+| Option | Meaning |
+|---|---|
+| `--path auto\|webgl\|worker\|canvas2d` | which candle renderer the chart may use (`auto` is what a browser picks) |
+| `--ind default\|none` | EMA + BOLL on the candles and VOL, MACD, RSI panes, or candles only |
+| `--zoomout N` | zoom out N wheel notches first, so many more bars are visible |
+| `--scenarios …` | any of `idle,hover,pan,wheelpan,zoom,tick,newbar` |
+| `--trace [scenario]` | list the `requestAnimationFrame` callbacks that run |
+| `--profile <scenario>\|all`, `--tree` | sample the CPU and print the hottest functions, or a call tree |
+| `--json file` | also save the results |
+
+Build the library with `ASTRONEUM_MINIFY=0 pnpm build` first when profiling, so
+function names survive. Do not pass `--disable-gpu` to Chrome: without a GPU, headless
+Chrome has no WebGL2 at all and every path silently becomes Canvas2D.
+
 ## Deploying (GitHub Pages)
 
 The demo is exported as static files and published by

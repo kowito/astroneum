@@ -87,6 +87,16 @@ If a test needs the built artifacts (SSR check, bundle inspection), import
 from `../../dist/...` and document the dependency in a top-of-file comment;
 `pnpm verify` runs `pnpm build` before `pnpm test` to make this safe.
 
+## Measuring rendering
+
+`pnpm test` has CPU-time budgets for the indicator kernels and the codec. For the
+drawing itself, the demo's `/bench/` page and `scripts/render-bench.mjs` time every
+animation frame the chart draws under pan, zoom, hover and live ticks, in headless
+Chrome with a real GPU; `demo/README.md` has the options. Build with
+`ASTRONEUM_MINIFY=0 pnpm build` before `--profile`, so the profile shows function names.
+When a change is meant to make rendering faster, put the before and after table in the
+pull request.
+
 ## Adding a new subpath export
 
 1. Create a thin re-export file under `src/entries/<name>.ts`.
