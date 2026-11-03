@@ -543,8 +543,10 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
         this._animRealTo = realTo
         this._animVelocityFrom = 0
         this._animVelocityTo = 0
-      } else {
-        // New target — spring will chase it each frame
+      } else if (realFrom !== this._prevRealFrom || realTo !== this._prevRealTo) {
+        // New target — spring will chase it each frame. Ticks are rebuilt on every
+        // layout (crosshair moves included), so an unchanged target must not restart
+        // the spring: each restart costs a Main redraw of the whole pane.
         if (!this._animating) {
           this._animating = true
           this._lastFrameTime = performance.now()
@@ -602,9 +604,13 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
         dt -= stepDt
       }
 
+      // Settle once the remaining motion is below a quarter of a pixel: anything
+      // finer redraws the whole pane for frames nobody can see.
       const span = Math.max(Math.abs(targetTo - targetFrom), 1)
-      const posEps = span * 1e-5
-      const velEps = span * 1e-4
+      const axisHeight = pane.getYAxisWidget()?.getBounding().height ?? 0
+      const valuePerPixel = axisHeight > 0 ? span / axisHeight : span * 1e-3
+      const posEps = valuePerPixel * 0.25
+      const velEps = valuePerPixel
       const settled =
         Math.abs(this._animRealFrom - targetFrom) < posEps &&
         Math.abs(this._animRealTo - targetTo) < posEps &&

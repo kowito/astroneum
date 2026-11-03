@@ -7,6 +7,8 @@ import movingAverage from '../engine/extension/indicator/movingAverage'
 import exponentialMovingAverage from '../engine/extension/indicator/exponentialMovingAverage'
 import relativeStrengthIndex from '../engine/extension/indicator/relativeStrengthIndex'
 import bollingerBands from '../engine/extension/indicator/bollingerBands'
+import volume from '../engine/extension/indicator/volume'
+import movingAverageConvergenceDivergence from '../engine/extension/indicator/movingAverageConvergenceDivergence'
 import type { IndicatorTemplate } from '../engine/component/Indicator'
 import { createKernel, runKernel, type IndicatorKind } from '../engine/workers/TypedArrayIndicators'
 import workerSource from '../engine/workers/indicatorWorkerSource.generated'
@@ -22,14 +24,23 @@ const TEMPLATES: Record<IndicatorKind, Template> = {
   MA: movingAverage,
   EMA: exponentialMovingAverage,
   RSI: relativeStrengthIndex,
-  BOLL: bollingerBands
+  BOLL: bollingerBands,
+  VOL: volume,
+  MACD: movingAverageConvergenceDivergence
 }
 
 const PARAM_SETS: Record<IndicatorKind, number[][]> = {
   MA: [[5, 10, 30, 60], [1], [3, 7]],
   EMA: [[6, 12, 20], [1], [9, 26]],
   RSI: [[6, 12, 24], [1], [14]],
-  BOLL: [[20, 2], [5, 2.5], [1, 3]]
+  BOLL: [[20, 2], [5, 2.5], [1, 3]],
+  VOL: [[5, 10, 20], [1], [7, 25, 99]],
+  MACD: [[12, 26, 9], [1, 1, 1], [5, 35, 5], [26, 12, 9]]
+}
+
+/** The series a kernel reads: volume for VOL, close otherwise. */
+function seriesOf (kind: IndicatorKind, bars: CandleData[]): (i: number) => number {
+  return kind === 'VOL' ? i => bars[i].volume ?? 0 : i => bars[i].close
 }
 
 function seeded (seed: number): () => number {
@@ -44,7 +55,7 @@ function makeBars (n: number, seed = 1, closeOf?: (i: number, rnd: () => number)
   let price = 1000
   return Array.from({ length: n }, (_, i) => {
     price = closeOf !== undefined ? closeOf(i, rnd) : price + (rnd() - 0.5) * 8
-    return { timestamp: i * 60_000, open: price, high: price + 1, low: price - 1, close: price, volume: 1 }
+    return { timestamp: i * 60_000, open: price - 0.5, high: price + 1, low: price - 1, close: price, volume: Math.round(rnd() * 1000) }
   })
 }
 
@@ -66,19 +77,20 @@ function mockIndicator (template: Template, params: number[]): any {
 function kernelRows (kind: IndicatorKind, params: number[], indicator: any, bars: CandleData[]): unknown[] {
   const kernel = createKernel(kind, params)
   const keys = kind === 'BOLL' ? ['up', 'mid', 'dn'] : indicator.figures.map((f: { key: string }) => f.key)
-  const { outputs } = runKernel(kernel, i => bars[i].close, bars.length)
-  return bars.map((_, i) => {
+  const { outputs } = runKernel(kernel, seriesOf(kind, bars), bars.length)
+  return bars.map((bar, i) => {
     const row: Record<string, number> = {}
     for (let s = 0; s < kernel.outputs; s++) {
       if (i >= kernel.firstIndex(s)) row[keys[s]] = outputs[s][i]
     }
+    if (kind === 'VOL') Object.assign(row, { volume: bar.volume ?? 0, open: bar.open, close: bar.close })
     return row
   })
 }
 
 function nextBar (bars: CandleData[], close: number): CandleData {
   const t = bars[bars.length - 1].timestamp + 60_000
-  return { timestamp: t, open: close, high: close + 1, low: close - 1, close, volume: 1 }
+  return { timestamp: t, open: close, high: close + 1, low: close - 1, close, volume: Math.round(close) % 700 }
 }
 
 describe('indicator kernels', () => {
@@ -107,9 +119,9 @@ describe('generated worker source', () => {
     const bars = makeBars(300, 5)
     for (const kind of Object.keys(TEMPLATES) as IndicatorKind[]) {
       const params = PARAM_SETS[kind][0]
-      scope.onmessage({ data: { id: 1, kind, params, closes: Float64Array.from(bars, b => b.close) } })
+      scope.onmessage({ data: { id: 1, kind, params, closes: Float64Array.from(bars, (_, i) => seriesOf(kind, bars)(i)) } })
       const reply = replies.pop()
-      const expected = runKernel(createKernel(kind, params), i => bars[i].close, bars.length)
+      const expected = runKernel(createKernel(kind, params), seriesOf(kind, bars), bars.length)
       // Array.from: the reply's arrays come from the vm realm, which deepStrictEqual would compare by prototype.
       assert.deepStrictEqual(Array.from(reply.outputs as Float64Array[], o => Array.from(o)), expected.outputs.map(o => Array.from(o)), kind)
       assert.deepStrictEqual(Array.from(reply.stateBeforeLast as number[]), expected.stateBeforeLast, `${kind} state`)
@@ -251,7 +263,33 @@ describe('withWorkerOffload', () => {
     assert.equal(runs, 1)
   })
 
-  it('uses the template unchanged when disabled, below minBars, or for unsupported params', () => {
+  for (const kind of Object.keys(TEMPLATES) as IndicatorKind[]) {
+    it(`${kind}: without workers, a full run is synchronous and ticks and new bars step from it`, () => {
+      const template = TEMPLATES[kind]
+      const wrapped = withWorkerOffload(template, kind)
+      const params = PARAM_SETS[kind][0]
+      const indicator = mockIndicator(template, params)
+      const bars = makeBars(200, 13)
+      const full = wrapped.calc(bars, indicator)
+      assert.ok(Array.isArray(full), 'synchronous')
+      assert.deepStrictEqual(full, template.calc(bars, indicator), 'full')
+
+      bars[bars.length - 1] = { ...bars[bars.length - 1], close: bars[bars.length - 1].close + 2.5, volume: 321 } // tick replaces the bar
+      const ticked = wrapped.calc(bars, indicator)
+      assert.equal(ticked, full, 'the same rows array is updated in place')
+      assert.deepStrictEqual(ticked, template.calc(bars, indicator), 'tick')
+
+      bars.push(nextBar(bars, 1010))
+      bars.push(nextBar(bars, 1003))
+      bars[bars.length - 1].close -= 1 // and a tick on the new bar
+      assert.deepStrictEqual(wrapped.calc(bars, indicator), template.calc(bars, indicator), 'append')
+
+      const other = makeBars(150, 14) // new array: a full run again
+      assert.deepStrictEqual(wrapped.calc(other, indicator), template.calc(other, indicator), 'new data')
+    })
+  }
+
+  it('stays synchronous when disabled or below minBars, and uses the template for unsupported params', () => {
     const wrapped = withWorkerOffload(bollingerBands, 'BOLL')
     const bars = makeBars(100, 6)
     const indicator = mockIndicator(bollingerBands, [20, 2])

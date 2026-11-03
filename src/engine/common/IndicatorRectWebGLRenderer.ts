@@ -1,39 +1,21 @@
 import { getPixelRatio } from './utils/canvas'
 import { type SharedIndicatorGLCanvas } from './SharedIndicatorGLCanvas'
-import { getOrCreateColor } from './candleShaders'
+import { type InstanceStaging, RECT_BYTES, RECT_COLOR_OFFSET } from './instancePacking'
 
 // ---------------------------------------------------------------------------
-// GPU rect/bar renderer for histogram-style indicator figures (Priority 4).
+// GPU rect renderer for histogram-style indicator figures (volume, MACD,
+// custom bars). Replaces one Canvas2D fillRect per visible bar with a single
+// instanced draw call.
 //
-// Replaces O(N) individual Canvas2D fillRect calls (one per visible bar) with
-// a single instanced WebGL2 draw call.  Handles the dominant 'fill' case used
-// by volume, MACD histogram, RSI fills, and most custom bar indicators.
+// The view packs rects into an InstanceStaging (see instancePacking.ts) and
+// hands it to upload() once per frame. The staging's hash decides whether the
+// GPU buffer is rewritten, so redraws that keep the data cost no upload.
 //
-// Memory layout — packed per-instance VBO  (20 bytes / rect)
-//
-//  Byte  0– 3  Float32  x         (CSS pixels, left edge)
-//  Byte  4– 7  Float32  y         (CSS pixels, top edge)
-//  Byte  8–11  Float32  width     (CSS pixels)
-//  Byte 12–15  Float32  height    (CSS pixels)
-//  Byte 16–19  UByte×4  color     (RGBA, normalized: 0..255 → 0..1)
-//
-// Coordinate system: CSS pixels, Y=0 at canvas top (matching Canvas2D).
-// Shader converts CSS px → NDC (Y-flip included).
-//
-// GPU path guard: only solid-fill (style='fill'), non-gradient, non-rounded
-// rects take this path.  Everything else falls back to Canvas2D.
+// Only solid fills take this path; see isGpuRectEligible.
 // ---------------------------------------------------------------------------
 
-const BYTES_PER_RECT = 20
-const COLOR_BYTE_OFF = 16   // byte offset of color field
 const VERTS_PER_RECT = 6    // two triangles, no index buffer
-const FNV_OFFSET_BASIS = 2166136261
-const FNV_PRIME = 16777619
-const FINGERPRINT_SCALE = 1024
 
-// ---------------------------------------------------------------------------
-// Vertex shader — unit-quad expansion via gl_VertexID
-// ---------------------------------------------------------------------------
 const VERT_SRC = /* glsl */`#version 300 es
 precision highp float;
 
@@ -88,11 +70,7 @@ out vec4 fragColor;
 void main() { fragColor = v_color; }
 `
 
-// ---------------------------------------------------------------------------
-// Shader helpers
-// ---------------------------------------------------------------------------
-
-function compileShader(gl: WebGL2RenderingContext, type: GLenum, src: string): WebGLShader {
+function compileShader (gl: WebGL2RenderingContext, type: GLenum, src: string): WebGLShader {
   const shader = gl.createShader(type)!
   gl.shaderSource(shader, src)
   gl.compileShader(shader)
@@ -102,7 +80,7 @@ function compileShader(gl: WebGL2RenderingContext, type: GLenum, src: string): W
   return shader
 }
 
-function createProgram(gl: WebGL2RenderingContext): WebGLProgram {
+function createProgram (gl: WebGL2RenderingContext): WebGLProgram {
   const vert = compileShader(gl, gl.VERTEX_SHADER, VERT_SRC)
   const frag = compileShader(gl, gl.FRAGMENT_SHADER, FRAG_SRC)
   const prog = gl.createProgram()!
@@ -117,288 +95,115 @@ function createProgram(gl: WebGL2RenderingContext): WebGLProgram {
   return prog
 }
 
-// Colour helpers imported from candleShaders (hexToRgba, parseColor, getOrCreateColor)
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
-export interface RectInstanceData {
-  x: number
-  y: number
-  width: number
-  height: number
-  color: string   // any CSS color string (solid fill only)
-}
-
 export class IndicatorRectWebGLRenderer {
   private readonly _sharedCanvas: SharedIndicatorGLCanvas
   private readonly _gl: WebGL2RenderingContext
   private readonly _program: WebGLProgram
   private readonly _vao: WebGLVertexArrayObject
   private readonly _vbo: WebGLBuffer
-
   private readonly _uResolution: WebGLUniformLocation
   private readonly _uPixelRatio: WebGLUniformLocation
 
-  private _capacity = 0
-  private _rectCount = 0
-
-  private _stagingBuf: ArrayBuffer = new ArrayBuffer(512 * BYTES_PER_RECT)
-  private _stagingF32: Float32Array = new Float32Array(this._stagingBuf)
-  private _stagingU8: Uint8Array = new Uint8Array(this._stagingBuf)
-
-  private readonly _colorCache = new Map<string, readonly [number, number, number, number]>()
-  private readonly _colorHashCache = new Map<string, number>()
-
-  // ---------------------------------------------------------------------------
-  // Dirty-flag fingerprint (computed during the existing culling pass).
-  // Keeps upload-skip cheap while still detecting zoom-driven width/height
-  // and y-scale changes that can keep first/last x/y unchanged.
-  // ---------------------------------------------------------------------------
-  private _fingerprintRectCount = -1
-  private _fingerprintHash = 0
-
-  // Sub-pixel culling reuse buffer — grows amortised, never shrinks.
-  private readonly _culledBuf: RectInstanceData[] = []
-
-  // ── Incremental dirty tracking ───────────────────────────────────────────────
-  //  _vboVersion increments whenever the VBO is actually written.
-  //  isDirty() compares _drawnVersion and _lastSizeVersion against the shared
-  //  canvas state so the view can skip beginFrame() + draw() on clean frames.
-  private _vboVersion = 0
+  private _gpuCapacity = 0
+  private _uploadedCount = 0
+  private _uploadedHash = -1
+  private _version = 0
   private _drawnVersion = -1
   private _lastSizeVersion = -1
 
-  constructor(sharedCanvas: SharedIndicatorGLCanvas) {
+  constructor (sharedCanvas: SharedIndicatorGLCanvas) {
     this._sharedCanvas = sharedCanvas
     const gl = sharedCanvas.gl
     this._gl = gl
 
-    // Note: BLEND, DEPTH_TEST, SCISSOR_TEST are set once in SharedIndicatorGLCanvas.
-
+    // BLEND, DEPTH_TEST and SCISSOR_TEST are set once by SharedIndicatorGLCanvas.
     this._program = createProgram(gl)
     gl.useProgram(this._program)
-
     this._uResolution = gl.getUniformLocation(this._program, 'u_resolution')!
     this._uPixelRatio = gl.getUniformLocation(this._program, 'u_pixelRatio')!
 
     this._vao = gl.createVertexArray()!
     gl.bindVertexArray(this._vao)
-
     this._vbo = gl.createBuffer()!
     gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
-
-    this._setupAttribs(gl)
-    gl.bindVertexArray(null)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Attribute bindings
-  // ---------------------------------------------------------------------------
-
-  private _setupAttribs(gl: WebGL2RenderingContext): void {
-    const prog = this._program
-    const stride = BYTES_PER_RECT
-
     const bindF32 = (name: string, byteOffset: number): void => {
-      const loc = gl.getAttribLocation(prog, name)
+      const loc = gl.getAttribLocation(this._program, name)
       if (loc < 0) return
       gl.enableVertexAttribArray(loc)
-      gl.vertexAttribPointer(loc, 1, gl.FLOAT, false, stride, byteOffset)
+      gl.vertexAttribPointer(loc, 1, gl.FLOAT, false, RECT_BYTES, byteOffset)
       gl.vertexAttribDivisor(loc, 1)
     }
-
     bindF32('a_x', 0)
     bindF32('a_y', 4)
     bindF32('a_width', 8)
     bindF32('a_height', 12)
-
-    const colorLoc = gl.getAttribLocation(prog, 'a_color')
+    const colorLoc = gl.getAttribLocation(this._program, 'a_color')
     if (colorLoc >= 0) {
       gl.enableVertexAttribArray(colorLoc)
-      gl.vertexAttribPointer(colorLoc, 4, gl.UNSIGNED_BYTE, true, stride, COLOR_BYTE_OFF)
+      gl.vertexAttribPointer(colorLoc, 4, gl.UNSIGNED_BYTE, true, RECT_BYTES, RECT_COLOR_OFFSET)
       gl.vertexAttribDivisor(colorLoc, 1)
     }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Dirty tracking
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Returns true when the renderer's output is stale and must be redrawn.
-   * Stale when the VBO contents changed OR the shared canvas was resized.
-   */
-  isDirty(): boolean {
-    return this._vboVersion !== this._drawnVersion ||
-      this._lastSizeVersion !== this._sharedCanvas.sizeVersion
-  }
-
-  // ---------------------------------------------------------------------------
-  // Resize — delegates to the shared canvas (idempotent).
-  // ---------------------------------------------------------------------------
-
-  resize(width: number, height: number): void {
-    this._sharedCanvas.resize(width, height)
-  }
-
-  // ---------------------------------------------------------------------------
-  // VBO management
-  // ---------------------------------------------------------------------------
-
-  private _ensureCapacity(count: number): void {
-    if (count <= this._capacity) return
-    const newCap = Math.max(count, this._capacity * 2, 512)
-    this._stagingBuf = new ArrayBuffer(newCap * BYTES_PER_RECT)
-    this._stagingF32 = new Float32Array(this._stagingBuf)
-    this._stagingU8 = new Uint8Array(this._stagingBuf)
-    const gl = this._gl
-    gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
-    gl.bufferData(gl.ARRAY_BUFFER, newCap * BYTES_PER_RECT, gl.DYNAMIC_DRAW)
-    this._capacity = newCap
-  }
-
-  private _parseColorCached(color: string): readonly [number, number, number, number] {
-    return getOrCreateColor(color, this._colorCache)
-  }
-
-  private _mixHash(hash: number, value: number): number {
-    return Math.imul(hash ^ value, FNV_PRIME) >>> 0
-  }
-
-  private _hashQuantized(value: number): number {
-    return Math.round(value * FINGERPRINT_SCALE) | 0
-  }
-
-  private _hashColorCached(color: string): number {
-    let colorHash = this._colorHashCache.get(color)
-    if (colorHash === undefined) {
-      colorHash = FNV_OFFSET_BASIS
-      for (let i = 0; i < color.length; i++) {
-        colorHash = this._mixHash(colorHash, color.charCodeAt(i))
-      }
-      this._colorHashCache.set(color, colorHash)
-    }
-    return colorHash
-  }
-
-  /**
-   * Upload all rect instances for this frame.
-   * Sub-pixel culling: rects narrower than 0.5 CSS pixel or shorter than
-   * 0.5 CSS pixel are invisible and skipped before upload — reduces GPU work
-   * at high zoom-out where volume / histogram bars collapse to nothing.
-   * Dirty-flag: skips the GPU upload when the culled batch is identical to
-   * the previous frame.
-   */
-  setData(rects: RectInstanceData[]): void {
-    // Sub-pixel culling pass — compact visible rects into the reused buffer
-    const culledBuf = this._culledBuf
-    let culledCount = 0
-    let geometryHash = FNV_OFFSET_BASIS
-    for (let i = 0; i < rects.length; i++) {
-      const r = rects[i]
-      if (r.width < 0.5 || r.height < 0.5) continue
-      if (culledCount >= culledBuf.length) culledBuf.push(r)
-      else culledBuf[culledCount] = r
-      geometryHash = this._mixHash(geometryHash, this._hashQuantized(r.x))
-      geometryHash = this._mixHash(geometryHash, this._hashQuantized(r.y))
-      geometryHash = this._mixHash(geometryHash, this._hashQuantized(r.width))
-      geometryHash = this._mixHash(geometryHash, this._hashQuantized(r.height))
-      geometryHash = this._mixHash(geometryHash, this._hashColorCached(r.color))
-      culledCount++
-    }
-    const rectCount = culledCount
-    this._rectCount = rectCount
-    if (rectCount === 0) {
-      if (this._fingerprintRectCount !== 0) this._vboVersion++   // canvas must be cleared
-      this._fingerprintRectCount = 0
-      this._fingerprintHash = 0
-      return
-    }
-
-    if (
-      rectCount === this._fingerprintRectCount &&
-      geometryHash === this._fingerprintHash
-    ) return
-
-    this._fingerprintRectCount = rectCount
-    this._fingerprintHash = geometryHash
-
-    this._ensureCapacity(rectCount)
-
-    const f32 = this._stagingF32
-    const u8 = this._stagingU8
-    for (let i = 0; i < rectCount; i++) {
-      const rect = culledBuf[i]
-      const f32Base = i * 4          // 4 float32 fields per rect
-      const byteBase = i * BYTES_PER_RECT
-      f32[f32Base + 0] = rect.x
-      f32[f32Base + 1] = rect.y
-      f32[f32Base + 2] = rect.width
-      f32[f32Base + 3] = rect.height
-      const rgba = this._parseColorCached(rect.color)
-      u8[byteBase + COLOR_BYTE_OFF] = (rgba[0] * 255 + 0.5) | 0
-      u8[byteBase + COLOR_BYTE_OFF + 1] = (rgba[1] * 255 + 0.5) | 0
-      u8[byteBase + COLOR_BYTE_OFF + 2] = (rgba[2] * 255 + 0.5) | 0
-      u8[byteBase + COLOR_BYTE_OFF + 3] = (rgba[3] * 255 + 0.5) | 0
-    }
-
-    const gl = this._gl
-    gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._stagingU8, 0, rectCount * BYTES_PER_RECT)
-    this._vboVersion++   // VBO updated — draw() must re-render
-  }
-
-  /**
-   * Draw all uploaded rects in a single instanced draw call.
-   * Caller MUST call sharedCanvas.beginFrame() before this and check isDirty()
-   * first — this method always draws (dirty tracking is done by the view).
-   */
-  draw(): void {
-    const shared = this._sharedCanvas
-    const canvas = shared.canvas
-    const gl = this._gl
-    const pr = getPixelRatio(canvas)
-    const w = canvas.width
-    const h = canvas.height
-
-    // Mark as current — viewport/scissor/clear already handled by beginFrame().
-    this._drawnVersion = this._vboVersion
-    this._lastSizeVersion = shared.sizeVersion
-
-    if (this._rectCount === 0) return
-
-    gl.useProgram(this._program)
-    gl.uniform2f(this._uResolution, w, h)
-    gl.uniform1f(this._uPixelRatio, pr)
-
-    gl.bindVertexArray(this._vao)
-    gl.drawArraysInstanced(gl.TRIANGLES, 0, VERTS_PER_RECT, this._rectCount)
     gl.bindVertexArray(null)
   }
 
-  // ---------------------------------------------------------------------------
-  // Cleanup
-  // ---------------------------------------------------------------------------
+  /** Upload this frame's rects (packed with packRect) when they differ from the GPU's. */
+  upload (staging: InstanceStaging): void {
+    const { count, hash } = staging
+    if (count === this._uploadedCount && hash === this._uploadedHash) return
+    this._uploadedCount = count
+    this._uploadedHash = hash
+    this._version++
+    if (count === 0) return
+    const gl = this._gl
+    gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo)
+    if (count > this._gpuCapacity) {
+      this._gpuCapacity = staging.capacity
+      gl.bufferData(gl.ARRAY_BUFFER, this._gpuCapacity * RECT_BYTES, gl.DYNAMIC_DRAW)
+    }
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, staging.bytes())
+  }
 
-  destroy(): void {
+  /** True when the rect layer must be redrawn: new data, or the canvas was resized. */
+  isDirty (): boolean {
+    return this._version !== this._drawnVersion ||
+      this._lastSizeVersion !== this._sharedCanvas.sizeVersion
+  }
+
+  resize (width: number, height: number): void {
+    this._sharedCanvas.resize(width, height)
+  }
+
+  /** Draw the rects. The caller clears the canvas with beginFrame() first. */
+  draw (): void {
+    this._drawnVersion = this._version
+    this._lastSizeVersion = this._sharedCanvas.sizeVersion
+    if (this._uploadedCount === 0) return
+    const canvas = this._sharedCanvas.canvas
+    const gl = this._gl
+    gl.useProgram(this._program)
+    gl.uniform2f(this._uResolution, canvas.width, canvas.height)
+    gl.uniform1f(this._uPixelRatio, getPixelRatio(canvas))
+    gl.bindVertexArray(this._vao)
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, VERTS_PER_RECT, this._uploadedCount)
+    gl.bindVertexArray(null)
+  }
+
+  destroy (): void {
     const gl = this._gl
     gl.deleteVertexArray(this._vao)
     gl.deleteBuffer(this._vbo)
     gl.deleteProgram(this._program)
-    // The GL context and canvas are owned by SharedIndicatorGLCanvas — do not
-    // lose the context here; destroySharedIndicatorGLCanvas() handles that.
+    // The context and canvas belong to SharedIndicatorGLCanvas.
   }
 }
 
 const _rectRendererCache = new WeakMap<object, IndicatorRectWebGLRenderer>()
 
-export function getRectRenderer(widgetKey: object): IndicatorRectWebGLRenderer | null {
+export function getRectRenderer (widgetKey: object): IndicatorRectWebGLRenderer | null {
   return _rectRendererCache.get(widgetKey) ?? null
 }
 
-export function getOrCreateRectRenderer(
+export function getOrCreateRectRenderer (
   widgetKey: object,
   sharedCanvas: SharedIndicatorGLCanvas
 ): IndicatorRectWebGLRenderer {
@@ -410,7 +215,7 @@ export function getOrCreateRectRenderer(
   return r
 }
 
-export function destroyRectRenderer(widgetKey: object): void {
+export function destroyRectRenderer (widgetKey: object): void {
   const r = _rectRendererCache.get(widgetKey)
   if (r !== undefined) {
     r.destroy()
@@ -418,24 +223,20 @@ export function destroyRectRenderer(widgetKey: object): void {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Guard: can this rect instance be rendered on GPU?
-// GPU path: solid fill, plain string color, no borderRadius, no border.
-// Everything else falls back to Canvas2D (transparent, gradient, rounded, etc.)
-// ---------------------------------------------------------------------------
-export function isGpuRectEligible(styles: {
+/**
+ * Can this rect be drawn on the GPU? Only a plain solid fill: the rect figure
+ * strokes a border for 'stroke' and 'stroke_fill' styles, never for 'fill',
+ * so a border size on a fill rect is ignored here as the figure ignores it.
+ */
+export function isGpuRectEligible (styles: {
   style?: string
   color?: unknown
   borderRadius?: unknown
-  borderSize?: number
-  borderColor?: string
-}): styles is { style: 'fill' | undefined; color: string } {
-  const { style, color, borderRadius, borderSize, borderColor } = styles
+}): styles is { style: 'fill' | undefined, color: string } {
+  const { style, color, borderRadius } = styles
   if (style !== undefined && style !== 'fill') return false
   if (typeof color !== 'string') return false       // CanvasGradient
   if (color === 'transparent' || color === '') return false
   if (borderRadius !== undefined && borderRadius !== 0) return false
-  if (borderSize !== undefined && borderSize > 0 &&
-    typeof borderColor === 'string' && borderColor !== 'transparent') return false
   return true
 }

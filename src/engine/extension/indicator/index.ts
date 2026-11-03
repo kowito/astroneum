@@ -76,8 +76,9 @@ const extensions = [
   volumeWeightedMovingAverage, weightedMovingAverage, williamsR, zigzag
 ]
 
-// Built-ins that can run on the accelerated path (see configureIndicatorWorkers).
-const ACCELERATED: Record<string, IndicatorKind> = { MA: 'MA', EMA: 'EMA', RSI: 'RSI', BOLL: 'BOLL' }
+// Built-ins with step kernels: ticks and new bars step from saved state, and full
+// runs can go to workers (see configureIndicatorWorkers).
+const ACCELERATED: Record<string, IndicatorKind> = { MA: 'MA', EMA: 'EMA', RSI: 'RSI', BOLL: 'BOLL', VOL: 'VOL', MACD: 'MACD' }
 
 extensions.forEach((indicator: IndicatorTemplate) => {
   const kind = ACCELERATED[indicator.name]

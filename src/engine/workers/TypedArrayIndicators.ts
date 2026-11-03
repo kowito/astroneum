@@ -1,6 +1,7 @@
 /**
- * TypedArrayIndicators — step kernels for the built-in MA, EMA, RSI and BOLL
- * indicators, used by the indicator worker pool and its main-thread fast paths.
+ * TypedArrayIndicators — step kernels for the built-in MA, EMA, RSI, BOLL, VOL
+ * and MACD indicators, used by the indicator worker pool and the main-thread
+ * tick path (see indicatorOffload.ts).
  *
  * Each kernel mirrors its engine template (extension/indicator/*.ts) operation
  * for operation, so results are bit-identical to the template's `calc` — the
@@ -13,9 +14,9 @@
  * `number[]` so it can cross `postMessage`.
  */
 
-export type IndicatorKind = 'MA' | 'EMA' | 'RSI' | 'BOLL'
+export type IndicatorKind = 'MA' | 'EMA' | 'RSI' | 'BOLL' | 'VOL' | 'MACD'
 
-/** Close price of bar `i`; bars before 0 are never requested. */
+/** The input series at bar `i` (close, or volume for VOL); bars before 0 are never requested. */
 export type CloseAt = (i: number) => number
 
 export interface Kernel {
@@ -28,12 +29,16 @@ export interface Kernel {
   step: (state: number[], close: CloseAt, i: number, out: number[]) => void
 }
 
-/** Periods must be positive integers; BOLL's second param is any finite multiplier. */
+/**
+ * Periods must be positive integers; BOLL's second param is any finite
+ * multiplier; MACD takes exactly short, long and signal periods.
+ */
 export function validParams (kind: IndicatorKind, params: readonly unknown[]): params is number[] {
   const isPeriod = (v: unknown): boolean => typeof v === 'number' && Number.isInteger(v) && v > 0
   if (kind === 'BOLL') {
     return params.length === 2 && isPeriod(params[0]) && typeof params[1] === 'number' && Number.isFinite(params[1])
   }
+  if (kind === 'MACD') return params.length === 3 && params.every(isPeriod)
   return params.length > 0 && params.every(isPeriod)
 }
 
@@ -144,12 +149,50 @@ function bollKernel (period: number, multiplier: number): Kernel {
   }
 }
 
+// movingAverageConvergenceDivergence.ts: EMA(short) and EMA(long) seeded like
+// emaKernel from one running close sum; dif = short - long once both exist;
+// dea = EMA(signal) of dif, seeded from the running dif sum; macd = 2 (dif - dea).
+// Outputs: [dif, dea, macd]. state: [closeSum, emaShort, emaLong, difSum, dea]
+function macdKernel (short: number, long: number, signal: number): Kernel {
+  const maxPeriod = Math.max(short, long)
+  const firstDif = maxPeriod - 1
+  const firstDea = maxPeriod + signal - 2
+  return {
+    outputs: 3,
+    firstIndex: s => (s === 0 ? firstDif : firstDea),
+    init: () => [0, 0, 0, 0, 0],
+    step: (state, close, i, out) => {
+      const c = close(i)
+      state[0] += c
+      if (i >= short - 1) {
+        state[1] = i > short - 1 ? (2 * c + (short - 1) * state[1]) / (short + 1) : state[0] / short
+      }
+      if (i >= long - 1) {
+        state[2] = i > long - 1 ? (2 * c + (long - 1) * state[2]) / (long + 1) : state[0] / long
+      }
+      if (i >= firstDif) {
+        const dif = state[1] - state[2]
+        out[0] = dif
+        state[3] += dif
+        if (i >= firstDea) {
+          state[4] = i > firstDea ? (dif * 2 + state[4] * (signal - 1)) / (signal + 1) : state[3] / signal
+          out[2] = (dif - state[4]) * 2
+          out[1] = state[4]
+        }
+      }
+    }
+  }
+}
+
 export function createKernel (kind: IndicatorKind, params: number[]): Kernel {
   switch (kind) {
     case 'MA': return maKernel(params)
     case 'EMA': return emaKernel(params)
     case 'RSI': return rsiKernel(params)
     case 'BOLL': return bollKernel(params[0], params[1])
+    // volume.ts is the moving-average template over volume instead of close.
+    case 'VOL': return maKernel(params)
+    case 'MACD': return macdKernel(params[0], params[1], params[2])
   }
 }
 

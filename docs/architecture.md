@@ -242,21 +242,24 @@ flowchart TD
 
 ### Optional: workers for very long histories
 
-Off by default. Turn it on with `configureIndicatorWorkers({ enabled: true })`.
+Off by default. Turn it on with `configureIndicatorWorkers({ enabled: true })`. Live ticks
+on the six built-in indicators with step kernels never recompute the whole series, with or
+without workers; this moves the full recomputes (first load, new symbol) off the main thread.
 
 ```mermaid
 %% diagram: worker-decision
 flowchart TD
-    A["calc() called for<br/>MA, EMA, RSI or BOLL"] --> B{"Enabled, 20,000+ bars,<br/>and plain-number settings?"}
-    B -->|"No"| M["Normal calculation<br/>on the main thread"]
-    B -->|"Yes"| C{"Same data as last time,<br/>only the last bar changed<br/>or bars were added?"}
+    A["calc() called for MA, EMA,<br/>RSI, BOLL, VOL or MACD"] --> C{"Same data as last time,<br/>only the last bar changed<br/>or bars were added?"}
     C -->|"Yes"| T["Step only the new bars<br/>from saved state<br/>about 0.1 ms"]
-    C -->|"No: new data"| W["Clear old values,<br/>compute in a Web Worker"]
+    C -->|"No: new data"| B{"Workers enabled and<br/>20,000+ bars?"}
+    B -->|"Yes"| W["Clear old values,<br/>compute in a Web Worker"]
+    B -->|"No"| M["Compute on the main thread"]
     W -->|"worker fails or times out"| M
 ```
 
-The results are identical either way. A test compares the worker maths to the normal
-indicators bar for bar, so turning it on never changes what you see.
+The tick step applies whether or not workers are on; the option only decides where a
+full recompute runs. The results are identical either way. A test compares the kernel
+maths to the normal indicators bar for bar, so turning it on never changes what you see.
 
 ## The history cache
 
