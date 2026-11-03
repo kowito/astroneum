@@ -1,89 +1,62 @@
 import type DeepPartial from '../../common/DeepPartial'
 import type { Styles } from '../../common/Styles'
 
+// Light theme: white chart, #E0E3EB dividers, #131722 text.
+// Keep the keys in step with the other theme: switching themes merges one
+// over the other, so a key set only here would survive the switch.
 const light: DeepPartial<Styles> = {
   grid: {
-    horizontal: {
-      color: '#EDEDED'
-    },
-    vertical: {
-      color: '#EDEDED'
-    }
+    horizontal: { color: '#F0F3FA' },
+    vertical: { color: '#F0F3FA' }
   },
   candle: {
     priceMark: {
-      high: {
-        color: '#76808F'
-      },
-      low: {
-        color: '#76808F'
-      }
+      high: { color: '#131722' },
+      low: { color: '#131722' }
     },
     tooltip: {
       rect: {
-        color: '#FEFEFE',
-        borderColor: '#F2F3F5'
+        color: '#FFFFFF',
+        borderColor: '#E0E3EB'
       },
-      title: {
-        color: '#76808F'
-      },
-      legend: {
-        color: '#76808F'
-      }
+      title: { color: '#131722' },
+      legend: { color: '#131722' }
     }
   },
   indicator: {
     tooltip: {
-      title: {
-        color: '#76808F'
-      },
-      legend: {
-        color: '#76808F'
-      }
+      title: { color: '#131722' },
+      legend: { color: '#131722' }
     }
   },
   xAxis: {
-    axisLine: {
-      color: '#DDDDDD'
-    },
-    tickText: {
-      color: '#76808F'
-    },
-    tickLine: {
-      color: '#DDDDDD'
-    }
+    axisLine: { color: '#E0E3EB' },
+    tickText: { color: '#131722' },
+    tickLine: { color: '#E0E3EB' }
   },
   yAxis: {
-    axisLine: {
-      color: '#DDDDDD'
-    },
-    tickText: {
-      color: '#76808F'
-    },
-    tickLine: {
-      color: '#DDDDDD'
-    }
+    axisLine: { color: '#E0E3EB' },
+    tickText: { color: '#131722' },
+    tickLine: { color: '#E0E3EB' }
   },
   separator: {
-    color: '#DDDDDD'
+    color: '#E0E3EB'
   },
   crosshair: {
     horizontal: {
-      line: {
-        color: '#76808F'
-      },
+      line: { color: '#9598A1' },
       text: {
-        borderColor: '#686D76',
-        backgroundColor: '#686D76'
+        color: '#FFFFFF',
+        borderColor: '#131722',
+        backgroundColor: '#131722'
       }
     },
     vertical: {
-      line: {
-        color: '#76808F'
-      },
+      line: { color: '#9598A1' },
       text: {
-        borderColor: '#686D76',
-        backgroundColor: '#686D76'
+        color: '#FFFFFF',
+        borderColor: '#131722',
+        backgroundColor: '#131722'
       }
     }
   }

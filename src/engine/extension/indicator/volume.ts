@@ -14,14 +14,6 @@ interface Vol {
   ma3?: number
 }
 
-function toOpaqueColor (color: string): string {
-  const rgbaMatch = color.match(/^rgba\(([^)]+)\)$/i)
-  if (rgbaMatch === null) return color
-  const channels = rgbaMatch[1].split(',').map(v => v.trim())
-  if (channels.length < 3) return color
-  return `rgba(${channels[0]}, ${channels[1]}, ${channels[2]}, 1)`
-}
-
 function getVolumeFigure (): IndicatorFigure<Vol> {
   return {
     key: 'volume',
@@ -51,7 +43,7 @@ function getVolumeFigure (): IndicatorFigure<Vol> {
           color = formatValue(indicator.styles, 'bars[0].downColor', (defaultStyles!.bars)[0].downColor)
         }
       }
-      return { color: toOpaqueColor(color as string) }
+      return { color: color as string }
     }
   }
 }

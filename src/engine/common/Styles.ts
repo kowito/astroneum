@@ -347,11 +347,39 @@ export interface Styles {
 }
 
 const Color = {
-  RED: '#F92855',
-  GREEN: '#2DC08E',
+  RED: '#F23645',
+  GREEN: '#089981',
   WHITE: '#FFFFFF',
-  GREY: '#76808F',
-  BLUE: '#1677FF'
+  GREY: '#787B86',
+  BLUE: '#2962FF'
+}
+
+/** The UI font stack, so chart text matches the toolbars around it. */
+const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif"
+
+/**
+ * OHLC values in the colour of the bar, then the change from the previous
+ * close, signed and coloured by direction.
+ */
+const candleLegendTemplate: CandleTooltipLegendsCustomCallback = ({ prev, current }, styles) => {
+  if (current === null) return []
+  const { compareRule, upColor, downColor, noChangeColor } = styles.bar
+  const reference = compareRule === 'current_open' ? current.open : (prev?.close ?? current.open)
+  const barColor = current.close > reference ? upColor : (current.close < reference ? downColor : noChangeColor)
+  const prevClose = prev?.close ?? current.close
+  const change = current.close - prevClose
+  const changeColor = change > 0 ? styles.priceMark.last.upColor : (change < 0 ? styles.priceMark.last.downColor : styles.priceMark.last.noChangeColor)
+  const percent = prevClose === 0 ? 0 : change / prevClose * 100
+  const legends: TooltipLegend[] = [
+    { title: 'open', value: { text: '{open}', color: barColor } },
+    { title: 'high', value: { text: '{high}', color: barColor } },
+    { title: 'low', value: { text: '{low}', color: barColor } },
+    { title: 'close', value: { text: '{close}', color: barColor } }
+  ]
+  if (prev !== null && prevClose !== 0) {
+    legends.push({ title: '', value: { text: `${percent > 0 ? '+' : ''}${percent.toFixed(2)}%`, color: changeColor } })
+  }
+  return legends
 }
 
 function getDefaultGridStyle (): GridStyle {
@@ -360,15 +388,15 @@ function getDefaultGridStyle (): GridStyle {
     horizontal: {
       show: true,
       size: 1,
-      color: '#EDEDED',
-      style: 'dashed',
+      color: '#F0F3FA',
+      style: 'solid',
       dashedValue: [2, 2]
     },
     vertical: {
       show: true,
       size: 1,
-      color: '#EDEDED',
-      style: 'dashed',
+      color: '#F0F3FA',
+      style: 'solid',
       dashedValue: [2, 2]
     }
   }
@@ -381,11 +409,11 @@ function getDefaultGridStyle (): GridStyle {
 function getDefaultCandleStyle (): CandleStyle {
   const highLow = {
     show: true,
-    color: Color.GREY,
+    color: '#131722',
     textOffset: 5,
     textSize: 12,
-    textFamily: 'Helvetica Neue',
-    textWeight: '500'
+    textFamily: FONT_FAMILY,
+    textWeight: 'normal'
   }
   return {
     type: 'candle_solid',
@@ -436,7 +464,7 @@ function getDefaultCandleStyle (): CandleStyle {
         line: {
           show: true,
           style: 'dashed',
-          dashedValue: [4, 4],
+          dashedValue: [2, 2],
           size: 1
         },
         text: {
@@ -452,7 +480,7 @@ function getDefaultCandleStyle (): CandleStyle {
           borderSize: 0,
           borderDashedValue: [2, 2],
           color: Color.WHITE,
-          family: 'Helvetica Neue',
+          family: FONT_FAMILY,
           weight: 'normal',
           borderRadius: 2
         },
@@ -482,11 +510,11 @@ function getDefaultCandleStyle (): CandleStyle {
         color: '#FEFEFE'
       },
       title: {
-        show: false,
-        size: 14,
-        family: 'Helvetica Neue',
+        show: true,
+        size: 13,
+        family: FONT_FAMILY,
         weight: 'normal',
-        color: Color.GREY,
+        color: '#131722',
         marginLeft: 8,
         marginTop: 4,
         marginRight: 8,
@@ -494,23 +522,16 @@ function getDefaultCandleStyle (): CandleStyle {
         template: '{ticker} · {period}'
       },
       legend: {
-        size: 12,
-        family: 'Helvetica Neue',
+        size: 13,
+        family: FONT_FAMILY,
         weight: 'normal',
-        color: Color.GREY,
+        color: '#131722',
         marginLeft: 8,
         marginTop: 4,
-        marginRight: 8,
+        marginRight: 0,
         marginBottom: 4,
         defaultValue: 'n/a',
-        template: [
-          { title: 'time', value: '{time}' },
-          { title: 'open', value: '{open}' },
-          { title: 'high', value: '{high}' },
-          { title: 'low', value: '{low}' },
-          { title: 'close', value: '{close}' },
-          { title: 'volume', value: '{volume}' }
-        ]
+        template: candleLegendTemplate
       },
       features: []
     }
@@ -521,8 +542,8 @@ function getDefaultCandleStyle (): CandleStyle {
  * Get default indicator style
  */
 function getDefaultIndicatorStyle (): IndicatorStyle {
-  const alphaGreen = hexToRgb(Color.GREEN, 0.7)
-  const alphaRed = hexToRgb(Color.RED, 0.7)
+  const alphaGreen = hexToRgb(Color.GREEN, 0.5)
+  const alphaRed = hexToRgb(Color.RED, 0.5)
   return {
     ohlc: {
       compareRule: 'current_open',
@@ -539,7 +560,7 @@ function getDefaultIndicatorStyle (): IndicatorStyle {
       downColor: alphaRed,
       noChangeColor: Color.GREY
     }],
-    lines: ['#FF9600', '#935EBD', Color.BLUE, '#E11D74', '#01C5C4'].map(color => ({
+    lines: [Color.BLUE, '#FF6D00', '#AB47BC', '#00BCD4', '#F7C02B'].map(color => ({
       style: 'solid',
       smooth: false,
       size: 1,
@@ -562,7 +583,7 @@ function getDefaultIndicatorStyle (): IndicatorStyle {
         style: 'fill',
         color: Color.WHITE,
         size: 12,
-        family: 'Helvetica Neue',
+        family: FONT_FAMILY,
         weight: 'normal',
         borderStyle: 'solid',
         borderColor: 'transparent',
@@ -587,7 +608,7 @@ function getDefaultIndicatorStyle (): IndicatorStyle {
         showName: true,
         showParams: true,
         size: 12,
-        family: 'Helvetica Neue',
+        family: FONT_FAMILY,
         weight: 'normal',
         color: Color.GREY,
         marginLeft: 8,
@@ -597,7 +618,7 @@ function getDefaultIndicatorStyle (): IndicatorStyle {
       },
       legend: {
         size: 12,
-        family: 'Helvetica Neue',
+        family: FONT_FAMILY,
         weight: 'normal',
         color: Color.GREY,
         marginLeft: 8,
@@ -617,23 +638,23 @@ function getDefaultAxisStyle (): AxisStyle {
     size: 'auto',
     axisLine: {
       show: true,
-      color: '#DDDDDD',
+      color: '#E0E3EB',
       size: 1
     },
     tickText: {
       show: true,
-      color: Color.GREY,
+      color: '#131722',
       size: 12,
-      family: 'Helvetica Neue',
+      family: FONT_FAMILY,
       weight: 'normal',
-      marginStart: 4,
-      marginEnd: 6
+      marginStart: 8,
+      marginEnd: 8
     },
     tickLine: {
-      show: true,
+      show: false,
       size: 1,
       length: 3,
-      color: '#DDDDDD'
+      color: '#E0E3EB'
     }
   }
 }
@@ -646,27 +667,27 @@ function getDefaultCrosshairStyle (): CrosshairStyle {
       line: {
         show: true,
         style: 'dashed',
-        dashedValue: [4, 2],
+        dashedValue: [4, 4],
         size: 1,
-        color: Color.GREY
+        color: '#9598A1'
       },
       text: {
         show: true,
         style: 'fill',
         color: Color.WHITE,
         size: 12,
-        family: 'Helvetica Neue',
+        family: FONT_FAMILY,
         weight: 'normal',
         borderStyle: 'solid',
         borderDashedValue: [2, 2],
         borderSize: 1,
-        borderColor: Color.GREY,
+        borderColor: '#131722',
         borderRadius: 2,
-        paddingLeft: 4,
-        paddingRight: 4,
+        paddingLeft: 6,
+        paddingRight: 6,
         paddingTop: 4,
         paddingBottom: 4,
-        backgroundColor: Color.GREY
+        backgroundColor: '#131722'
       },
       features: []
     },
@@ -675,27 +696,27 @@ function getDefaultCrosshairStyle (): CrosshairStyle {
       line: {
         show: true,
         style: 'dashed',
-        dashedValue: [4, 2],
+        dashedValue: [4, 4],
         size: 1,
-        color: Color.GREY
+        color: '#9598A1'
       },
       text: {
         show: true,
         style: 'fill',
         color: Color.WHITE,
         size: 12,
-        family: 'Helvetica Neue',
+        family: FONT_FAMILY,
         weight: 'normal',
         borderStyle: 'solid',
         borderDashedValue: [2, 2],
         borderSize: 1,
-        borderColor: Color.GREY,
+        borderColor: '#131722',
         borderRadius: 2,
-        paddingLeft: 4,
-        paddingRight: 4,
+        paddingLeft: 6,
+        paddingRight: 6,
         paddingTop: 4,
         paddingBottom: 4,
-        backgroundColor: Color.GREY
+        backgroundColor: '#131722'
       }
     }
   }
@@ -709,7 +730,7 @@ function getDefaultOverlayStyle (): OverlayStyle {
       style: 'fill',
       color: Color.WHITE,
       size: 12,
-      family: 'Helvetica Neue',
+      family: FONT_FAMILY,
       weight: 'normal',
       borderStyle: 'solid',
       borderDashedValue: [2, 2],
@@ -782,7 +803,7 @@ function getDefaultOverlayStyle (): OverlayStyle {
 function getDefaultSeparatorStyle (): SeparatorStyle {
   return {
     size: 1,
-    color: '#DDDDDD',
+    color: '#E0E3EB',
     fill: true,
     activeBackgroundColor: hexToRgb(Color.BLUE, 0.08)
   }

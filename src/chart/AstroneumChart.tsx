@@ -88,7 +88,7 @@ function makeTooltipFeatures(color: string): TooltipFeatureStyle[] {
     color,
     activeColor: color,
     backgroundColor: 'transparent',
-    activeBackgroundColor: 'rgba(22, 119, 255, 0.15)',
+    activeBackgroundColor: 'rgba(41, 98, 255, 0.15)',
     borderRadius: 2,
     type: 'icon_font'
   }
@@ -103,8 +103,8 @@ function makeTooltipFeatures(color: string): TooltipFeatureStyle[] {
   ]
 }
 
-const TOOLTIP_FEATURES_LIGHT = makeTooltipFeatures('#76808F')
-const TOOLTIP_FEATURES_DARK = makeTooltipFeatures('#929AA5')
+const TOOLTIP_FEATURES_LIGHT = makeTooltipFeatures('#787B86')
+const TOOLTIP_FEATURES_DARK = makeTooltipFeatures('#B2B5BE')
 
 const TOOLTIP_STYLES_LIGHT = { indicator: { tooltip: { features: TOOLTIP_FEATURES_LIGHT } } }
 const TOOLTIP_STYLES_DARK = { indicator: { tooltip: { features: TOOLTIP_FEATURES_DARK } } }
@@ -809,7 +809,7 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
         onAlertClick={() => { setAlertModalVisible(v => !v) }}
         onScreenshotClick={() => {
           if (widgetRef.current) {
-            const url = widgetRef.current.getConvertPictureUrl(true, 'jpeg', theme === 'dark' ? '#151517' : '#ffffff')
+            const url = widgetRef.current.getConvertPictureUrl(true, 'jpeg', theme === 'dark' ? '#131722' : '#ffffff')
             ui.setScreenshotUrl(url)
           }
         }}

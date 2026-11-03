@@ -31,6 +31,16 @@ export function rgbToHex (rgb: string): string {
   return `#${r.length === 1 ? `0${r}` : r}${g.length === 1 ? `0${r}` : r}${b.length === 1 ? `0${r}` : r}`
 }
 
+/**
+ * The same colour at full opacity: `rgba(r, g, b, a)` becomes `rgba(r, g, b, 1)`.
+ * Other colour strings are returned unchanged. Used for text that names a
+ * translucent figure, so a 50% volume bar still gets a readable legend.
+ */
+export function opaqueColor (color: string): string {
+  const match = /^rgba\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*[\d.]+\s*\)$/i.exec(color)
+  return match === null ? color : `rgba(${match[1]}, ${match[2]}, ${match[3]}, 1)`
+}
+
 export function hexToRgb (hex: string, alpha?: number): string {
   const h = hex.replace(/^#/, '')
   const i = parseInt(h, 16)
