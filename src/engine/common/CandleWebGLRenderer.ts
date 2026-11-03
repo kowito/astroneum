@@ -1,5 +1,6 @@
 import { getPixelRatio } from './utils/canvas'
 import { WebGLCanvas } from './WebGLCanvas'
+import { isTakingSnapshot } from './snapshot'
 import { BYTES_PER_BAR, COLOR_BYTE_OFF, VERTS_PER_BAR, VERT_SRC, FRAG_SRC, getOrCreateColor, packColor as _packColorUtil } from './candleShaders'
 
 // ---------------------------------------------------------------------------
@@ -629,8 +630,9 @@ export class CandleWebGLRenderer {
     // current — no VBO change, no pan, no Y-range or viewport parameter change.
     // Eliminates ~100 % of redundant redraws caused by style/layout rebuilds that
     // do not touch price data (e.g. tooltip hover, indicator recalculation with
-    // the same output, theme reload with unchanged colours).
+    // the same output, theme reload with unchanged colours). A snapshot always draws.
     if (
+      !isTakingSnapshot() &&
       this._vboVersion === this._drawnVersion &&
       priceFrom === this._lastPriceFrom &&
       priceRange === this._lastPriceRange &&

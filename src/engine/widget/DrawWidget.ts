@@ -10,6 +10,7 @@ import Widget from './Widget'
 
 import { createDom } from '../common/utils/dom'
 import { getPixelRatio } from '../common/utils/canvas'
+import { takeSnapshot } from '../common/snapshot'
 
 export default abstract class DrawWidget<P extends DrawPane = DrawPane> extends Widget<P> {
   private readonly _mainCanvas: Canvas
@@ -132,11 +133,28 @@ export default abstract class DrawWidget<P extends DrawPane = DrawPane> extends 
     canvas.height = height * pixelRatio
     ctx.scale(pixelRatio, pixelRatio)
 
-    ctx.drawImage(this._mainCanvas.getElement(), 0, 0, width, height)
+    // The GPU layers (candles, indicators, tick labels) can only be read in the
+    // task that draws them, so draw everything now and copy it straight away.
+    takeSnapshot(() => {
+      this._mainCanvas.drawNow()
+      if (includeOverlay) {
+        this._overlayCanvas.drawNow()
+      }
+    })
 
-    if (includeOverlay) {
-      ctx.drawImage(this._overlayCanvas.getElement(), 0, 0, width, height)
-    }
+    const overlay = this._overlayCanvas.getElement()
+    const layers = Array.from(this.getContainer().children).filter(
+      (el): el is HTMLCanvasElement => el instanceof HTMLCanvasElement && (includeOverlay || el !== overlay)
+    )
+    // Stack them as the page does: by z-index, then DOM order (sort is stable).
+    layers.sort((a, b) => (Number(a.style.zIndex) || 0) - (Number(b.style.zIndex) || 0))
+    layers.forEach(layer => {
+      try {
+        ctx.drawImage(layer, 0, 0, width, height)
+      } catch {
+        // A layer the browser will not let us read is left out, not the whole image.
+      }
+    })
     return canvas
   }
 

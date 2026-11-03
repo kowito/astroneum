@@ -19,6 +19,7 @@
  */
 
 import { getPixelRatio } from './utils/canvas'
+import { isTakingSnapshot } from './snapshot'
 import {
   BYTES_PER_BAR, COLOR_BYTE_OFF, VERTS_PER_BAR,
   getOrCreateColor, packColor as _packColorUtil
@@ -683,6 +684,7 @@ export class CandleWebGPURenderer {
 
     // Incremental dirty gate — same logic as WebGL path
     if (
+      !isTakingSnapshot() &&
       this._vboVersion === this._drawnVersion &&
       priceFrom === this._lastPriceFrom &&
       priceRange === this._lastPriceRange &&

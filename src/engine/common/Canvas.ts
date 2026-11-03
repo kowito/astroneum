@@ -3,7 +3,7 @@
 import { getPixelRatio } from './utils/canvas'
 import { createDom } from './utils/dom'
 import { isValid } from './utils/typeChecks'
-import { requestAnimationFrame, DEFAULT_REQUEST_ID } from './utils/compatible'
+import { requestAnimationFrame, cancelAnimationFrame, DEFAULT_REQUEST_ID } from './utils/compatible'
 
 type DrawListener = () => void
 
@@ -38,6 +38,7 @@ export default class Canvas {
   private _nextPixelHeight = 0
 
   private _requestAnimationId = DEFAULT_REQUEST_ID
+  private _pendingFrame: (() => void) | null = null
 
   private readonly _mediaQueryListener: () => void = () => {
     const pixelRatio = getPixelRatio(this._element)
@@ -91,12 +92,32 @@ export default class Canvas {
 
   private _executeListener (fn?: () => void): void {
     if (this._requestAnimationId === DEFAULT_REQUEST_ID) {
-      this._requestAnimationId = requestAnimationFrame(() => {
+      this._pendingFrame = () => {
         this._ctx.clearRect(0, 0, this._width, this._height)
         fn?.()
         this._listener()
-        this._requestAnimationId = DEFAULT_REQUEST_ID
-      })
+      }
+      this._requestAnimationId = requestAnimationFrame(() => { this._runPendingFrame() })
+    }
+  }
+
+  private _runPendingFrame (): void {
+    this._pendingFrame?.()
+    this._pendingFrame = null
+    this._requestAnimationId = DEFAULT_REQUEST_ID
+  }
+
+  /**
+   * Draws now instead of on the next animation frame. A frame that was already
+   * scheduled (including a pending resize) runs early and is not repeated.
+   */
+  drawNow (): void {
+    if (this._requestAnimationId !== DEFAULT_REQUEST_ID) {
+      cancelAnimationFrame(this._requestAnimationId)
+      this._runPendingFrame()
+    } else {
+      this._ctx.clearRect(0, 0, this._width, this._height)
+      this._listener()
     }
   }
 

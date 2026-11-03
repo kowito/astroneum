@@ -18,6 +18,7 @@ import {
 } from '../common/instancePacking'
 import { getOrCreateColor } from '../common/candleShaders'
 import { WebGLCanvas } from '../common/WebGLCanvas'
+import { isTakingSnapshot } from '../common/snapshot'
 
 import CandleBarView, { type CandleBarOptions } from './CandleBarView'
 
@@ -520,7 +521,8 @@ export default class IndicatorView extends CandleBarView {
       activeRectRenderer?.upload(rectStaging)
       activeLineRenderer?.upload(lineStaging)
 
-      const anyDirty = (activeRectRenderer?.isDirty() ?? false) ||
+      const anyDirty = isTakingSnapshot() ||
+                       (activeRectRenderer?.isDirty() ?? false) ||
                        (activeLineRenderer?.isDirty() ?? false) ||
                        (activeLineRenderer?.isGridDirty() ?? false)
       if (anyDirty) {
