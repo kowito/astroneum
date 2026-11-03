@@ -120,7 +120,7 @@ const AlertModal: Component<AlertModalProps> = props => {
               onChange={v => setNote(String(v))}/>
 
             <button
-              className="astroneum-button button is-small is-primary alert-submit-btn"
+              className="astroneum-button astroneum-button-primary alert-submit-btn"
               disabled={!isFinite(parseFloat(price))}
               onClick={addAlert}
               aria-label={i18n('alert_add', props.locale)}>

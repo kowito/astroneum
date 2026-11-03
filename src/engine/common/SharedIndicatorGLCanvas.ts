@@ -39,9 +39,13 @@ export class SharedIndicatorGLCanvas {
     container.appendChild(canvas)
     this._canvas = canvas
 
+    // Premultiplied alpha: with a straight-alpha canvas, SRC_ALPHA blending onto
+    // the cleared (transparent) buffer stores colour × a with alpha a², so a 50%
+    // volume bar showed at about 25% and darkened. The renderers' shaders output
+    // premultiplied colour and blend with (ONE, ONE_MINUS_SRC_ALPHA).
     const gl = canvas.getContext('webgl2', {
       antialias: false,
-      premultipliedAlpha: false,
+      premultipliedAlpha: true,
       preserveDrawingBuffer: false,
       powerPreference: 'high-performance',
       alpha: true
@@ -54,7 +58,7 @@ export class SharedIndicatorGLCanvas {
 
     // Global state — set once, shared by all renderers on this context.
     gl.enable(gl.BLEND)
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
     gl.disable(gl.DEPTH_TEST)     // 2D rendering only — no depth reads/writes
     gl.enable(gl.SCISSOR_TEST)    // reject fragments outside the pane canvas
   }

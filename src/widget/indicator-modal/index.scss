@@ -1,29 +1,28 @@
 @use '../../styles/base' as *;
 
 .#{$prefix-cls}-indicator-modal-list {
-  margin-left: -16px;
-  margin-right: -16px;
-  height: 400px;
+  margin: 0 -20px -20px;
+  height: 420px;
   position: relative;
+  border-top: solid 1px var(--astroneum-border-color);
   .title {
     position: sticky;
     top: 0;
+    z-index: 1;
+    height: 32px;
+    padding-top: 6px;
     background-color: var(--astroneum-popover-background-color);
     font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.5px;
+    letter-spacing: .4px;
     text-transform: uppercase;
     color: var(--astroneum-text-second-color);
-    padding: 0 16px;
-    font-weight: 400;
+    cursor: default;
     &:hover {
       background-color: var(--astroneum-popover-background-color);
     }
   }
-  .row:hover {
-    .checkbox {
-      fill: var(--astroneum-primary-color);
-      color: var(--astroneum-primary-color);
-    }
+  .row {
+    height: 34px;
   }
 }

@@ -1,30 +1,30 @@
 .astroneum-alert-modal {
   padding: 0 0 4px;
 
+  // Underlined tabs
   .astroneum-alert-modal-tabs {
     display: flex;
-    gap: 8px;
+    gap: 20px;
     margin-bottom: 16px;
     border-bottom: 1px solid var(--astroneum-border-color);
-    padding-bottom: 8px;
 
     .tab-btn {
+      margin-bottom: -1px;
+      padding: 8px 0;
       background: none;
       border: none;
+      border-bottom: 2px solid transparent;
       cursor: pointer;
-      font-size: 13px;
+      font-size: 14px;
       color: var(--astroneum-text-second-color);
-      padding: 4px 8px;
-      border-radius: 4px;
-      transition: color 0.15s, background-color 0.15s;
+      transition: color 0.1s, border-color 0.1s;
 
       &.active {
-        color: var(--astroneum-primary-color);
-        font-weight: 600;
+        color: var(--astroneum-text-color);
+        border-bottom-color: var(--astroneum-primary-color);
       }
 
       &:hover {
-        background-color: var(--astroneum-hover-background-color);
         color: var(--astroneum-text-color);
       }
     }
@@ -124,10 +124,10 @@
         white-space: nowrap;
         flex-shrink: 0;
 
-        &.alert-cond-above        { background: rgba(38, 166, 154, 0.15); color: #26a69a; }
-        &.alert-cond-below        { background: rgba(239, 83, 80, 0.15);  color: #ef5350; }
+        &.alert-cond-above        { background: rgba(8, 153, 129, 0.15); color: #089981; }
+        &.alert-cond-below        { background: rgba(242, 54, 69, 0.15);  color: #f23645; }
         &.alert-cond-crosses_above { background: rgba(41, 98, 255, 0.15); color: #2962ff; }
-        &.alert-cond-crosses_below { background: rgba(255, 152, 0, 0.15); color: #ff9800; }
+        &.alert-cond-crosses_below { background: rgba(255, 109, 0, 0.15); color: #ff6d00; }
       }
 
       .alert-status-badge {
@@ -142,7 +142,7 @@
       }
 
       .alert-price {
-        font-family: 'Trebuchet MS', monospace;
+        font-variant-numeric: tabular-nums;
         font-size: 13px;
         font-weight: 600;
         color: var(--astroneum-text-color);

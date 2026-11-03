@@ -3,6 +3,7 @@
 import type Crosshair from '../common/Crosshair'
 import type { TooltipStyle, TooltipTextStyle, TooltipLegend, TooltipLegendChild, TooltipFeatureStyle, FeatureIconFontStyle, FeaturePathStyle } from '../common/Styles'
 import { formatPrecision } from '../common/utils/format'
+import { opaqueColor } from '../common/utils/color'
 import { isValid, isObject, isString, isNumber, isFunction } from '../common/utils/typeChecks'
 import { createFont, cachedTextWidth } from '../common/utils/canvas'
 import type Coordinate from '../common/Coordinate'
@@ -394,7 +395,8 @@ export default class IndicatorTooltipView extends View<YAxis> {
       const defaultValue = tooltipStyles.legend.defaultValue
       eachFigures(indicator, dataIndex, styles, (figure: IndicatorFigure, figureStyles: Required<IndicatorFigureStyle>) => {
         if (isString(figure.title)) {
-          const color = figureStyles.color
+          // Bars are often translucent; their legend text should not be.
+          const color = isString(figureStyles.color) ? opaqueColor(figureStyles.color) : figureStyles.color
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment  -- ignore
           let value = data[figure.key]
           if (isNumber(value)) {

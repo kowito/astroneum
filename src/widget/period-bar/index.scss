@@ -4,122 +4,172 @@
   display: flex;
   flex-direction: row;
   align-items: center;
+  flex-shrink: 0;
   height: $period-bar-height;
   width: 100%;
-  box-sizing: border-box;
+  padding-right: 4px;
   border-bottom: solid 1px var(--astroneum-border-color);
   background-color: var(--astroneum-background-color);
+  color: var(--astroneum-text-color);
+  overflow: hidden;
+  user-select: none;
+  // The bar adapts to the chart's width, not the page's (see the @container rules below).
+  container: astroneum-period-bar / inline-size;
+
+  button {
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+  }
 
   .menu-container {
     display: flex;
-    height: 100%;
-    flex-direction: row;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
     width: $drawing-bar-width;
-    box-sizing: border-box;
-    border-right: solid 1px var(--astroneum-border-color);
-    svg {
-      fill: var(--astroneum-text-second-color);
-      width: 20px;
-      height: 20px;
-      cursor: pointer;
-      transition: fill .15s;
-      &:hover {
-        fill: var(--astroneum-text-color);
-      }
-      &.rotate {
-        transform: rotate(180deg);
-        transform-origin: center;
+    height: 100%;
+    .icon-button {
+      @include icon-button(36px);
+      &.collapsed svg {
+        transform: scaleX(-1);
       }
     }
   }
 
-  .symbol {
+  .group {
     display: flex;
     flex-direction: row;
     align-items: center;
+    gap: 2px;
     height: 100%;
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.3px;
-    padding: 0 10px;
-    box-sizing: border-box;
-    border-right: solid 1px var(--astroneum-border-color);
+    min-width: 0;
+    // Too narrow even after the @container rules: clip, never overlap the right group.
+    overflow: hidden;
+    > * { flex-shrink: 0; }
+    &.right {
+      margin-left: auto;
+      padding-left: 4px;
+      flex-shrink: 0;
+    }
+  }
+
+  // Intervals give way first, so the tools after them stay reachable.
+  .group > .periods {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  // Short vertical divider between button groups
+  .separator {
+    flex-shrink: 0;
+    width: 1px;
+    height: 20px;
+    margin: 0 6px;
+    background-color: var(--astroneum-border-color);
+  }
+
+  .symbol {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 8px 0 6px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
     cursor: pointer;
     color: var(--astroneum-text-color);
-    transition: background-color .15s;
+    transition: background-color .1s;
+    svg {
+      color: var(--astroneum-icon-color);
+    }
     &:hover {
       background-color: var(--astroneum-hover-background-color);
     }
     img {
-      width: 16px;
-      height: 16px;
-      margin-right: 6px;
+      width: 18px;
+      height: 18px;
       border-radius: 50%;
     }
   }
 
   .item {
-    transition: background-color 0.15s, color 0.15s;
-    box-sizing: border-box;
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    height: 30px;
+    border-radius: 4px;
+    font-size: 14px;
+    white-space: nowrap;
     cursor: pointer;
-    fill: var(--astroneum-text-second-color);
-    color: var(--astroneum-text-second-color);
-    font-size: 13px;
-    &.selected {
-      background-color: transparent !important;
-      color: var(--astroneum-primary-color);
-      fill: var(--astroneum-primary-color);
-      font-weight: 600;
-    }
+    color: var(--astroneum-text-color);
+    transition: background-color .1s, color .1s;
     &:hover {
-      color: var(--astroneum-text-color);
-      fill: var(--astroneum-text-color);
+      background-color: var(--astroneum-hover-background-color);
     }
   }
 
   .period {
-    padding: 2px 8px;
-    margin: 0 1px;
-    border-radius: 3px;
-    &:hover {
-      background-color: var(--astroneum-hover-background-color);
+    min-width: 30px;
+    padding: 0 6px;
+    &.selected {
+      color: var(--astroneum-primary-color);
     }
-    &:first-child {
-      margin-left: 4px;
-    }
-  }
-
-  .symbol + .period, .menu-container + .period {
-    margin-left: 8px;
   }
 
   .tools {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    padding: 0 10px;
-    border-right: solid 1px var(--astroneum-border-color);
-    color: var(--astroneum-text-second-color);
-    fill: var(--astroneum-text-second-color);
-    font-size: 12px;
     gap: 4px;
-    transition: color .15s, fill .15s;
-    &:hover {
-      fill: var(--astroneum-text-color);
+    padding: 0 8px 0 4px;
+    svg {
+      flex-shrink: 0;
+      color: var(--astroneum-icon-color);
+    }
+    &:hover svg {
       color: var(--astroneum-text-color);
     }
-    svg {
-      width: 15px;
-      height: 15px;
+    &.icon-only {
+      width: 34px;
+      padding: 0;
     }
   }
+}
 
-  .period + .tools {
-    border-left: solid 1px var(--astroneum-border-color);
-    margin-left: 4px;
+// Narrow charts: labels go first, then the less-used buttons.
+@container astroneum-period-bar (max-width: 760px) {
+  .#{$prefix-cls}-period-bar .tools:not(.icon-only) {
+    width: 34px;
+    padding: 0;
+    span { display: none; }
+  }
+}
+
+@container astroneum-period-bar (max-width: 560px) {
+  .#{$prefix-cls}-period-bar {
+    .group.right .tools:nth-child(1),
+    .group.right .tools:nth-child(3) {
+      display: none;   // timezone, screenshot
+    }
+    .symbol img { display: none; }
+  }
+}
+
+@container astroneum-period-bar (max-width: 420px) {
+  .#{$prefix-cls}-period-bar {
+    .menu-container { width: 40px; }
+    .separator { margin: 0 2px; }
+    .period { min-width: 26px; padding: 0 4px; }
   }
 }

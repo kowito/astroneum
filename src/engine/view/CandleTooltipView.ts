@@ -90,8 +90,9 @@ export default class CandleTooltipView extends IndicatorTooltipView {
       // TradingView style: build combined row [date, O, H, L, C, ...]
       const legends = this._getCandleTooltipLegends()
       if (tooltipTitleStyles.show) {
-        const { type = '', span = '' } = chartStore.getPeriod() ?? {}
-        const text = formatTemplateString(tooltipTitleStyles.template, { ...chartStore.getSymbol(), period: `${span}${i18n(type, chartStore.getLocale())}` })
+        const period = chartStore.getPeriod()
+        const periodText = period === null ? '' : (period.text ?? `${period.multiplier}${i18n(period.timespan, chartStore.getLocale())}`)
+        const text = formatTemplateString(tooltipTitleStyles.template, { ...chartStore.getSymbol(), period: periodText })
         const color = tooltipTitleStyles.color
         legends.unshift({ title: { text: '', color }, value: { text, color } })
       }

@@ -98,9 +98,6 @@ function createPluginViewport (
   }
 }
 
-/** The backdrop behind volume bars, as CSS for the GPU layer (see drawImp). */
-const VOLUME_BACKDROP = 'linear-gradient(to top, rgba(46, 116, 255, 0.24) 0%, rgba(46, 116, 255, 0.08) 45%, rgba(46, 116, 255, 0) 100%)'
-
 /** Solid, straight lines with a plain colour go to the GPU; dashed, smooth and gradient lines stay on Canvas2D. */
 function isGpuLineEligible (styles: SmoothLineStyle): boolean {
   return styles.style !== 'dashed' &&
@@ -137,7 +134,6 @@ export default class IndicatorView extends CandleBarView {
   private readonly _lineStaging = new InstanceStaging(SEGMENT_BYTES, 1024)
   private readonly _rectStaging = new InstanceStaging(RECT_BYTES, 512)
   private readonly _colorCache = new Map<string, Rgba>()
-  private _backdropOnGl = false
 
   override getCandleBarOptions (): Nullable<CandleBarOptions> {
     const pane = this.getWidget().getPane()
@@ -185,27 +181,6 @@ export default class IndicatorView extends CandleBarView {
     const chartStore = chart.getChartStore()
     const indicators = chartStore.getIndicatorsByPaneId(pane.getId())
     const defaultStyles = chartStore.getStyles().indicator
-
-    // A subtle backdrop behind volume bars. The bars are drawn on the GPU layer,
-    // which sits under this Canvas2D layer, so once that layer exists the
-    // backdrop becomes its CSS background instead of a fill that would cover them.
-    const hasVolumeIndicator = indicators.some(indicator => indicator.visible && indicator.series === 'volume')
-    const backdropLayer = getSharedIndicatorGLCanvas(widget)
-    if (backdropLayer !== null) {
-      if (hasVolumeIndicator !== this._backdropOnGl) {
-        backdropLayer.canvas.style.background = hasVolumeIndicator ? VOLUME_BACKDROP : ''
-        this._backdropOnGl = hasVolumeIndicator
-      }
-    } else if (hasVolumeIndicator) {
-      const gradient = ctx.createLinearGradient(0, bounding.height, 0, 0)
-      gradient.addColorStop(0, 'rgba(46, 116, 255, 0.24)')
-      gradient.addColorStop(0.45, 'rgba(46, 116, 255, 0.08)')
-      gradient.addColorStop(1, 'rgba(46, 116, 255, 0)')
-      ctx.save()
-      ctx.fillStyle = gradient
-      ctx.fillRect(0, 0, bounding.width, bounding.height)
-      ctx.restore()
-    }
 
     // GPU-eligible figures from every indicator are packed into two instance
     // buffers and drawn with one instanced call each after the Canvas2D pass.

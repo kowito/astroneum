@@ -24,6 +24,7 @@ const TimezoneModal: Component<TimezoneModalProps> = props => {
     <Modal
       title={i18n('timezone', props.locale)}
       width={320}
+      overflowVisible
       buttons={[
         {
           children: i18n('confirm', props.locale),

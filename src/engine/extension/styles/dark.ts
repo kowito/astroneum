@@ -1,89 +1,62 @@
 import type DeepPartial from '../../common/DeepPartial'
 import type { Styles } from '../../common/Styles'
 
+// Dark theme: #131722 chart on #1E222D popovers, #2A2E39 dividers.
+// Keep the keys in step with the other theme: switching themes merges one
+// over the other, so a key set only here would survive the switch.
 const dark: DeepPartial<Styles> = {
   grid: {
-    horizontal: {
-      color: '#292929'
-    },
-    vertical: {
-      color: '#292929'
-    }
+    horizontal: { color: 'rgba(42, 46, 57, 0.6)' },
+    vertical: { color: 'rgba(42, 46, 57, 0.6)' }
   },
   candle: {
     priceMark: {
-      high: {
-        color: '#C9D1D9'
-      },
-      low: {
-        color: '#C9D1D9'
-      }
+      high: { color: '#B2B5BE' },
+      low: { color: '#B2B5BE' }
     },
     tooltip: {
       rect: {
-        color: 'rgba(10, 10, 10, .6)',
-        borderColor: 'rgba(10, 10, 10, .6)'
+        color: '#1E222D',
+        borderColor: '#2A2E39'
       },
-      title: {
-        color: '#929AA5'
-      },
-      legend: {
-        color: '#929AA5'
-      }
+      title: { color: '#D1D4DC' },
+      legend: { color: '#D1D4DC' }
     }
   },
   indicator: {
     tooltip: {
-      title: {
-        color: '#929AA5'
-      },
-      legend: {
-        color: '#929AA5'
-      }
+      title: { color: '#B2B5BE' },
+      legend: { color: '#B2B5BE' }
     }
   },
   xAxis: {
-    axisLine: {
-      color: '#333333'
-    },
-    tickText: {
-      color: '#929AA5'
-    },
-    tickLine: {
-      color: '#333333'
-    }
+    axisLine: { color: '#2A2E39' },
+    tickText: { color: '#B2B5BE' },
+    tickLine: { color: '#2A2E39' }
   },
   yAxis: {
-    axisLine: {
-      color: '#333333'
-    },
-    tickText: {
-      color: '#929AA5'
-    },
-    tickLine: {
-      color: '#333333'
-    }
+    axisLine: { color: '#2A2E39' },
+    tickText: { color: '#B2B5BE' },
+    tickLine: { color: '#2A2E39' }
   },
   separator: {
-    color: '#333333'
+    color: '#2A2E39'
   },
   crosshair: {
     horizontal: {
-      line: {
-        color: '#929AA5'
-      },
+      line: { color: '#758696' },
       text: {
-        borderColor: '#373a40',
-        backgroundColor: '#373a40'
+        color: '#D1D4DC',
+        borderColor: '#363A45',
+        backgroundColor: '#363A45'
       }
     },
     vertical: {
-      line: {
-        color: '#929AA5'
-      },
+      line: { color: '#758696' },
       text: {
-        borderColor: '#373a40',
-        backgroundColor: '#373a40'
+        color: '#D1D4DC',
+        borderColor: '#363A45',
+        backgroundColor: '#363A45'
       }
     }
   }

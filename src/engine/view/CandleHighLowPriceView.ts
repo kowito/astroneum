@@ -103,16 +103,7 @@ export default class CandleHighLowPriceView extends View<YAxis> {
     ctx.textAlign = textAlign as CanvasTextAlign
     ctx.textBaseline = 'middle'
 
-    // Shadow pass for readability on any background
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.9)'
-    ctx.shadowBlur = 4
-    ctx.shadowOffsetX = 0
-    ctx.shadowOffsetY = 0
     ctx.fillStyle = styles.color
-    ctx.fillText(text, textStartX, y)
-
-    // Second pass — clean fill over the shadow
-    ctx.shadowBlur = 0
     ctx.fillText(text, textStartX, y)
 
     ctx.restore()

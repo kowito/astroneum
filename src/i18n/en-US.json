@@ -152,5 +152,10 @@
   "watchlist_delete_list": "Delete watchlist",
   "watchlist_add_symbol": "Add",
   "watchlist_remove_symbol": "Remove symbol",
-  "watchlist_enter_symbol": "Enter ticker…"
+  "watchlist_enter_symbol": "Enter ticker…",
+  "lock_drawings": "Lock all drawings",
+  "unlock_drawings": "Unlock all drawings",
+  "hide_drawings": "Hide all drawings",
+  "show_drawings": "Show all drawings",
+  "remove_drawings": "Remove all drawings"
 }

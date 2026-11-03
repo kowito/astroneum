@@ -4,7 +4,9 @@
  * Architecture
  * ────────────
  * Each DrawWidget creates one TextWebGLRenderer which owns a dedicated <canvas>
- * element at CSS z-index 3 (above the Canvas2D main/overlay layers at z-index 2).
+ * element at CSS z-index 1, under the Canvas2D main/overlay layers (z-index 2).
+ * Only bulk axis tick labels are drawn here; labels with a background (crosshair,
+ * last value) are drawn on Canvas2D so their background covers the ticks below.
  * Text is queued during view draw phases and flushed to the GPU in a single
  * instanced draw call.
  *
@@ -58,7 +60,10 @@ in vec4 v_color;
 out vec4 fragColor;
 void main() {
   float a  = texture(u_atlas, v_uv).a;
-  fragColor = vec4(v_color.rgb, v_color.a * a);
+  // Premultiplied output: the context composites premultiplied, and overlapping
+  // glyph cells blend correctly with blendFunc(ONE, ONE_MINUS_SRC_ALPHA).
+  float alpha = v_color.a * a;
+  fragColor = vec4(v_color.rgb * alpha, alpha);
 }`
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -159,12 +164,12 @@ export class TextWebGLRenderer {
   constructor (container: HTMLElement) {
     this._canvas = document.createElement('canvas')
     this._canvas.style.cssText =
-      'position:absolute;top:0;left:0;pointer-events:none;z-index:3;box-sizing:border-box;'
+      'position:absolute;top:0;left:0;pointer-events:none;z-index:1;box-sizing:border-box;'
     container.appendChild(this._canvas)
 
     const gl = this._canvas.getContext('webgl2', {
       antialias: false,
-      premultipliedAlpha: false,
+      premultipliedAlpha: true,
       preserveDrawingBuffer: false,
       powerPreference: 'high-performance'
     })!
@@ -218,7 +223,7 @@ export class TextWebGLRenderer {
     // One-time GL state
     gl.disable(gl.DEPTH_TEST)
     gl.enable(gl.BLEND)
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)   // shaders output premultiplied colour
   }
 
   // ── Frame lifecycle ─────────────────────────────────────────────────────────

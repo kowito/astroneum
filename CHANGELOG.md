@@ -26,6 +26,25 @@ once it reaches v1.0. Until then, minor releases may include breaking changes
 
 ### Changed
 
+- **A TradingView-style look.** Colours, spacing, type and icons follow TradingView's
+  conventions, in both themes:
+  - Candles `#089981` / `#F23645`, a solid low-contrast grid, axes without tick marks, and
+    crosshair labels in `#363A45` (dark) and `#131722` (light). The chart and the toolbars use the
+    same system font stack.
+  - The legend shows the symbol and interval, then O, H, L and C in the bar's colour and the
+    signed change from the previous close. It replaces the time and volume entries; set
+    `candle.tooltip.legend.template` to bring them back.
+  - Volume and other histogram bars are drawn at 50% opacity and their legend values at full
+    strength. The blue gradient behind the volume pane is gone.
+  - A 38 px top toolbar with grouped buttons and short dividers. Timezone, settings, screenshot
+    and full screen are icon buttons on the right with tooltips. On a narrow chart, labels become
+    icons, then intervals clip and the least-used buttons hide, so nothing overlaps.
+  - A 52 px drawing toolbar with 36 px buttons. Each tool group's flyout opens from a chevron on
+    hover and highlights the current tool; magnet, snap, lock and hide show when they are on.
+  - New 28 px outline icons for every drawing tool and toolbar button.
+  - Dialogs are centred cards over a dimmed chart, with a 20 px title, a close icon, and native
+    buttons, inputs, checkboxes, switches and selects.
+- The demo page uses the same tokens as the chart.
 - **Live ticks no longer recompute indicators from scratch.** MA, EMA, RSI, BOLL, VOL and
   MACD step the changed bar from the state kept since the last full run, whether or not
   `configureIndicatorWorkers` is enabled. On 20 000 bars with those five, a tick went from
@@ -42,6 +61,20 @@ once it reaches v1.0. Until then, minor releases may include breaking changes
 
 ### Fixed
 
+- **Dialogs rendered unstyled.** They used Bulma class names, but Bulma was never bundled: the
+  indicator, settings, symbol search, timezone, alert and screenshot dialogs sat in the top-left
+  corner with no backdrop, an empty box for the close button and browser-default buttons. They
+  are now styled by the library itself.
+- Translucent fills on the GPU indicator layer were drawn at about a quarter of their opacity
+  and darkened (straight-alpha blending onto a transparent buffer). The indicator and text GL
+  layers now use premultiplied alpha.
+- Axis tick labels showed through the crosshair and last-value labels. Tick text now sits below
+  the Canvas2D layer, and labels with a background are drawn whole on Canvas2D.
+- The legend title's interval was always empty: it read fields the period does not have.
+- High and low price marks had a heavy black glow behind the text.
+- The drawing toolbar never showed the active magnet mode: its icon ignored the class it was given.
+- Dropdowns in the timezone and settings dialogs were clipped by the dialog body.
+- Demo: inactive indicator chips rendered as white browser-default buttons.
 - The GPU line and rect renderers packed instances 4 bytes short of the stride the shaders
   read, so every instance after the first was drawn from garbage. This is why GPU indicator
   lines were switched off in 0.4.0 ("sporadic diagonal artifacts"); they are back on.

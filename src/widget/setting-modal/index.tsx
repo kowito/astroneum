@@ -42,6 +42,7 @@ const SettingModal: Component<SettingModalProps> = props => {
     <Modal
       title={i18n('setting', props.locale)}
       width={560}
+      overflowVisible
       buttons={[
         {
           children: i18n('restore_default', props.locale),

@@ -25,12 +25,12 @@ const Input: Component<InputProps> = p => {
   return (
     <div
       style={props.style}
-      className={`astroneum-input control ${props.prefix ? 'has-icons-left' : ''} ${props.suffix ? 'has-icons-right' : ''} ${props.className ?? ''}`}
+      className={`astroneum-input ${props.prefix ? 'has-prefix' : ''} ${props.suffix ? 'has-suffix' : ''} ${props.className ?? ''}`}
       data-status={status}
       onClick={() => { input?.focus() }}>
       <input
         ref={(el) => { input = el }}
-        className="input is-small"
+        className="astroneum-input-field"
         placeholder={props.placeholder ?? ''}
         value={props.value}
         onFocus={() => { setStatus('focus') }}
@@ -52,8 +52,8 @@ const Input: Component<InputProps> = p => {
             props.onChange?.(inputValue)
           }
         }}/>
-      {props.prefix && <span className="icon is-small is-left">{props.prefix}</span>}
-      {props.suffix && <span className="icon is-small is-right">{props.suffix}</span>}
+      {props.prefix && <span className="astroneum-input-prefix">{props.prefix}</span>}
+      {props.suffix && <span className="astroneum-input-suffix">{props.suffix}</span>}
     </div>
   )
 }

@@ -4,138 +4,57 @@
 @import '../assets/iconfonts/style.css';
 
 .#{$prefix-cls} {
-  // — Astroneum design tokens (light theme) —
+  // — Design tokens (light theme) —
   --astroneum-primary-color: #{$c-primary};
+  --astroneum-primary-hover-color: #1e53e5;
   --astroneum-hover-background-color: #{$c-hover-background-light};
+  --astroneum-active-background-color: #{$c-active-background-light};
   --astroneum-background-color: #{$c-background-light};
   --astroneum-popover-background-color: #{$c-popover-background-light};
   --astroneum-text-color: #{$c-text-light};
   --astroneum-text-second-color: #{$c-text-second-light};
+  --astroneum-icon-color: #{$c-icon-light};
   --astroneum-border-color: #{$c-border-light};
-  --astroneum-selected-color: #{rgba($c-primary, 0.15)};
-
-  // — Bulma primary: #2962ff ≈ hsl(224deg, 100%, 58%) —
-  --bulma-primary-h: 224deg;
-  --bulma-primary-s: 100%;
-  --bulma-primary-l: 58%;
-  --bulma-link-h: 224deg;
-  --bulma-link-s: 100%;
-  --bulma-link-l: 58%;
-  --bulma-family-primary: 'Trebuchet MS', -apple-system, BlinkMacSystemFont, Roboto, Ubuntu, sans-serif;
-  --bulma-radius: 4px;
-  --bulma-radius-small: 3px;
-  --bulma-radius-large: 6px;
-
-  // — Bulma component overrides using astroneum vars (cascade through DOM) —
-  // Button: neutral style
-  .button:not([class*="is-"]) {
-    color: var(--astroneum-text-color);
-    border-color: var(--astroneum-border-color);
-    background-color: transparent;
-    box-shadow: none;
-    &:hover {
-      border-color: var(--astroneum-text-second-color);
-      background-color: transparent;
-      color: var(--astroneum-text-color);
-    }
-    &:focus {
-      border-color: var(--astroneum-primary-color);
-      box-shadow: none;
-    }
-  }
-  // Input field
-  .input {
-    color: var(--astroneum-text-color);
-    background-color: var(--astroneum-background-color);
-    border-color: var(--astroneum-border-color);
-    font-family: inherit;
-    font-size: 13px;
-    height: 30px;
-    box-shadow: none;
-    &::placeholder {
-      color: var(--astroneum-text-second-color);
-    }
-    &:focus, &.is-focused {
-      border-color: var(--astroneum-primary-color);
-      box-shadow: 0 0 0 2px rgba(#2962ff, 0.2);
-    }
-  }
-  // Icon inside control
-  .icon {
-    color: var(--astroneum-text-second-color);
-    height: 30px;
-    width: 2rem;
-  }
-  // Modal card
-  .modal-card-head {
-    background-color: var(--astroneum-popover-background-color);
-    border-bottom-color: var(--astroneum-border-color);
-    padding: 0 16px 0 20px;
-    height: 48px;
-    min-height: unset;
-    flex-shrink: 0;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
-  }
-  .modal-card-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--astroneum-text-color);
-    flex-grow: 1;
-    letter-spacing: -0.01em;
-  }
-  .modal-card-body {
-    background-color: var(--astroneum-popover-background-color);
-    padding: 16px 20px;
-    overflow-y: auto;
-  }
-  .modal-card-foot {
-    background-color: var(--astroneum-popover-background-color);
-    border-top-color: var(--astroneum-border-color);
-    padding: 12px 20px;
-    justify-content: flex-end;
-    border-bottom-left-radius: 8px;
-    border-bottom-right-radius: 8px;
-    gap: 8px;
-  }
-  .delete {
-    width: 32px;
-    height: 32px;
-    border-radius: 6px;
-    background-color: transparent;
-    flex-shrink: 0;
-    transition: background-color 0.12s;
-    &::before, &::after {
-      background-color: var(--astroneum-text-second-color);
-    }
-    &:hover {
-      background-color: var(--astroneum-hover-background-color);
-      &::before, &::after {
-        background-color: var(--astroneum-text-color);
-      }
-    }
-  }
+  --astroneum-input-border-color: #d1d4dc;
+  --astroneum-scrollbar-color: #d1d4dc;
+  --astroneum-selected-color: #{rgba($c-primary, 0.12)};
+  --astroneum-shadow: #{$c-shadow-light};
+  --astroneum-backdrop-color: rgba(19, 23, 34, 0.4);
+  --astroneum-font-family: #{$font-family};
 
   // — Dark theme —
   &[data-theme="dark"] {
     --astroneum-hover-background-color: #{$c-hover-background-dark};
+    --astroneum-active-background-color: #{$c-active-background-dark};
     --astroneum-background-color: #{$c-background-dark};
     --astroneum-popover-background-color: #{$c-popover-background-dark};
     --astroneum-text-color: #{$c-text-dark};
     --astroneum-text-second-color: #{$c-text-second-dark};
+    --astroneum-icon-color: #{$c-icon-dark};
     --astroneum-border-color: #{$c-border-dark};
+    --astroneum-input-border-color: #434651;
+    --astroneum-scrollbar-color: #434651;
+    --astroneum-selected-color: #{rgba($c-primary, 0.2)};
+    --astroneum-shadow: #{$c-shadow-dark};
+    --astroneum-backdrop-color: rgba(0, 0, 0, 0.5);
   }
 
   // — High-contrast theme (accessibility) —
   &[data-theme="high-contrast"] {
     --astroneum-primary-color: #ffff00;
+    --astroneum-primary-hover-color: #ffff66;
     --astroneum-hover-background-color: #1a1a00;
+    --astroneum-active-background-color: #333300;
     --astroneum-background-color: #000000;
     --astroneum-popover-background-color: #000000;
     --astroneum-text-color: #ffffff;
     --astroneum-text-second-color: #ffff00;
+    --astroneum-icon-color: #ffffff;
     --astroneum-border-color: #ffffff;
+    --astroneum-input-border-color: #ffffff;
+    --astroneum-scrollbar-color: #ffffff;
     --astroneum-selected-color: rgba(255, 255, 0, 0.25);
+    --astroneum-shadow: none;
 
     // Ensure focus rings are visible
     *:focus-visible {
@@ -147,8 +66,8 @@
   // — Accessible focus styles (all themes) —
   *:focus-visible {
     outline: 2px solid var(--astroneum-primary-color);
-    outline-offset: 2px;
-    border-radius: 2px;
+    outline-offset: -2px;
+    border-radius: 4px;
   }
 
   // — Screen-reader only utility, used by the polite aria-live region —
@@ -170,8 +89,16 @@
   flex-direction: column;
   color: var(--astroneum-text-color);
   background-color: var(--astroneum-background-color);
-  font-family: 'Trebuchet MS', -apple-system, BlinkMacSystemFont, Roboto, Ubuntu, sans-serif;
-  font-size: 13px;
+  font-family: var(--astroneum-font-family);
+  font-size: 14px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  * {
+    box-sizing: border-box;
+  }
+  button, input, select, textarea {
+    font-family: inherit;
+  }
   &-watermark {
     position: absolute;
     left: 50%;
@@ -188,16 +115,15 @@
     display: none;
     position: absolute;
     z-index: 30;
-    top: 4px;
+    top: 6px;
     left: 50%;
     transform: translateX(-50%);
-    border-radius: 3px;
-    font-size: 10px;
-    font-weight: 600;
-    padding: 1px 5px;
+    border-radius: 2px;
+    font-size: 11px;
+    line-height: 16px;
+    padding: 0 4px;
     color: var(--astroneum-text-second-color);
-    border: solid 1px var(--astroneum-border-color);
-    background-color: var(--astroneum-popover-background-color);
+    background-color: var(--astroneum-background-color);
   }
   &-load-icon {
     position: absolute;
@@ -229,14 +155,13 @@
   // Clock overlay — bottom-right of the X-axis area
   &-clock {
     position: absolute;
-    bottom: 8px;
+    bottom: 7px;
     right: 8px;
-    font-size: 11px;
-    font-family: 'Trebuchet MS', monospace, sans-serif;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
     color: var(--astroneum-text-second-color);
     pointer-events: none;
     z-index: 5;
-    letter-spacing: 0.04em;
     user-select: none;
   }
 }
