@@ -85,7 +85,8 @@ void main() {
   // centre, as it does on Canvas2D, instead of being faded by a derivative-width
   // smoothstep that treats thin lines as all edge.
   float coverage = clamp(v_halfWidth + 0.5 - abs(v_dist), 0.0, 1.0);
-  fragColor = vec4(v_color.rgb, v_color.a * coverage);
+  float alpha = v_color.a * coverage;
+  fragColor = vec4(v_color.rgb * alpha, alpha);   // premultiplied (see SharedIndicatorGLCanvas)
 }
 `
 

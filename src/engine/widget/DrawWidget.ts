@@ -21,7 +21,8 @@ export default abstract class DrawWidget<P extends DrawPane = DrawPane> extends 
     super(rootContainer, pane)
     const container = this.getContainer()
 
-    // Initialise text renderer first so canvas order is: GL(z1) < 2D(z2) < text(z3)
+    // Initialise the text renderer first. Layers, bottom to top: GL candles (z0),
+    // GL tick text and GL indicators (z1), Canvas2D main and overlay (z2).
     this._textRenderer = TextWebGLRenderer.isSupported()
       ? new TextWebGLRenderer(container)
       : null
