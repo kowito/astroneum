@@ -75,6 +75,16 @@ once it reaches v1.0. Until then, minor releases may include breaking changes
 - The drawing toolbar never showed the active magnet mode: its icon ignored the class it was given.
 - Dropdowns in the timezone and settings dialogs were clipped by the dialog body.
 - Demo: inactive indicator chips rendered as white browser-default buttons.
+- **Screenshots were missing the candles, GPU indicators and axis labels.** The export copied
+  only the Canvas2D layers; the GPU layers cannot be read once a frame is on screen. A
+  screenshot now redraws every layer and copies it in the same task.
+- **Settings > Price Axis Type and Reverse Coordinate did nothing**, and the type showed `--`.
+  They wrote style keys that no longer exist; they now set the candle pane's axis. GPU candles
+  follow percentage and reversed axes; a log axis draws the candles with Canvas2D.
+- With the main-thread WebGL candle renderer (no WebGPU, no OffscreenCanvas), candles drifted
+  about 20 bars away from the indicators and price marks after the first redraw. The
+  off-screen bars kept for fast panning were spaced by the candle width instead of the bar
+  spacing.
 - The GPU line and rect renderers packed instances 4 bytes short of the stride the shaders
   read, so every instance after the first was drawn from garbage. This is why GPU indicator
   lines were switched off in 0.4.0 ("sporadic diagonal artifacts"); they are back on.
