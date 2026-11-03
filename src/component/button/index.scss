@@ -1,17 +1,38 @@
 @use '../../styles/base' as *;
 
 .#{$prefix-cls}-button {
-  &.button {
-    font-family: inherit;
-    font-weight: 600;
-    height: 32px;
-    min-width: 80px;
-    border-radius: 5px;
-    font-size: 12px;
-    transition: opacity 0.12s, background-color 0.12s;
-    // Confirm button hover
-    &.is-primary:hover {
-      opacity: 0.85;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  min-width: 72px;
+  padding: 0 16px;
+  border: solid 1px var(--astroneum-input-border-color);
+  border-radius: 4px;
+  background-color: transparent;
+  color: var(--astroneum-text-color);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .1s, border-color .1s;
+  &:hover {
+    background-color: var(--astroneum-hover-background-color);
+  }
+  &:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+  }
+
+  &-primary {
+    border-color: var(--astroneum-primary-color);
+    background-color: var(--astroneum-primary-color);
+    color: #ffffff;
+    &:hover {
+      border-color: var(--astroneum-primary-hover-color);
+      background-color: var(--astroneum-primary-hover-color);
     }
   }
 }

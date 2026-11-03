@@ -12,8 +12,9 @@ export interface ButtonProps extends ParentProps {
 const Button: ParentComponent<ButtonProps> = props => {
   return (
     <button
+      type="button"
       style={props.style}
-      className={`astroneum-button button is-small ${props.type === 'confirm' ? 'is-primary' : ''} ${props.className ?? ''}`}
+      className={`astroneum-button ${props.type === 'confirm' ? 'astroneum-button-primary' : ''} ${props.className ?? ''}`}
       onClick={props.onClick}>
       {props.children}
     </button>

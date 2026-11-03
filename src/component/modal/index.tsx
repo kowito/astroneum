@@ -6,6 +6,11 @@ import Button, { type ButtonProps } from '../button'
 
 export interface ModalProps extends ParentProps {
   width?: number
+  /**
+   * Let content spill past the body instead of scrolling it, for short dialogs
+   * whose dropdowns must not be clipped by the body's scroll area.
+   */
+  overflowVisible?: boolean
   title?: JSX.Element
   buttons?: ButtonProps[]
   onClose?: () => void
@@ -50,30 +55,35 @@ const Modal: ParentComponent<ModalProps> = (props) => {
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
-      className="astroneum-modal modal is-active">
+      className="astroneum-modal">
       <div
-        className="modal-background"
+        className="astroneum-modal-backdrop"
         onClick={props.onClose}/>
       <div
         ref={el => { cardRef = el }}
         style={{ width: `${props.width ?? 400}px` }}
-        className="modal-card">
+        className={`astroneum-modal-card ${props.overflowVisible === true ? 'overflow-visible' : ''}`}>
         <header
-          className="modal-card-head">
-          <p id={titleId} className="modal-card-title">{props.title}</p>
+          className="astroneum-modal-head">
+          <p id={titleId} className="astroneum-modal-title">{props.title}</p>
           <button
-            className="delete"
+            type="button"
+            className="astroneum-modal-close"
             aria-label="close"
-            onClick={props.onClose}/>
+            onClick={props.onClose}>
+            <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+              <path d="M4 4l10 10M14 4L4 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+            </svg>
+          </button>
         </header>
         <section
-          className="modal-card-body">
+          className="astroneum-modal-body">
           {props.children}
         </section>
         {
           (props.buttons && props.buttons.length > 0) && (
             <footer
-              className="modal-card-foot">
+              className="astroneum-modal-foot">
               {
                 props.buttons.map((button, index) => {
                   return (

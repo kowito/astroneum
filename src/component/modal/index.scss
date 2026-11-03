@@ -1,37 +1,99 @@
 @use '../../styles/base' as *;
 
+// Dialog: centred card over a dimmed chart. Positioned inside the chart root,
+// so it never covers the host page.
 .#{$prefix-cls}-modal {
-  &.modal {
+  position: absolute;
+  inset: 0;
+  z-index: 99;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow: hidden;
+  animation: astroneum-modal-fade-in .12s ease-out;
+
+  &-backdrop {
     position: absolute;
-    width: 100%;
-    height: 100%;
-    left: 0;
-    top: 0;
-    z-index: 99;
+    inset: 0;
+    background-color: var(--astroneum-backdrop-color);
+  }
+
+  &-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 6px;
+    background-color: var(--astroneum-popover-background-color);
+    color: var(--astroneum-text-color);
+    box-shadow: var(--astroneum-shadow);
+    animation: astroneum-modal-card-in .16s cubic-bezier(.22, 1, .36, 1);
+    &.overflow-visible .#{$prefix-cls}-modal-body {
+      overflow: visible;
+    }
+  }
+
+  &-head {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    flex-shrink: 0;
+    height: 56px;
+    padding: 0 12px 0 20px;
+  }
+
+  &-title {
+    flex-grow: 1;
+    margin: 0;
     overflow: hidden;
-    animation: astroneum-modal-backdrop-in 0.18s ease forwards;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 28px;
+    color: var(--astroneum-text-color);
   }
-  .modal-background {
-    position: absolute;
-    background-color: rgba(0, 0, 0, .45);
+
+  &-close {
+    @include icon-button(32px);
+    flex-shrink: 0;
+    padding: 0;
+    border: none;
+    background: none;
   }
-  .modal-card {
-    border-radius: 8px;
-    border: solid 1px var(--astroneum-border-color);
-    box-shadow: 0 16px 48px 0 rgba(0, 0, 0, .55);
-    max-height: calc(100% - 40px);
-    // Prevent width 100% from Bulma on mobile
-    width: unset;
-    animation: astroneum-modal-card-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+
+  &-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 4px 20px 20px;
+    overflow-y: auto;
+    font-size: 14px;
+    @include scrollbar();
+  }
+
+  &-foot {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-end;
+    flex-shrink: 0;
+    gap: 8px;
+    padding: 16px 20px;
+    border-top: solid 1px var(--astroneum-border-color);
   }
 }
 
-@keyframes astroneum-modal-backdrop-in {
+@keyframes astroneum-modal-fade-in {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
 
 @keyframes astroneum-modal-card-in {
-  from { opacity: 0; transform: translateY(-10px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0)     scale(1); }
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .#{$prefix-cls}-modal, .#{$prefix-cls}-modal-card { animation: none; }
 }

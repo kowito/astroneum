@@ -5,70 +5,72 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  cursor: pointer;
-  height: 30px;
-  width: 100px;
+  height: 34px;
+  width: 120px;
   outline: none;
+  cursor: pointer;
   color: var(--astroneum-text-color);
-  font-size: 13px;
+  font-size: 14px;
   .selector-container {
     display: flex;
     flex-direction: row;
     align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     height: 100%;
     width: 100%;
-    padding: 0 8px;
-    justify-content: space-between;
-    border: solid 1px var(--astroneum-border-color);
+    padding: 0 10px;
+    border: solid 1px var(--astroneum-input-border-color);
     border-radius: 4px;
-    box-sizing: border-box;
-    background-color: var(--astroneum-background-color);
-    transition: border-color .15s;
+    transition: border-color .1s;
     &:hover {
       border-color: var(--astroneum-text-second-color);
     }
+    .value {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    // Chevron
     .arrow {
-      display: inline;
-      width: 0;
-      height: 0;
-      border-left: 4px solid transparent;
-      border-right: 4px solid transparent;
-      border-top: 5px solid var(--astroneum-text-second-color);
-      transition: transform .15s;
+      flex-shrink: 0;
+      width: 7px;
+      height: 7px;
+      margin-top: -4px;
+      border-right: solid 1.5px var(--astroneum-text-second-color);
+      border-bottom: solid 1.5px var(--astroneum-text-second-color);
+      transform: rotate(45deg);
+      transition: transform .15s, margin .15s;
     }
   }
   .drop-down-container {
-    background-color: var(--astroneum-popover-background-color);
-    box-shadow: 0 4px 16px 0 rgba(0, 0, 0, .4);
-    border: solid 1px var(--astroneum-border-color);
     position: absolute;
     left: 0;
-    width: 100%;
-    top: calc(100% + 2px);
-    transition: transform .15s, opacity .15s;
-    transform: scaleY(0);
-    transform-origin: top;
-    opacity: 0;
+    top: calc(100% + 4px);
     z-index: 100;
-    border-radius: 4px;
-    max-height: 200px;
+    width: 100%;
+    max-height: 240px;
     overflow-y: auto;
+    border-radius: 6px;
+    background-color: var(--astroneum-popover-background-color);
+    box-shadow: var(--astroneum-shadow);
+    transform: translateY(-4px);
+    opacity: 0;
+    visibility: hidden;
+    transition: transform .12s, opacity .12s, visibility .12s;
     @include scrollbar();
     ul {
       list-style: none;
       margin: 0;
-      padding: 4px 0;
-      overflow: hidden;
+      padding: 6px 0;
       li {
         display: flex;
         flex-direction: row;
         align-items: center;
         height: 32px;
-        padding: 0 10px;
-        font-size: 13px;
-        transition: background-color .12s;
-        &:first-child { border-top-left-radius: 4px; border-top-right-radius: 4px; }
-        &:last-child { border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; }
+        padding: 0 12px;
+        font-size: 14px;
+        white-space: nowrap;
         &:hover {
           background-color: var(--astroneum-hover-background-color);
         }
@@ -80,15 +82,14 @@
 .#{$prefix-cls}-select-show {
   .selector-container {
     border-color: var(--astroneum-primary-color) !important;
-    .value {
-      color: var(--astroneum-primary-color);
-    }
     .arrow {
-      transform: rotate(180deg);
+      margin-top: 3px;
+      transform: rotate(-135deg);
     }
   }
   .drop-down-container {
-    transform: scaleY(1) !important;
-    opacity: 1 !important;
+    transform: translateY(0);
+    opacity: 1;
+    visibility: visible;
   }
 }

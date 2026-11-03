@@ -1,31 +1,60 @@
 $prefix-cls: astroneum;
 
-$period-bar-height: 36px;
-$drawing-bar-width: 46px;
+// Layout. The top toolbar and the drawing toolbar share $drawing-bar-width so
+// the menu button above the drawing tools lines up with them.
+$period-bar-height: 38px;
+$drawing-bar-width: 52px;
 $widget-width: calc(100% - #{$drawing-bar-width});
 $widget-height: calc(100% - #{$period-bar-height});
 
-// TradingView-style primary accent
+$font-family: -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif;
+
+// Accent
 $c-primary: #2962ff;
 
-// Light theme — off-white
-$c-hover-background-light: #eaedf6;
-$c-popover-background-light: #f4f5f8;
-$c-background-light: #f0f2f5;
+// Light theme
+$c-background-light: #ffffff;
+$c-popover-background-light: #ffffff;
+$c-hover-background-light: #f0f3fa;
+$c-active-background-light: #e3effd;
 $c-text-light: #131722;
 $c-text-second-light: #787b86;
-$c-border-light: #d8dce8;
+$c-icon-light: #131722;
+$c-border-light: #e0e3eb;
+$c-shadow-light: 0 2px 4px rgba(19, 23, 34, 0.1), 0 8px 24px rgba(19, 23, 34, 0.15);
 
-// Dark theme — TradingView dark
-$c-hover-background-dark: #2a2e39;
+// Dark theme
 $c-background-dark: #131722;
 $c-popover-background-dark: #1e222d;
+$c-hover-background-dark: #2a2e39;
+$c-active-background-dark: #142e61;
 $c-text-dark: #d1d4dc;
 $c-text-second-dark: #787b86;
+$c-icon-dark: #b2b5be;
 $c-border-dark: #2a2e39;
+$c-shadow-dark: 0 2px 4px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.5);
 
 @mixin scrollbar() {
-  &::-webkit-scrollbar { width: 5px; height: 5px; }
-  &::-webkit-scrollbar-thumb { border-radius: 3px; background-color: var(--astroneum-border-color); }
+  scrollbar-width: thin;
+  scrollbar-color: var(--astroneum-scrollbar-color) transparent;
+  &::-webkit-scrollbar { width: 6px; height: 6px; }
+  &::-webkit-scrollbar-thumb { border-radius: 3px; background-color: var(--astroneum-scrollbar-color); }
   &::-webkit-scrollbar-track { background: transparent; }
+}
+
+// A square icon button: transparent until hovered, tinted when active.
+@mixin icon-button($size: 36px) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: $size;
+  height: $size;
+  border-radius: 4px;
+  color: var(--astroneum-icon-color);
+  cursor: pointer;
+  transition: background-color .1s, color .1s;
+  &:hover {
+    background-color: var(--astroneum-hover-background-color);
+    color: var(--astroneum-text-color);
+  }
 }

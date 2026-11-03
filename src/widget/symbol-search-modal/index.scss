@@ -1,38 +1,33 @@
 @use '../../styles/base' as *;
 
 .#{$prefix-cls}-symbol-search-modal-input {
-  margin: 0 0 10px;
-  height: 36px;
-  svg {
-    width: 16px;
-    height: 16px;
-    fill: var(--astroneum-text-second-color);
-  }
-  .value {
-    font-size: 13px;
-  }
+  margin: 0 0 12px;
+  height: 38px;
 }
 
 .#{$prefix-cls}-symbol-search-modal-list {
   height: 360px;
-  margin-left: -16px;
-  margin-right: -16px;
+  margin: 0 -20px -20px;
+  border-top: solid 1px var(--astroneum-border-color);
   li {
-    height: 34px;
+    height: 40px;
     justify-content: space-between;
+    color: var(--astroneum-text-second-color);
     font-size: 13px;
     div {
       display: flex;
       flex-direction: row;
       align-items: center;
+      color: var(--astroneum-text-color);
+      font-size: 14px;
       img {
-        width: 14px;
-        height: 14px;
-        margin-right: 6px;
+        width: 18px;
+        height: 18px;
+        margin-right: 8px;
         border-radius: 50%;
       }
       span {
-        width: 280px;
+        width: 300px;
         overflow: hidden;
         white-space: nowrap;
         text-overflow: ellipsis;

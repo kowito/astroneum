@@ -1,25 +1,37 @@
 @use '../../styles/base' as *;
 
 .#{$prefix-cls}-checkbox {
-  display: flex;
+  display: inline-flex;
   flex-direction: row;
   align-items: center;
-  justify-content: center;
   font-size: 14px;
   color: var(--astroneum-text-color);
-  fill: var(--astroneum-text-color);
   cursor: pointer;
-  .icon {
-    width: 20px;
-    height: 20px;
+
+  .box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    border: solid 1px var(--astroneum-input-border-color);
+    border-radius: 3px;
+    color: #ffffff;
+    transition: background-color .1s, border-color .1s;
+    svg { width: 12px; height: 12px; }
+  }
+  &:hover .box {
+    border-color: var(--astroneum-text-second-color);
   }
 
   .label {
     display: inline-block;
-    margin-left: 6px;
+    margin-left: 10px;
   }
-  &.checked {
-    color: var(--astroneum-primary-color);
-    fill: var(--astroneum-primary-color);
+
+  &.checked .box {
+    border-color: var(--astroneum-primary-color);
+    background-color: var(--astroneum-primary-color);
   }
 }

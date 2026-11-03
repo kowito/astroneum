@@ -3,11 +3,13 @@
 .#{$prefix-cls}-switch {
   display: flex;
   flex-direction: row;
+  flex-shrink: 0;
   position: relative;
-  width: 36px;
+  width: 34px;
   height: 18px;
   border-radius: 9px;
   cursor: pointer;
+  transition: background-color .15s;
   .thumb {
     display: inline-block;
     position: absolute;
@@ -15,21 +17,17 @@
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    z-index: 10;
     background-color: #ffffff;
-    transition: all .2s;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .3);
+    transition: left .15s;
   }
 
   &.turn-off {
-    background-color: var(--astroneum-border-color);
-    .thumb {
-      left: 2px;
-    }
+    background-color: var(--astroneum-input-border-color);
+    .thumb { left: 2px; }
   }
   &.turn-on {
     background-color: var(--astroneum-primary-color);
-    .thumb {
-      left: 20px;
-    }
+    .thumb { left: 18px; }
   }
 }
