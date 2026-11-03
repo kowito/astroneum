@@ -42,126 +42,174 @@ const LINE_PANE = 'LINE'
 // ---------------------------------------------------------------------------
 // Inline styles
 // ---------------------------------------------------------------------------
+// The demo chrome uses the chart's own TradingView-style tokens, so the page
+// and the chart read as one surface in both themes.
+type Tokens = typeof DARK
+const DARK = {
+  bg: '#131722',
+  panel: '#131722',
+  border: '#2A2E39',
+  control: '#434651',
+  text: '#D1D4DC',
+  text2: '#787B86',
+  hover: '#2A2E39',
+  primary: '#2962FF',
+  primaryBg: 'rgba(41, 98, 255, 0.2)',
+  pane: '#089981',
+  paneBg: 'rgba(8, 153, 129, 0.18)',
+  overlay: '#FF9800',
+  overlayBg: 'rgba(255, 152, 0, 0.16)',
+  error: '#F23645',
+  errorBg: 'rgba(242, 54, 69, 0.16)',
+}
+const LIGHT: Tokens = {
+  bg: '#FFFFFF',
+  panel: '#FFFFFF',
+  border: '#E0E3EB',
+  control: '#D1D4DC',
+  text: '#131722',
+  text2: '#787B86',
+  hover: '#F0F3FA',
+  primary: '#2962FF',
+  primaryBg: 'rgba(41, 98, 255, 0.12)',
+  pane: '#089981',
+  paneBg: 'rgba(8, 153, 129, 0.12)',
+  overlay: '#E65100',
+  overlayBg: 'rgba(255, 152, 0, 0.14)',
+  error: '#F23645',
+  errorBg: 'rgba(242, 54, 69, 0.1)',
+}
+const tokensFor = (theme: string): Tokens => (theme === 'dark' ? DARK : LIGHT)
+
+const FONT = '-apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif'
+
 const css = {
-  app: {
+  app: (k: Tokens): React.CSSProperties => ({
     display: 'flex',
-    flexDirection: 'column' as const,
+    flexDirection: 'column',
     height: '100dvh',
-    background: '#0d0e12',
-    color: '#d1d4dc',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  },
-  toolbar: {
+    background: k.bg,
+    color: k.text,
+    fontFamily: FONT,
+  }),
+  toolbar: (k: Tokens): React.CSSProperties => ({
     display: 'flex',
     alignItems: 'center',
     gap: 8,
-    padding: '8px 12px',
-    background: '#161b22',
-    borderBottom: '1px solid #30363d',
+    minHeight: 38,
+    padding: '4px 12px',
+    background: k.panel,
+    borderBottom: `1px solid ${k.border}`,
     flexShrink: 0,
-    flexWrap: 'wrap' as const,
-  },
-  logo: {
+    flexWrap: 'wrap',
+  }),
+  logo: (k: Tokens): React.CSSProperties => ({
     fontSize: 16,
     fontWeight: 700,
-    letterSpacing: '-0.5px',
-    color: '#58a6ff',
+    letterSpacing: '-0.3px',
+    color: k.text,
     marginRight: 4,
-  },
-  divider: {
+    textDecoration: 'none',
+  }),
+  divider: (k: Tokens): React.CSSProperties => ({
     width: 1,
     height: 20,
-    background: '#30363d',
+    background: k.border,
     margin: '0 4px',
-  },
-  select: (theme: string): React.CSSProperties => ({
-    background: theme === 'dark' ? '#21262d' : '#f6f8fa',
-    border: '1px solid ' + (theme === 'dark' ? '#30363d' : '#d0d7de'),
-    borderRadius: 6,
-    color: theme === 'dark' ? '#c9d1d9' : '#24292f',
-    padding: '4px 8px',
-    fontSize: 13,
+  }),
+  select: (k: Tokens): React.CSSProperties => ({
+    height: 30,
+    background: 'transparent',
+    border: `1px solid ${k.control}`,
+    borderRadius: 4,
+    color: k.text,
+    padding: '0 8px',
+    fontSize: 14,
+    fontFamily: FONT,
     cursor: 'pointer',
     outline: 'none',
   }),
   btnGroup: { display: 'flex', gap: 2 },
-  btn: (active: boolean): React.CSSProperties => ({
-    padding: '4px 10px',
-    borderRadius: 6,
-    border: '1px solid',
-    borderColor: active ? '#58a6ff' : '#30363d',
-    background: active ? '#1f3a5f' : '#21262d',
-    color: active ? '#58a6ff' : '#c9d1d9',
-    fontSize: 12,
-    fontWeight: active ? 600 : 400,
-    cursor: 'pointer',
-    transition: 'all 0.15s',
-  }),
-  chip: (active: boolean): React.CSSProperties => ({
-    padding: '3px 8px',
+  // A toolbar toggle: plain text, blue when selected
+  btn: (k: Tokens, active: boolean): React.CSSProperties => ({
+    height: 30,
+    padding: '0 8px',
     borderRadius: 4,
-    border: '1px solid',
-    borderColor: active ? '#3fb950' : '#30363d',
-    background: active ? '#1a3a24' : '#21262d',
-    color: active ? '#3fb950' : '#8b949e',
-    fontSize: 12,
+    border: 'none',
+    background: active ? k.primaryBg : 'transparent',
+    color: active ? k.primary : k.text,
+    fontSize: 14,
+    fontFamily: FONT,
     cursor: 'pointer',
-    userSelect: 'none' as const,
+  }),
+  // An indicator chip: outlined, tinted by where the indicator draws when on
+  chip: (k: Tokens, active: boolean, kind: 'pane' | 'overlay' = 'pane'): React.CSSProperties => ({
+    height: 24,
+    padding: '0 8px',
+    borderRadius: 4,
+    border: `1px solid ${active ? (kind === 'overlay' ? k.overlay : k.pane) : k.border}`,
+    background: active ? (kind === 'overlay' ? k.overlayBg : k.paneBg) : 'transparent',
+    color: active ? (kind === 'overlay' ? k.overlay : k.pane) : k.text,
+    fontSize: 12,
+    fontFamily: FONT,
+    cursor: 'pointer',
+    userSelect: 'none',
+    whiteSpace: 'nowrap',
   }),
   chartWrap: { flex: 1, minHeight: 0 },
   spacer: { flex: 1 },
-  badge: (dark: boolean): React.CSSProperties => ({
-    padding: '3px 10px',
-    borderRadius: 12,
-    fontSize: 12,
-    background: dark ? '#161b22' : '#f0f3f9',
-    color: dark ? '#8b949e' : '#57606a',
-    border: '1px solid',
-    borderColor: dark ? '#30363d' : '#d0d7de',
+  badge: (k: Tokens): React.CSSProperties => ({
+    height: 30,
+    padding: '0 12px',
+    borderRadius: 4,
+    fontSize: 14,
+    fontFamily: FONT,
+    background: 'transparent',
+    color: k.text,
+    border: `1px solid ${k.control}`,
     cursor: 'pointer',
     userSelect: 'none',
   }),
-  sourceBadge: {
-    padding: '4px 10px',
-    borderRadius: 6,
-    border: '1px solid #58a6ff',
-    background: '#1f3a5f',
-    color: '#58a6ff',
+  sourceBadge: (k: Tokens): React.CSSProperties => ({
+    padding: '2px 8px',
+    borderRadius: 4,
+    background: k.primaryBg,
+    color: k.primary,
     fontSize: 12,
     fontWeight: 600,
-    lineHeight: 1.4,
-  },
-  errorBadge: {
-    padding: '4px 10px',
-    borderRadius: 6,
-    border: '1px solid #f85149',
-    background: '#4a1d1d',
-    color: '#ffb4af',
+    lineHeight: 1.5,
+  }),
+  errorBadge: (k: Tokens): React.CSSProperties => ({
+    padding: '2px 8px',
+    borderRadius: 4,
+    background: k.errorBg,
+    color: k.error,
     fontSize: 12,
     fontWeight: 600,
-    lineHeight: 1.4,
+    lineHeight: 1.5,
     maxWidth: 460,
-    whiteSpace: 'nowrap' as const,
+    whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
-  },
+  }),
   pickerWrap: {
     display: 'flex',
-    gap: 6,
+    gap: 4,
     alignItems: 'center',
   },
-  pickerLabel: {
+  pickerLabel: (k: Tokens): React.CSSProperties => ({
     fontSize: 11,
     fontWeight: 600,
-    color: '#8b949e',
-    textTransform: 'uppercase' as const,
-    letterSpacing: '0.5px',
-  },
-  count: {
+    color: k.text2,
+    textTransform: 'uppercase',
+    letterSpacing: '0.4px',
+    marginRight: 2,
+  }),
+  count: (k: Tokens): React.CSSProperties => ({
     fontSize: 12,
-    color: '#8b949e',
+    color: k.text2,
     marginLeft: 4,
-  },
+  }),
 }
 
 // ---------------------------------------------------------------------------
@@ -273,25 +321,19 @@ export default function ChartDemo() {
     [mainIndicatorChips]
   )
 
+  const k = tokensFor(theme)
+
   return (
-    <div style={{
-      ...css.app,
-      background: theme === 'dark' ? '#0d0e12' : '#f6f8fa',
-      color: theme === 'dark' ? '#d1d4dc' : '#24292f'
-    }}>
+    <div style={css.app(k)}>
       {/* Toolbar */}
-      <div style={{
-        ...css.toolbar,
-        background: theme === 'dark' ? '#161b22' : '#ffffff',
-        borderColor: theme === 'dark' ? '#30363d' : '#d0d7de'
-      }}>
-        <a href={`${BASE_PATH}/`} style={{ ...css.logo, textDecoration: 'none' }} title="Back to the Astroneum home page">Astroneum</a>
-        <span style={css.sourceBadge}>{sourceBadgeText}</span>
-        {datafeedError && <span style={css.errorBadge} title={datafeedError}>{datafeedError}</span>}
-        <div style={css.divider} />
+      <div style={css.toolbar(k)}>
+        <a href={`${BASE_PATH}/`} style={css.logo(k)} title="Back to the Astroneum home page">Astroneum</a>
+        <span style={css.sourceBadge(k)}>{sourceBadgeText}</span>
+        {datafeedError && <span style={css.errorBadge(k)} title={datafeedError}>{datafeedError}</span>}
+        <div style={css.divider(k)} />
 
         <select
-          style={css.select(theme)}
+          style={css.select(k)}
           value={symbol.ticker}
           onChange={e => {
             const s = symbols.find(x => x.ticker === e.target.value)
@@ -307,7 +349,8 @@ export default function ChartDemo() {
           {PERIODS.map(p => (
             <button
               key={p.text}
-              style={css.btn(period.text === p.text)}
+              style={css.btn(k, period.text === p.text)}
+              aria-pressed={period.text === p.text}
               onClick={() => { setPeriod(p); chartRef.current?.setPeriod(p) }}
             >
               {p.text}
@@ -316,24 +359,19 @@ export default function ChartDemo() {
         </div>
 
         <div style={css.spacer} />
-        <button style={css.badge(theme === 'dark')} onClick={toggleTheme}>
+        <button style={css.badge(k)} onClick={toggleTheme}>
           {theme === 'dark' ? '☀ Light' : '🌙 Dark'}
         </button>
       </div>
 
       {/* Chart type — each button is a different way to draw the same market */}
-      <div style={{
-        ...css.toolbar,
-        background: theme === 'dark' ? '#0d1117' : '#f0f3f9',
-        borderBottom: '1px solid ' + (theme === 'dark' ? '#30363d' : '#d0d7de'),
-        padding: '6px 12px',
-      }}>
-        <span style={css.pickerLabel}>Chart type</span>
+      <div style={css.toolbar(k)}>
+        <span style={css.pickerLabel(k)}>Chart type</span>
         <div style={{ ...css.btnGroup, flexWrap: 'wrap' }} role="group" aria-label="Chart type">
           {CHART_TYPES.map(type => (
             <button
               key={type.id}
-              style={css.btn(chartType.id === type.id)}
+              style={css.btn(k, chartType.id === type.id)}
               aria-pressed={chartType.id === type.id}
               title={type.description}
               onClick={() => selectChartType(type.id)}
@@ -342,31 +380,26 @@ export default function ChartDemo() {
             </button>
           ))}
         </div>
-        <div style={css.divider} />
+        <div style={css.divider(k)} />
         <button
-          style={css.chip(linePaneVisible)}
+          style={css.chip(k, linePaneVisible)}
           aria-pressed={linePaneVisible}
           title="Add a live close-price line chart in its own pane under the chart"
           onClick={() => setLinePaneVisible(!linePaneVisible)}
         >
           + Line pane
         </button>
-        <span style={{ color: '#8b949e', fontSize: 12 }}>
+        <span style={{ color: k.text2, fontSize: 12 }}>
           {chartType.description}
           {chartType.timeless && ' The time axis shows synthetic times.'}
         </span>
       </div>
 
       {/* Indicator picker — category rows */}
-      <div style={{
-        ...css.toolbar,
-        background: theme === 'dark' ? '#0d1117' : '#f0f3f9',
-        borderBottom: '1px solid ' + (theme === 'dark' ? '#30363d' : '#d0d7de'),
-        gap: 6, padding: '4px 12px', overflowX: 'auto', flexWrap: 'nowrap',
-      }}>
+      <div style={{ ...css.toolbar(k), gap: 12, overflowX: 'auto', flexWrap: 'nowrap' }}>
         {CATEGORIES.map(({ category, items }) => (
           <div key={category} style={{ ...css.pickerWrap, flexShrink: 0 }}>
-            <span style={css.pickerLabel}>{category}</span>
+            <span style={css.pickerLabel(k)}>{category}</span>
             {items.map(e => {
               const isActive = activeMainIndicators.includes(e.name) || activeSubIndicators.includes(e.name)
               const overlay = isOverlay(e.name)
@@ -374,12 +407,8 @@ export default function ChartDemo() {
                 <button
                   key={e.name}
                   title={`${e.description}${overlay ? ' (overlay → main pane)' : ''}`}
-                  style={{
-                    ...css.chip(isActive),
-                    borderColor: isActive ? (overlay ? '#d29922' : '#3fb950') : undefined,
-                    background: isActive ? (overlay ? '#3d2e00' : '#1a3a24') : undefined,
-                    color: isActive ? (overlay ? '#d29922' : '#3fb950') : undefined,
-                  }}
+                  aria-pressed={isActive}
+                  style={css.chip(k, isActive, overlay ? 'overlay' : 'pane')}
                   onClick={() => toggleIndicator(e.name)}
                 >
                   {e.name}
@@ -391,39 +420,24 @@ export default function ChartDemo() {
       </div>
 
       {/* Active indicator bar */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '2px 12px',
-        background: theme === 'dark' ? '#161b22' : '#ffffff',
-        borderBottom: '1px solid ' + (theme === 'dark' ? '#30363d' : '#d0d7de'),
-        flexShrink: 0,
-        fontSize: 12,
-      }}>
-        <span style={{ color: '#8b949e', fontWeight: 600, textTransform: 'uppercase', fontSize: 11, letterSpacing: '0.5px' }}>
+      <div style={{ ...css.toolbar(k), minHeight: 30, gap: 6, fontSize: 12 }}>
+        <span style={css.pickerLabel(k)}>
           Active:
         </span>
         {mainIndicatorChips.length === 0 && subIndicatorChips.length === 0 && (
-          <span style={{ color: '#484f58', fontStyle: 'italic' }}>none — click any indicator above to enable</span>
+          <span style={{ color: k.text2, fontStyle: 'italic' }}>none — click any indicator above to enable</span>
         )}
         {mainIndicatorChips.map(name => (
-          <span key={name} style={{
-            padding: '1px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-            background: '#3d2e00', color: '#d29922', border: '1px solid #d29922',
-          }}>
-            {name} <span style={{ opacity: 0.6, fontWeight: 400 }}>overlay</span>
+          <span key={name} style={{ ...css.chip(k, true, 'overlay'), height: 20, display: 'inline-flex', alignItems: 'center', fontWeight: 600, cursor: 'default' }}>
+            {name} <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 4 }}>overlay</span>
           </span>
         ))}
         {subIndicatorChips.map(name => (
-          <span key={name} style={{
-            padding: '1px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-            background: '#1a3a24', color: '#3fb950', border: '1px solid #3fb950',
-          }}>
+          <span key={name} style={{ ...css.chip(k, true, 'pane'), height: 20, display: 'inline-flex', alignItems: 'center', fontWeight: 600, cursor: 'default' }}>
             {name}
           </span>
         ))}
-        <span style={css.count}>
+        <span style={css.count(k)}>
           ({mainIndicatorChips.length + subIndicatorChips.length} active · 50 total)
         </span>
       </div>
