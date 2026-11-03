@@ -130,9 +130,9 @@ export function createMagnetOptions (locale: string): SelectDataSourceItem[] {
 }
 
 interface IconProps {
-  class?: string
+  className?: string
   name: string
 }
 
 // @ts-expect-error mapping is dynamically keyed; props.name accesses it safely
-export const Icon: Component<IconProps> = props => mapping[props.name](props.class)
+export const Icon: Component<IconProps> = props => mapping[props.name](props.className)

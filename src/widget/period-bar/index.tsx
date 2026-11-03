@@ -6,6 +6,11 @@ import { type SymbolInfo, type Period } from '@/types'
 
 import i18n from '@/i18n'
 
+import {
+  SidebarIcon, SearchIcon, IndicatorsIcon, AlertIcon, TimezoneIcon,
+  SettingsIcon, ScreenshotIcon, FullscreenIcon, ExitFullscreenIcon
+} from './icons'
+
 export interface PeriodBarProps {
   locale: string
   spread: boolean
@@ -59,144 +64,114 @@ const PeriodBar: Component<PeriodBarProps> = props => {
     }
   }, [])
 
+  const toggleFullScreen = (): void => {
+    if (!fullScreen) {
+      const el = ref?.parentElement
+      if (el) { enterFullScreen(el) }
+    } else {
+      exitFullScreen()
+    }
+  }
+
+  const symbolText = props.symbol?.shortName ?? props.symbol?.name ?? props.symbol?.ticker ?? ''
+
   return (
     <div
       ref={el => { ref = el }}
       role="toolbar"
       aria-label="Chart toolbar"
       className="astroneum-period-bar">
-      <div
-        className='menu-container'
-        role="button"
-        tabIndex={0}
-        aria-label="Toggle menu"
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onMenuClick() } }}>
-        <svg
-          className={props.spread ? '' : 'rotate'}
-          viewBox="0 0 1024 1024"
+      <div className='menu-container'>
+        <button
+          type="button"
+          className={`icon-button ${props.spread ? '' : 'collapsed'}`}
+          aria-label="Toggle drawing toolbar"
+          aria-expanded={props.spread}
           onClick={props.onMenuClick}>
-          <path d="M192.04 287.95h640.12c17.67 0 32-14.33 32-32s-14.33-32-32-32H192.04c-17.67 0-32 14.33-32 32s14.33 32 32 32zM832.16 479.17H438.55c-17.67 0-32 14.33-32 32s14.33 32 32 32h393.61c17.67 0 32-14.33 32-32s-14.33-32-32-32zM832.16 735.8H192.04c-17.67 0-32 14.33-32 32s14.33 32 32 32h640.12c17.67 0 32-14.33 32-32s-14.33-32-32-32zM319.03 351.59l-160 160 160 160z"/>
-        </svg>
+          <SidebarIcon/>
+        </button>
       </div>
-      {props.symbol && (
-        <div
-          className="symbol"
-          role="button"
-          tabIndex={0}
-          aria-label={`Symbol: ${props.symbol?.shortName ?? props.symbol?.name ?? props.symbol?.ticker ?? ''}`}
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onSymbolClick() } }}
-          onClick={props.onSymbolClick}>
-          {props.symbol.logo && <img alt="symbol" src={props.symbol.logo}/>}
-          <span>{props.symbol.shortName ?? props.symbol.name ?? props.symbol.ticker}</span>
-        </div>
-      )}
-      {
-        props.periods.map(p => (
-          <span
-            key={p.text}
-            className={`item period ${periodsEqual(p, props.period) ? 'selected' : ''}`}
-            role="button"
-            tabIndex={0}
-            aria-pressed={periodsEqual(p, props.period)}
-            aria-label={`Period: ${p.text}`}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onPeriodChange(p) } }}
-            onClick={() => { props.onPeriodChange(p) }}>
-            {p.text}
-          </span>
-        ))
-      }
-      <div
-        className='item tools'
-        role="button"
-        tabIndex={0}
-        aria-label={i18n('indicator', props.locale)}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onIndicatorClick() } }}
-        onClick={props.onIndicatorClick}>
-        <svg viewBox="0 0 20 20">
-          <path d="M15.87,20L3.65,20C1.59,20,0,18.39,0,16.29L0,3.71C0,1.61,1.59,0,3.65,0L15.87,0C17.94,0,19.52,1.61,19.52,3.71C19.52,4.35,19.21,4.52,18.57,4.52C17.94,4.52,17.62,4.19,17.62,3.71C17.62,2.74,16.83,1.94,15.87,1.94L3.65,1.94C2.7,1.94,1.9,2.74,1.9,3.71L1.9,16.29C1.9,17.26,2.7,18.06,3.65,18.06L15.87,18.06C16.83,18.06,17.62,17.26,17.62,16.29C17.62,15.81,18.1,15.32,18.57,15.32C19.05,15.32,19.52,15.81,19.52,16.29C19.52,18.23,17.94,20,15.87,20ZM14.92,12.9C14.76,12.9,14.44,12.9,14.29,12.74L11.27,9.35C10.95,9.03,10.95,8.55,11.27,8.23C11.59,7.9,12.06,7.9,12.38,8.23L15.4,11.61C15.71,11.94,15.71,12.42,15.4,12.74C15.4,12.9,15.24,12.9,14.92,12.9ZM11.43,13.23C11.27,13.23,11.11,13.23,10.95,13.06C10.63,12.74,10.63,12.42,10.95,12.1L15.08,7.74C15.4,7.42,15.71,7.42,16.03,7.74C16.35,8.06,16.35,8.39,16.03,8.71L11.9,13.06C11.75,13.23,11.59,13.23,11.43,13.23ZM10.32,3.71C10.63,3.71,11.43,3.87,11.43,4.68C11.43,5.32,10.48,5.16,10.16,5.16C8.73,5.16,8.25,5.97,8.1,6.61L7.78,8.55L9.37,8.55C9.68,8.55,10,8.87,10,9.19C10,9.52,9.68,9.84,9.37,9.84L7.62,9.84L6.51,14.84Q6.35,16.29,5.4,16.29Q4.44,16.29,4.92,14.84L6.03,10L4.6,10C4.29,10,3.97,9.68,3.97,9.35C3.97,8.71,4.29,8.55,4.6,8.55L6.35,8.55L6.83,6.45C7.14,3.71,9.52,3.55,10.32,3.71ZM18.41,6.61C18.57,6.13,18.89,5.97,19.37,5.97C19.84,6.13,20,6.45,20,6.94L18.41,13.39C18.25,13.87,17.94,14.03,17.46,14.03C16.98,13.87,16.83,13.55,16.83,13.06L18.41,6.61Z"/>
-        </svg>
-        <span>{i18n('indicator', props.locale)}</span>
-      </div>
-      <div
-        className='item tools'
-        role="button"
-        tabIndex={0}
-        aria-label={i18n('timezone', props.locale)}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onTimezoneClick() } }}
-        onClick={props.onTimezoneClick}>
-        <svg width="20" height="20" viewBox="0 0 20 20">
-          <path d="M18.54,9.09C18.33,6.62,17.29,4.32,15.58,2.64C13.85,0.95,11.62,0,9.28,0C8.03,0,6.82,0.27,5.67,0.78C5.66,0.78,5.66,0.8,5.65,0.8C5.63,0.8,5.63,0.81,5.62,0.81C4.53,1.31,3.56,2.02,2.71,2.93C1.85,3.85,1.19,4.91,0.72,6.11C0.25,7.34,0,8.65,0,10C0,10.87,0.11,11.72,0.31,12.54C0.31,12.56,0.32,12.59,0.33,12.61C0.74,14.23,1.51,15.72,2.63,16.96C4.07,18.55,5.93,19.56,7.93,19.87C7.96,19.87,7.97,19.89,7.99,19.89C8.32,19.94,8.66,19.97,9,19.97L9.21,19.97C9.61,19.97,10.38,19.94,11.01,19.7C11.17,19.63,11.3,19.51,11.37,19.34C11.44,19.18,11.46,18.99,11.4,18.81C11.3,18.54,11.06,18.35,10.79,18.35C10.72,18.35,10.63,18.36,10.56,18.38C10.09,18.56,9.46,18.59,9.2,18.59L9.1,18.59C9.2,18.27,9.24,17.92,9.15,17.55C9,16.89,8.51,16.34,7.58,15.8L7.19,15.57C6.57,15.21,6.23,15.03,6.03,14.73C5.83,14.44,5.69,13.99,5.52,12.98C5.39,12.3,5.05,11.77,4.51,11.46C4.14,11.26,3.71,11.15,3.19,11.15C2.83,11.15,2.43,11.2,2.01,11.3C1.8,11.35,1.6,11.41,1.42,11.46C1.34,10.98,1.3,10.48,1.3,9.97C1.3,6.93,2.77,4.27,4.99,2.73C5,3.01,5.06,3.3,5.18,3.57C5.48,4.27,6.1,4.71,7.02,4.9C7.07,4.91,7.1,4.91,7.14,4.91L7.18,4.91C7.27,4.91,7.57,4.92,7.89,5.05C8.32,5.24,8.57,5.56,8.65,6.05C8.85,7.61,9.07,10.43,8.79,11.34C8.77,11.41,8.76,11.49,8.76,11.57C8.76,11.94,9.05,12.26,9.4,12.26C9.58,12.26,9.74,12.18,9.86,12.06C9.98,11.93,12.62,9.05,13.32,8.09C13.4,7.98,13.49,7.88,13.58,7.77C13.92,7.34,14.27,6.91,14.4,6.26C14.55,5.57,14.4,4.8,13.94,3.85C13.62,3.17,13.56,2.87,13.54,2.75C13.56,2.74,13.58,2.73,13.6,2.71C15.62,4.1,17.02,6.44,17.25,9.19C17.29,9.56,17.56,9.82,17.9,9.82L17.96,9.82C18.31,9.81,18.57,9.48,18.54,9.09ZM3.19,12.56C3.49,12.56,3.72,12.61,3.9,12.71C4.08,12.83,4.19,12.99,4.24,13.27C4.44,14.34,4.61,15.06,5,15.61C5.38,16.14,5.86,16.4,6.58,16.82L6.61,16.83C6.71,16.89,6.84,16.96,6.96,17.03C7.7,17.46,7.86,17.75,7.9,17.89C7.93,18.03,7.85,18.23,7.75,18.43C4.92,17.85,2.65,15.69,1.74,12.83C2.16,12.7,2.71,12.56,3.19,12.56ZM12.79,4.52C13.43,5.83,13.15,6.19,12.58,6.89C12.49,7.01,12.39,7.12,12.3,7.25C11.95,7.73,11.02,8.78,10.21,9.68C10.21,9.24,10.19,8.74,10.15,8.19C10.07,6.96,9.93,5.91,9.93,5.87L9.93,5.83C9.75,4.84,9.2,4.12,8.32,3.76C7.83,3.56,7.37,3.54,7.19,3.54C6.74,3.43,6.46,3.24,6.34,2.99C6.2,2.69,6.29,2.25,6.38,1.97C7.29,1.59,8.26,1.38,9.28,1.38C10.39,1.38,11.44,1.62,12.41,2.05C12.34,2.18,12.28,2.35,12.25,2.55C12.21,3.04,12.37,3.65,12.79,4.52Z" />
-          <path d="M15.22,9.72C12.59,9.72,10.45,12.02,10.45,14.86C10.45,17.7,12.58,20,15.22,20C17.86,20,20,17.7,20,14.86C20,12.02,17.85,9.72,15.22,9.72ZM15.22,18.6C13.31,18.6,11.74,16.92,11.74,14.85C11.74,12.78,13.3,11.1,15.22,11.1C17.15,11.1,18.71,12.78,18.71,14.85C18.71,16.92,17.14,18.6,15.22,18.6Z"/>
-          <path d="M15.69,15.05L15.69,12.68C15.69,12.3,15.4,11.98,15.05,11.98C14.69,11.98,14.4,12.3,14.4,12.68L14.4,15.34C14.4,15.53,14.47,15.69,14.59,15.83L15.75,17.1C15.87,17.22,16.03,17.3,16.21,17.3C16.38,17.3,16.54,17.22,16.67,17.1C16.78,16.97,16.85,16.79,16.85,16.6C16.85,16.41,16.78,16.24,16.67,16.11L15.69,15.05Z"/>
-        </svg>
-        <span>{i18n('timezone', props.locale)}</span>
-      </div>
-      <div
-        className='item tools'
-        role="button"
-        tabIndex={0}
-        aria-label={i18n('setting', props.locale)}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onSettingClick() } }}
-        onClick={props.onSettingClick}>
-        <svg viewBox="0 0 20 20">
-          <path d="M19.74,12.54L18.19,11.29C18.26,10.87,18.3,10.43,18.3,10C18.3,9.57,18.26,9.14,18.19,8.71L19.74,7.46C19.97,7.27,20.06,6.96,19.96,6.68L19.93,6.62C19.51,5.49,18.88,4.45,18.05,3.54L18.01,3.49C17.81,3.27,17.48,3.18,17.18,3.28L15.27,3.93C14.56,3.38,13.77,2.94,12.92,2.64L12.55,0.74C12.49,0.45,12.25,0.22,11.94,0.17L11.87,0.16C10.65,-0.05,9.35,-0.05,8.13,0.16L8.06,0.17C7.75,0.22,7.51,0.45,7.45,0.74L7.08,2.65C6.23,2.95,5.45,3.38,4.75,3.93L2.82,3.28C2.52,3.18,2.19,3.26,1.99,3.49L1.95,3.54C1.12,4.46,0.49,5.49,0.07,6.62L0.04,6.68C-0.06,6.95,0.03,7.27,0.26,7.46L1.83,8.72C1.75,9.14,1.72,9.57,1.72,10C1.72,10.43,1.75,10.86,1.83,11.27L0.26,12.54C0.03,12.73,-0.06,13.04,0.04,13.32L0.07,13.38C0.49,14.51,1.12,15.54,1.95,16.46L1.99,16.51C2.19,16.73,2.52,16.82,2.82,16.72L4.75,16.07C5.45,16.62,6.23,17.05,7.08,17.35L7.45,19.26C7.51,19.55,7.75,19.78,8.06,19.83L8.13,19.84C8.74,19.95,9.37,20,10,20C10.63,20,11.26,19.95,11.87,19.84L11.94,19.83C12.25,19.78,12.49,19.55,12.55,19.26L12.92,17.36C13.77,17.06,14.56,16.62,15.27,16.07L17.18,16.72C17.48,16.82,17.81,16.73,18.01,16.51L18.05,16.46C18.88,15.54,19.51,14.51,19.93,13.38L19.96,13.32C20.06,13.05,19.97,12.74,19.74,12.54ZM16.52,8.97C16.58,9.31,16.61,9.66,16.61,10C16.61,10.35,16.58,10.7,16.52,11.03L16.36,11.93L18.12,13.35C17.86,13.94,17.52,14.49,17.12,15L14.93,14.26L14.19,14.84C13.63,15.28,13,15.62,12.32,15.86L11.42,16.18L11,18.35C10.34,18.42,9.66,18.42,9,18.35L8.57,16.18L7.68,15.85C7.01,15.61,6.39,15.27,5.83,14.83L5.09,14.25L2.88,15C2.48,14.48,2.15,13.93,1.88,13.35L3.66,11.91L3.51,11.02C3.45,10.69,3.42,10.34,3.42,10C3.42,9.66,3.45,9.32,3.51,8.99L3.66,8.1L1.88,6.66C2.15,6.07,2.48,5.52,2.88,5.01L5.09,5.75L5.83,5.18C6.39,4.74,7.01,4.4,7.68,4.16L8.58,3.84L9,1.67C9.66,1.59,10.34,1.59,11,1.67L11.42,3.83L12.32,4.15C13,4.39,13.63,4.74,14.19,5.17L14.93,5.75L17.12,5.01C17.52,5.53,17.86,6.08,18.13,6.66L16.36,8.08L16.52,8.97ZM10,5.85C7.71,5.85,5.85,7.61,5.85,9.78C5.85,11.95,7.71,13.71,10,13.71C12.29,13.71,14.15,11.95,14.15,9.78C14.15,7.61,12.29,5.85,10,5.85ZM11.87,11.55C11.37,12.02,10.71,12.28,10,12.28C9.3,12.28,8.63,12.02,8.13,11.55C7.64,11.08,7.36,10.45,7.36,9.78C7.36,9.11,7.64,8.49,8.13,8.01C8.63,7.54,9.3,7.28,10,7.28C10.71,7.28,11.37,7.54,11.87,8.01C12.37,8.49,12.64,9.11,12.64,9.78C12.64,10.45,12.37,11.08,11.87,11.55Z" />
-        </svg>
-        <span>{i18n('setting', props.locale)}</span>
-      </div>
-      <div
-        className='item tools'
-        role="button"
-        tabIndex={0}
-        aria-label={i18n('screenshot', props.locale)}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onScreenshotClick() } }}
-        onClick={props.onScreenshotClick}>
-        <svg viewBox="0 0 20 20">
-          <path d="M6.51,1L13.49,1C13.64,1,13.77,1.11,13.8,1.26L14.03,2.52C14.14,3.13,14.65,3.57,15.26,3.57L17.5,3.57C18.88,3.57,20,4.72,20,6.14L20,16.43C20,17.85,18.88,19,17.5,19L2.5,19C1.12,19,0,17.85,0,16.43L0,6.14C0,4.72,1.12,3.57,2.5,3.57L4.74,3.57C5.35,3.57,5.86,3.13,5.97,2.52L6.2,1.26C6.23,1.11,6.36,1,6.51,1ZM15.26,4.86C14.05,4.86,13.02,3.98,12.8,2.76L12.71,2.29L7.29,2.29L7.2,2.76C6.98,3.98,5.95,4.86,4.74,4.86L2.5,4.86C1.81,4.86,1.25,5.43,1.25,6.14L1.25,16.43C1.25,17.14,1.81,17.71,2.5,17.71L17.5,17.71C18.19,17.71,18.75,17.14,18.75,16.43L18.75,6.14C18.75,5.43,18.19,4.86,17.5,4.86L15.26,4.86ZM4.38,6.79L3.12,6.79C2.78,6.79,2.5,6.5,2.5,6.14C2.5,5.79,2.78,5.5,3.12,5.5L4.38,5.5C4.72,5.5,5,5.79,5,6.14C5,6.5,4.72,6.79,4.38,6.79ZM10,6.14C7.07,6.14,4.69,8.59,4.69,11.61C4.69,14.62,7.07,17.07,10,17.07C12.93,17.07,15.31,14.62,15.31,11.61C15.31,8.59,12.93,6.14,10,6.14ZM10,7.43C11.09,7.43,12.11,7.86,12.87,8.65C13.64,9.44,14.06,10.49,14.06,11.61C14.06,12.72,13.64,13.77,12.87,14.56C12.11,15.35,11.09,15.79,10,15.79C8.91,15.79,7.89,15.35,7.13,14.56C6.36,13.77,5.94,12.72,5.94,11.61C5.94,10.49,6.36,9.44,7.13,8.65C7.89,7.86,8.91,7.43,10,7.43ZM10,9.68C8.96,9.68,8.12,10.54,8.12,11.61C8.12,12.67,8.96,13.54,10,13.54C11.04,13.54,11.88,12.67,11.88,11.61C11.88,10.54,11.04,9.68,10,9.68ZM10,10.96C10.34,10.96,10.62,11.25,10.62,11.61C10.62,11.96,10.34,12.25,10,12.25C9.66,12.25,9.38,11.96,9.38,11.61C9.38,11.25,9.66,10.96,10,10.96Z"/>
-        </svg>
-        <span>{i18n('screenshot', props.locale)}</span>
-      </div>
-      {props.onAlertClick && (
-        <div
-          className='item tools'
-          role="button"
-          tabIndex={0}
-          aria-label={i18n('alerts', props.locale)}
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onAlertClick?.() } }}
-          onClick={props.onAlertClick}>
-          <svg viewBox="0 0 20 20">
-            <path d="M10,2C10,2,10,2,10,2C9.45,2,9,1.55,9,1C9,0.45,9.45,0,10,0C10.55,0,11,0.45,11,1C11,1.55,10.55,2,10,2ZM16,13L17,14L17,15L3,15L3,14L4,13L4,8C4,5.24,5.98,2.92,8.63,2.2C8.25,1.85,8,1.35,8,0.8C8,0.36,8.36,0,8.8,0C9.24,0,9.6,0.36,9.6,0.8L9.6,2L10,2C10,2,10,2,10,2C10,2,10,2,10,2L10.4,2L10.4,0.8C10.4,0.36,10.76,0,11.2,0C11.64,0,12,0.36,12,0.8C12,1.35,11.75,1.85,11.37,2.2C14.02,2.92,16,5.24,16,8L16,13ZM8.27,16L11.73,16C11.39,16.59,10.75,17,10,17C9.25,17,8.61,16.59,8.27,16Z"/>
-          </svg>
-          <span>{i18n('alerts', props.locale)}</span>
-        </div>
-      )}
-      <div
-        className='item tools'
-        onClick={() => {
-          if (!fullScreen) {
-            const el = ref?.parentElement
-            if (el) { enterFullScreen(el) }
-          } else {
-            exitFullScreen()
-          }
-        }}>
+      <div className="group">
+        {props.symbol && (
+          <button
+            type="button"
+            className="symbol"
+            aria-label={`Symbol: ${symbolText}`}
+            onClick={props.onSymbolClick}>
+            <SearchIcon/>
+            {props.symbol.logo && <img alt="" src={props.symbol.logo}/>}
+            <span>{symbolText}</span>
+          </button>
+        )}
+        <span className="separator" aria-hidden="true"/>
+        <div className="periods" role="group" aria-label="Periods">
         {
-          fullScreen ? (
-            <>
-              <svg viewBox="0 0 20 20">
-                <path d="M1.08,0L0,1.08L4.19,5.28L2.55,6.92L6.91,6.92L6.91,2.56L5.29,4.18L1.08,0ZM15.81,5.28L20,1.08L18.92,0L14.71,4.18L13.09,2.56L13.09,6.92L17.45,6.92L15.81,5.28ZM4.17,14.7L0.08,18.81L1.16,20L5.27,15.8L6.91,17.44L6.91,13.08L2.55,13.08L4.17,14.7ZM17.45,13.08L13.09,13.08L13.09,17.44L14.73,15.8L18.84,20L19.92,18.81L15.83,14.7L17.45,13.08Z" />
-              </svg>
-              <span>{i18n('exit_full_screen', props.locale)}</span>
-            </>
-            
-          ) : (
-            <>
-              <svg viewBox="0 0 20 20">
-                <path d="M2.93,1.77L7.58,6.41L6.39,7.6L1.77,2.93L0,4.7L0,0L4.7,0L2.93,1.77ZM6.41,12.4L1.77,17.04L0,15.28L0,19.98L4.7,19.98L2.93,18.21L7.58,13.57L6.41,12.4ZM15.28,0L17.04,1.77L12.4,6.41L13.59,7.6L18.23,2.96L20,4.72L20,0L15.28,0ZM13.57,12.4L12.38,13.59L17.02,18.23L15.25,20L19.98,20L19.98,15.28L18.21,17.04L13.57,12.4Z"/>
-              </svg>
-              <span>{i18n('full_screen', props.locale)}</span>
-            </>
-          )
+          props.periods.map(p => (
+            <button
+              type="button"
+              key={p.text}
+              className={`item period ${periodsEqual(p, props.period) ? 'selected' : ''}`}
+              aria-pressed={periodsEqual(p, props.period)}
+              aria-label={`Period: ${p.text}`}
+              onClick={() => { props.onPeriodChange(p) }}>
+              {p.text}
+            </button>
+          ))
         }
+        </div>
+        <span className="separator" aria-hidden="true"/>
+        <button
+          type="button"
+          className='item tools'
+          aria-label={i18n('indicator', props.locale)}
+          onClick={props.onIndicatorClick}>
+          <IndicatorsIcon/>
+          <span>{i18n('indicator', props.locale)}</span>
+        </button>
+        {props.onAlertClick && (
+          <button
+            type="button"
+            className='item tools'
+            aria-label={i18n('alerts', props.locale)}
+            onClick={props.onAlertClick}>
+            <AlertIcon/>
+            <span>{i18n('alerts', props.locale)}</span>
+          </button>
+        )}
+      </div>
+      <div className="group right">
+        <button
+          type="button"
+          className='item tools icon-only'
+          title={i18n('timezone', props.locale)}
+          aria-label={i18n('timezone', props.locale)}
+          onClick={props.onTimezoneClick}>
+          <TimezoneIcon/>
+        </button>
+        <button
+          type="button"
+          className='item tools icon-only'
+          title={i18n('setting', props.locale)}
+          aria-label={i18n('setting', props.locale)}
+          onClick={props.onSettingClick}>
+          <SettingsIcon/>
+        </button>
+        <button
+          type="button"
+          className='item tools icon-only'
+          title={i18n('screenshot', props.locale)}
+          aria-label={i18n('screenshot', props.locale)}
+          onClick={props.onScreenshotClick}>
+          <ScreenshotIcon/>
+        </button>
+        <button
+          type="button"
+          className='item tools icon-only'
+          title={i18n(fullScreen ? 'exit_full_screen' : 'full_screen', props.locale)}
+          aria-label={i18n(fullScreen ? 'exit_full_screen' : 'full_screen', props.locale)}
+          onClick={toggleFullScreen}>
+          {fullScreen ? <ExitFullscreenIcon/> : <FullscreenIcon/>}
+        </button>
       </div>
     </div>
   )

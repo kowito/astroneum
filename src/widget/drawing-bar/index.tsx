@@ -24,6 +24,13 @@ export interface DrawingBarProps {
   onSnapLevelsChange?: (active: boolean) => void
 }
 
+/** The small chevron that opens a tool group's flyout. */
+const Chevron = ({ open }: { open: boolean }) => (
+  <svg className={open ? 'rotate' : ''} viewBox="0 0 6 10" width="6" height="10" aria-hidden="true">
+    <path d="M1.5 1.5L4.5 5L1.5 8.5" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+
 const DrawingBar: Component<DrawingBarProps> = props => {
   const [singleLineIcon, setSingleLineIcon] = useState('horizontalStraightLine')
   const [moreLineIcon, setMoreLineIcon] = useState('priceChannelLine')
@@ -69,16 +76,18 @@ const DrawingBar: Component<DrawingBarProps> = props => {
             tabIndex={0}
             onBlur={() => { setPopoverKey('') }}>
             <span
-              style={{width:"32px",height:"32px"}}
+              className="button"
               role="button"
               tabIndex={0}
+              title={item.list.find(data => data.key === item.icon)?.text as string | undefined}
               aria-label={item.icon}
               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onDrawingItemClick({ groupId: DRAWING_GROUP_ID, name: item.icon, visible, lock, mode: mode as OverlayMode }) } }}
               onClick={() => { props.onDrawingItemClick({ groupId: DRAWING_GROUP_ID, name: item.icon, visible, lock, mode: mode as OverlayMode }) }}>
               <Icon name={item.icon} />
             </span>
             <div
-              className="icon-arrow"
+              className={`icon-arrow ${item.key === popoverKey ? 'open' : ''}`}
+              aria-label={`${item.key} tools`}
               onClick={() => {
                 if (item.key === popoverKey) {
                   setPopoverKey('')
@@ -86,11 +95,7 @@ const DrawingBar: Component<DrawingBarProps> = props => {
                   setPopoverKey(item.key)
                 }
               }}>
-              <svg
-                className={item.key === popoverKey ? 'rotate' : ''}
-                viewBox="0 0 4 6">
-                <path d="M1.07,0.16C0.83,-0.05,0.43,-0.05,0.18,0.16C-0.06,0.37,-0.06,0.72,0.18,0.93L2.61,3.03L0.26,5.07C0.01,5.28,0.01,5.63,0.26,5.84C0.51,6.05,0.9,6.05,1.15,5.84L3.82,3.53C4.02,3.36,4.05,3.09,3.92,2.88C3.93,2.73,3.87,2.58,3.74,2.47L1.07,0.16Z" stroke="none" strokeOpacity={0}/>
-              </svg>
+              <Chevron open={item.key === popoverKey}/>
             </div>
             {
               item.key === popoverKey && (
@@ -99,13 +104,14 @@ const DrawingBar: Component<DrawingBarProps> = props => {
                     item.list.map(data => (
                       <li
                         key={data.key}
+                        className={data.key === item.icon ? 'selected' : ''}
                         onClick={() => {
                           item.setter(data.key)
                           props.onDrawingItemClick({ name: data.key, lock, mode: mode as OverlayMode })
                           setPopoverKey('')
                         }}>
                         <Icon name={data.key}/>
-                        <span style={{paddingLeft:"8px"}}>{data.text}</span>
+                        <span className="label">{data.text}</span>
                       </li>
                     ))
                   }
@@ -121,7 +127,11 @@ const DrawingBar: Component<DrawingBarProps> = props => {
         tabIndex={0}
         onBlur={() => { setPopoverKey('') }}>
         <span
-          style={{width:"32px",height:"32px"}}
+          className={`button ${mode !== 'normal' ? 'active' : ''}`}
+          role="button"
+          tabIndex={0}
+          aria-pressed={mode !== 'normal'}
+          title={modes.find(data => data.key === modeIcon)?.text as string | undefined}
           onClick={() => {
             let currentMode = modeIcon
             if (mode !== 'normal') {
@@ -131,14 +141,11 @@ const DrawingBar: Component<DrawingBarProps> = props => {
             setMode(engineMode)
             props.onModeChange(engineMode)
           }}>
-          {
-            modeIcon === 'weak_magnet'
-              ? (mode === 'weak_magnet' ? <Icon name="weak_magnet" className="selected"/> : <Icon name="weak_magnet"/>) 
-              : (mode === 'strong_magnet' ? <Icon name="strong_magnet" className="selected"/> : <Icon name="strong_magnet"/>)
-          }
+          <Icon name={modeIcon === 'strong_magnet' ? 'strong_magnet' : 'weak_magnet'}/>
         </span>
         <div
-          className="icon-arrow"
+          className={`icon-arrow ${popoverKey === 'mode' ? 'open' : ''}`}
+          aria-label="magnet modes"
           onClick={() => {
             if (popoverKey === 'mode') {
               setPopoverKey('')
@@ -146,11 +153,7 @@ const DrawingBar: Component<DrawingBarProps> = props => {
               setPopoverKey('mode')
             }
           }}>
-          <svg
-            className={popoverKey === 'mode' ? 'rotate' : ''}
-            viewBox="0 0 4 6">
-            <path d="M1.07,0.16C0.83,-0.05,0.43,-0.05,0.18,0.16C-0.06,0.37,-0.06,0.72,0.18,0.93L2.61,3.03L0.26,5.07C0.01,5.28,0.01,5.63,0.26,5.84C0.51,6.05,0.9,6.05,1.15,5.84L3.82,3.53C4.02,3.36,4.05,3.09,3.92,2.88C3.93,2.73,3.87,2.58,3.74,2.47L1.07,0.16Z" stroke="none" strokeOpacity={0}/>
-          </svg>
+          <Chevron open={popoverKey === 'mode'}/>
         </div>
         {
           popoverKey === 'mode' && (
@@ -159,6 +162,7 @@ const DrawingBar: Component<DrawingBarProps> = props => {
                 modes.map(data => (
                   <li
                     key={data.key}
+                    className={(data.key === 'no_magnet' ? mode === 'normal' : mode === data.key) ? 'selected' : ''}
                     onClick={() => {
                       setModeIcon(data.key)
                       const engineMode = data.key === 'no_magnet' ? 'normal' : data.key
@@ -167,7 +171,7 @@ const DrawingBar: Component<DrawingBarProps> = props => {
                       setPopoverKey('')
                     }}>
                     <Icon name={data.key}/>
-                    <span style={{paddingLeft:"8px"}}>{data.text}</span>
+                    <span className="label">{data.text}</span>
                   </li>
                 ))
               }
@@ -178,7 +182,11 @@ const DrawingBar: Component<DrawingBarProps> = props => {
       <div
         className="item">
         <span
-          style={{width:"32px",height:"32px"}}
+          className={`button ${lock ? 'active' : ''}`}
+          role="button"
+          tabIndex={0}
+          aria-pressed={lock}
+          title={i18n(lock ? 'unlock_drawings' : 'lock_drawings', props.locale)}
           onClick={() => {
             const currentLock = !lock
             setLock(currentLock)
@@ -192,7 +200,11 @@ const DrawingBar: Component<DrawingBarProps> = props => {
       <div
         className="item">
         <span
-          style={{width:"32px",height:"32px"}}
+          className={`button ${visible ? '' : 'active'}`}
+          role="button"
+          tabIndex={0}
+          aria-pressed={!visible}
+          title={i18n(visible ? 'hide_drawings' : 'show_drawings', props.locale)}
           onClick={() => {
             const nextVisible = !visible
             setVisible(nextVisible)
@@ -208,9 +220,9 @@ const DrawingBar: Component<DrawingBarProps> = props => {
         className="item"
         title={i18n('snap_levels', props.locale)}>
         <span
+          className={`button ${snapLevelsActive ? 'active' : ''}`}
           role="button"
           tabIndex={0}
-          style={{width:"32px",height:"32px"}}
           aria-pressed={snapLevelsActive}
           aria-label={i18n('snap_levels', props.locale)}
           onKeyDown={e => {
@@ -226,13 +238,16 @@ const DrawingBar: Component<DrawingBarProps> = props => {
             setSnapLevelsActive(nextSnapLevelsActive)
             props.onSnapLevelsChange?.(nextSnapLevelsActive)
           }}>
-          <Icon name={snapLevelsActive ? 'snap_levels' : 'snap_levels'} className={snapLevelsActive ? 'selected' : ''} />
+          <Icon name="snap_levels" />
         </span>
       </div>
       <div
         className="item">
         <span
-          style={{width:"32px",height:"32px"}}
+          className="button"
+          role="button"
+          tabIndex={0}
+          title={i18n('remove_drawings', props.locale)}
           onClick={() => { props.onRemoveClick(DRAWING_GROUP_ID) }}>
           <Icon name="remove" />
         </span>
