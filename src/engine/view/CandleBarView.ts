@@ -189,7 +189,8 @@ export default class CandleBarView extends ChildrenView {
         const current = dataList[idx]
         if (!isValid(current)) continue
         const prev = idx > 0 ? dataList[idx - 1] : null
-        const x = firstVis.x - k * barSpace.gapBar
+        // barSpace.bar is the distance between bar centres; gapBar is only the body width
+        const x = firstVis.x - k * barSpace.bar
         barRenderData.push(buildBar(idx, x, current, prev?.close))
       }
       visibleOffset = barRenderData.length  // = nBefore (or fewer if some data is invalid)
@@ -215,7 +216,7 @@ export default class CandleBarView extends ChildrenView {
         const current = dataList[idx]
         if (!isValid(current)) continue
         const prev = dataList[idx - 1] ?? null
-        const x = lastVis.x + k * barSpace.gapBar
+        const x = lastVis.x + k * barSpace.bar
         barRenderData.push(buildBar(idx, x, current, prev?.close))
       }
     }
