@@ -52,6 +52,19 @@ export interface YAxis extends Axis, Required<YAxisTemplate> {
 
 export type YAxisConstructor = new (parent: DrawPane) => YAxis
 
+/**
+ * True when the axis maps values to pixels linearly (normal, percentage), so a
+ * renderer can map price to y with an offset and a scale. Tested on the axis
+ * mapping itself, which also covers custom axes.
+ */
+export function isLinearYAxis (axis: Pick<YAxis, 'getRange' | 'valueToRealValue'>): boolean {
+  const range = axis.getRange()
+  const from = axis.valueToRealValue(range.from, { range })
+  const to = axis.valueToRealValue(range.to, { range })
+  const middle = axis.valueToRealValue((range.from + range.to) / 2, { range })
+  return Math.abs(middle - (from + to) / 2) <= Math.abs(to - from) * 1e-6
+}
+
 export default abstract class YAxisImp extends AxisImp implements YAxis {
   reverse = false
   inside = false

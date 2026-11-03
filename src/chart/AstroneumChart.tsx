@@ -26,6 +26,7 @@ import { transformCandles } from './PriceScaleTransform'
 import { mountChartPlugins } from '@/plugin'
 
 import { translateTimezone } from '@/widget/timezone-modal/data'
+import { isAxisSetting, type PriceAxisSetting } from '@/widget/setting-modal/data'
 
 import { type Period, type AstroneumOptions, type AstroneumHandle, type SerializedChartState } from '@/types'
 
@@ -38,6 +39,11 @@ import { useUIStore, EMPTY_INDICATOR_SETTING, type LineStyleEntry } from '@/stor
 // ---------------------------------------------------------------------------
 function getSystemTheme(): 'dark' | 'light' {
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
+function getPriceAxis(widget: Chart): PriceAxisSetting {
+  const axis = (widget.getPaneOptions('candle_pane') as Nullable<PaneOptions>)?.axis
+  return { name: axis?.name ?? 'normal', reverse: axis?.reverse ?? false }
 }
 
 function createLogoNode(): Node {
@@ -734,17 +740,23 @@ const AstroneumChart = forwardRef<AstroneumHandle, AstroneumChartProps>((props, 
         <SettingModal
           locale={locale}
           currentStyles={utils.clone(widgetRef.current!.getStyles())}
+          currentAxis={getPriceAxis(widgetRef.current!)}
           onClose={() => { ui.setSettingModalVisible(false) }}
           onChange={style => {
             widgetRef.current?.setStyles(style)
+          }}
+          onAxisChange={axis => {
+            widgetRef.current?.setPaneOptions({ id: 'candle_pane', axis })
           }}
           onRestoreDefault={(options: SelectDataSourceItem[]) => {
             const style = {}
             options.forEach(option => {
               const key = option.key
+              if (isAxisSetting(key)) return
               deepSet(style, key, utils.formatValue(chart.widgetDefaultStyles(), key))
             })
             widgetRef.current?.setStyles(style)
+            widgetRef.current?.setPaneOptions({ id: 'candle_pane', axis: { name: 'normal', reverse: false } })
           }}
         />
       )}

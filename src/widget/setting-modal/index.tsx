@@ -10,18 +10,21 @@ import { Modal, Select, Switch } from '@/component'
 import type { SelectDataSourceItem } from '@/component'
 
 import i18n from '@/i18n'
-import { getOptions } from './data'
+import { getOptions, isAxisSetting, type PriceAxisSetting } from './data'
 
 export interface SettingModalProps {
   locale: string
   currentStyles: Styles
+  currentAxis: PriceAxisSetting
   onClose: () => void
   onChange: (style: DeepPartial<Styles>) => void
+  onAxisChange: (axis: PriceAxisSetting) => void
   onRestoreDefault: (options: SelectDataSourceItem[]) => void
 }
 
 const SettingModal: Component<SettingModalProps> = props => {
   const [styles, setStyles] = useState(props.currentStyles)
+  const [axis, setAxis] = useState(props.currentAxis)
   const [options, setOptions] = useState(getOptions(props.locale))
 
   useEffect(() => {
@@ -29,6 +32,13 @@ const SettingModal: Component<SettingModalProps> = props => {
   }, [props.locale])
 
   const update = (option: SelectDataSourceItem, newValue: unknown) => {
+    if (isAxisSetting(option.key)) {
+      const next = { axis: { ...axis } }
+      deepSet(next, option.key, newValue)
+      setAxis(next.axis)
+      props.onAxisChange(next.axis)
+      return
+    }
     const style = {}
     deepSet(style, option.key, newValue)
     const ss = utils.clone(styles)
@@ -57,13 +67,15 @@ const SettingModal: Component<SettingModalProps> = props => {
         className="astroneum-setting-modal-content">
         {options.map(option => {
           let component
-          const value = utils.formatValue(styles, option.key)
+          const value = isAxisSetting(option.key)
+            ? utils.formatValue({ axis }, option.key)
+            : utils.formatValue(styles, option.key)
           switch (option.component) {
             case 'select': {
               component = (
                 <Select
                   style={{ width: '120px' }}
-                  value={i18n(value as string, props.locale)}
+                  value={option.dataSource?.find(item => item.key === value)?.text ?? '--'}
                   dataSource={option.dataSource}
                   onSelected={(data) => {
                     const newValue = (data as SelectDataSourceItem).key

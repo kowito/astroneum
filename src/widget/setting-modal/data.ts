@@ -6,12 +6,22 @@ type StylePath =
   | 'candle.priceMark.high.show'
   | 'candle.priceMark.low.show'
   | 'indicator.lastValueMark.show'
-  | 'yAxis.type'
-  | 'yAxis.reverse'
   | 'grid.show'
 
+// The price axis type and direction are candle pane options, not styles.
+type AxisPath = 'axis.name' | 'axis.reverse'
+
+export interface PriceAxisSetting {
+  name: string
+  reverse: boolean
+}
+
+export function isAxisSetting (key: string): boolean {
+  return key.startsWith('axis.')
+}
+
 interface SettingOption {
-  key: StylePath
+  key: StylePath | AxisPath
   text: string
   component: 'select' | 'switch'
   dataSource?: Array<{ key: string; text: string }>
@@ -54,17 +64,18 @@ export function getOptions (locale: string): SettingOption[] {
       component: 'switch'
     },
     {
-      key: 'yAxis.type',
+      key: 'axis.name',
       text: i18n('price_axis_type', locale),
       component: 'select',
+      // Keys are the registered y-axis names
       dataSource: [
         { key: 'normal', text: i18n('normal', locale) },
         { key: 'percentage', text: i18n('percentage', locale) },
-        { key: 'log', text: i18n('log', locale) }
+        { key: 'logarithm', text: i18n('log', locale) }
       ],
     },
     {
-      key: 'yAxis.reverse',
+      key: 'axis.reverse',
       text: i18n('reverse_coordinate', locale),
       component: 'switch',
     },

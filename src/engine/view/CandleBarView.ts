@@ -15,8 +15,10 @@ import { getOrCreateRenderer, destroyRenderer, type BarRenderData } from '../com
 import { getOrCreateWorkerRenderer, getWorkerRenderer, destroyWorkerRenderer } from '../common/CandleWorkerRenderer'
 import {
   getWebGPURenderer,
-  getOrCreateWebGPURenderer
+  getOrCreateWebGPURenderer,
+  destroyWebGPURenderer
 } from '../common/CandleWebGPURenderer'
+import { isLinearYAxis } from '../component/YAxis'
 
 // ---------------------------------------------------------------------------
 // Object pool for BarRenderData, so a frame with thousands of visible bars
@@ -75,6 +77,23 @@ export default class CandleBarView extends ChildrenView {
     const widget     = this.getWidget()
     const pane       = widget.getPane()
     const chartStore = pane.getChart().getChartStore()
+
+    // Phase 4.3 — the Y range goes in as uniforms (O(1) on pan/zoom). The shaders
+    // map price to y linearly, so a log axis is left to Canvas2D. Any linear axis
+    // (normal, percentage) works once its display range is put back into prices,
+    // and swapping the ends draws a reversed axis.
+    const yAxis = pane.getAxisComponent()
+    if (!isLinearYAxis(yAxis)) {
+      this._releaseGpuLayer(widget)
+      return false
+    }
+    const range = yAxis.getRange()
+    const displayRange = yAxis.getDisplayRange()
+    let priceFrom = yAxis.realValueToValue(displayRange.realFrom, { range })
+    let priceTo = yAxis.realValueToValue(displayRange.realTo, { range })
+    if (yAxis.reverse) {
+      [priceFrom, priceTo] = [priceTo, priceFrom]
+    }
 
     // ── WebGPU path (highest priority, async init) ────────────────────────
     // On the very first call we fire off `getOrCreateWebGPURenderer` in the
@@ -221,12 +240,6 @@ export default class CandleBarView extends ChildrenView {
       }
     }
 
-    // Phase 4.3 — pass Y-axis range as uniforms (O(1) on pan/zoom)
-    const yAxis = pane.getAxisComponent()
-    const displayRange = yAxis.getDisplayRange()
-    const animRealFrom = displayRange.realFrom
-    const animRealRange = displayRange.realTo - displayRange.realFrom
-
     // OHLC render mode: compute tick half-size (matches Canvas2D formula)
     let renderMode  = 0
     let ohlcHalfSize = 0
@@ -246,8 +259,18 @@ export default class CandleBarView extends ChildrenView {
     } else {
       activeRenderer!.setData(barRenderData)
     }
-    activeRenderer!.draw(animRealFrom, animRealRange, barSpace.halfGapBar, renderMode, ohlcHalfSize)
+    activeRenderer!.draw(priceFrom, priceTo - priceFrom, barSpace.halfGapBar, renderMode, ohlcHalfSize)
     return true
+  }
+
+  /** Removes this widget's GPU candle layer so that Canvas2D draws the candles instead. */
+  private _releaseGpuLayer (widget: object): void {
+    destroyWebGPURenderer(widget)
+    destroyWorkerRenderer(widget)
+    destroyRenderer(widget)
+    // Start over (WebGPU first) if the GPU path is usable again later.
+    this._webGPUInitStarted = false
+    this._webGPUActive = false
   }
 
   override drawImp (ctx: CanvasRenderingContext2D): void {
@@ -256,7 +279,7 @@ export default class CandleBarView extends ChildrenView {
     const chartStore = pane.getChart().getChartStore()
     const candleBarOptions = this.getCandleBarOptions()
     if (candleBarOptions !== null) {
-      // WebGL fast path (Phase 4.2): handles candle_solid; falls back to Canvas2D otherwise
+      // GPU path (Phase 4.2); Canvas2D below draws when it returns false
       if (this._drawWithWebGL(candleBarOptions)) return
 
       const { type, styles } = candleBarOptions
